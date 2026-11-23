@@ -1,31 +1,11 @@
 'use strict';
-// Geografia Warszawy na prawdziwych współrzędnych (WGS84). Odległość drogowa = odległość w linii prostej × 1,3.
-// Dzielnica punktu = najbliższy środek dzielnicy (uproszczenie; produkcyjnie: granice z PRG/OSM).
-
-const DISTRICTS = {
-  'Bielany': [52.2930, 20.9350], 'Żoliborz': [52.2680, 20.9850], 'Bemowo': [52.2540, 20.9100], 'Wola': [52.2360, 20.9600],
-  'Śródmieście': [52.2310, 21.0120], 'Ochota': [52.2120, 20.9720], 'Mokotów': [52.1900, 21.0250], 'Ursynów': [52.1500, 21.0450],
-  'Wilanów': [52.1600, 21.0900], 'Praga-Płn.': [52.2580, 21.0350], 'Targówek': [52.2900, 21.0550], 'Praga-Płd.': [52.2380, 21.0850]
-};
-// tys. mieszkańców (GUS, w zaokrągleniu) i bazowy tygodniowy popyt na start (zastępowany przez dane z wyszukiwań)
-const POPULATION = { 'Bielany': 131, 'Żoliborz': 54, 'Bemowo': 126, 'Wola': 140, 'Śródmieście': 103, 'Ochota': 84, 'Mokotów': 217, 'Ursynów': 150, 'Wilanów': 47, 'Praga-Płn.': 62, 'Targówek': 123, 'Praga-Płd.': 180 };
-const BASE_DEMAND = { 'Bielany': 19, 'Żoliborz': 14, 'Bemowo': 16, 'Wola': 31, 'Śródmieście': 42, 'Ochota': 17, 'Mokotów': 48, 'Ursynów': 27, 'Wilanów': 23, 'Praga-Płn.': 12, 'Targówek': 9, 'Praga-Płd.': 25 };
-
-// Uproszczony obrys Warszawy (lat, lng) do sprawdzania, czy adres jest w obsługiwanym obszarze.
-const CITY = [[52.368, 20.93], [52.36, 21.05], [52.33, 21.12], [52.29, 21.18], [52.24, 21.2], [52.2, 21.25], [52.13, 21.2], [52.1, 21.1], [52.1, 21.0], [52.14, 20.92], [52.17, 20.86], [52.22, 20.85], [52.27, 20.86], [52.31, 20.88]];
-
-// Mały słownik ulic do podpowiedzi adresu bez zewnętrznego geokodera.
-const STREETS = [
-  ['ul. Puławska', 52.1950, 21.0240], ['ul. Odyńca', 52.1925, 21.0130], ['ul. Marszałkowska', 52.2290, 21.0110], ['ul. Nowy Świat', 52.2330, 21.0190],
-  ['ul. Grójecka', 52.2140, 20.9800], ['ul. Racławicka', 52.2000, 21.0050], ['ul. Wołoska', 52.1880, 21.0000], ['al. KEN', 52.1450, 21.0450],
-  ['ul. Wiertnicza', 52.1650, 21.0820], ['ul. Sobieskiego', 52.1950, 21.0450], ['ul. Targowa', 52.2550, 21.0360], ['ul. Grochowska', 52.2460, 21.0950],
-  ['ul. Ostrobramska', 52.2350, 21.1200], ['ul. Kondratowicza', 52.2900, 21.0400], ['ul. Słowackiego', 52.2680, 20.9850], ['ul. Marymoncka', 52.2850, 20.9550],
-  ['ul. Górczewska', 52.2400, 20.9300], ['ul. Wolska', 52.2330, 20.9500], ['ul. Prosta', 52.2320, 20.9900], ['ul. Żelazna', 52.2310, 20.9970],
-  ['ul. Saska', 52.2320, 21.0650], ['ul. Francuska', 52.2350, 21.0530], ['ul. Belwederska', 52.2050, 21.0300], ['ul. Dolina Służewiecka', 52.1730, 21.0250],
-  ['ul. Powsińska', 52.1850, 21.0600], ['ul. Radiowa', 52.2550, 20.9000], ['ul. Broniewskiego', 52.2700, 20.9600], ['ul. Kopernika', 52.2360, 21.0200],
-  ['ul. Hoża', 52.2270, 21.0150], ['ul. Rakowiecka', 52.2060, 21.0050], ['ul. Branickiego', 52.1580, 21.0850], ['ul. Kasprowicza', 52.2850, 20.9450],
-  ['ul. Ząbkowska', 52.2520, 21.0430], ['ul. Bora-Komorowskiego', 52.2420, 21.1000]
-];
+// Geografia Polski na prawdziwych współrzędnych (WGS84).
+// Obszar (do popytu, wyróżnień i statystyk) to:
+//   - dzielnica w dużym mieście (Warszawa, Kraków, Łódź, Wrocław, Poznań), klucz "Kraków/Krowodrza",
+//   - miasto, klucz "Gdańsk",
+//   - okolice miasta dla miejscowości poza listą miast, klucz "Toruń/okolice".
+// Odległość drogowa bez Mapbox = odległość w linii prostej × 1,3 (z Mapbox: prawdziwa, patrz services/mapbox.js).
+const { CITIES, CITY_DISTRICTS, POLAND } = require('./geo-pl');
 
 const toRad = d => d * Math.PI / 180;
 function haversineKm(a, b) {
@@ -36,19 +16,57 @@ function haversineKm(a, b) {
 const roadKm = (a, b) => haversineKm(a, b) * 1.3;
 const driveMin = km => Math.round(km / 22 * 60 + 4);
 
-function districtAt(lat, lng) {
-  let best = null, bd = Infinity;
-  for (const [n, [la, ln]] of Object.entries(DISTRICTS)) { const d = haversineKm({ lat, lng }, { lat: la, lng: ln }); if (d < bd) { bd = d; best = n; } }
-  return best;
+// Promień miasta rośnie z liczbą mieszkańców (Warszawa ok. 21 km, miasto 60 tys. ok. 7 km).
+const cityRadius = pop => Math.max(4, Math.min(22, 3.5 + 0.42 * Math.sqrt(pop)));
+// Popyt startowy (wyszukiwania dziennie) z liczby mieszkańców; górny limit, żeby duże miasta bez podziału na dzielnice nie były drogie.
+const demandFromPop = pop => Math.max(3, Math.min(55, Math.round(pop * 0.21)));
+
+// ---------- katalog obszarów ----------
+const CITY_LIST = CITIES.map(([name, lat, lng, pop, region]) => ({ name, lat, lng, pop, region, radius: cityRadius(pop), districts: CITY_DISTRICTS[name] || null }));
+const AREAS = new Map();
+for (const c of CITY_LIST) {
+  if (c.districts) c.districts.forEach(([n, lat, lng, pop]) => AREAS.set(`${c.name}/${n}`, { key: `${c.name}/${n}`, name: n, city: c.name, region: c.region, kind: 'district', lat, lng, pop }));
+  else AREAS.set(c.name, { key: c.name, name: c.name, city: c.name, region: c.region, kind: 'city', lat: c.lat, lng: c.lng, pop: c.pop });
+  AREAS.set(`${c.name}/okolice`, { key: `${c.name}/okolice`, name: `${c.name} (okolice)`, city: c.name, region: c.region, kind: 'outskirts', lat: c.lat, lng: c.lng, pop: Math.round(c.pop * 0.25) });
 }
-function inWarsaw(lat, lng) {
+const areaByKey = key => AREAS.get(String(key || '')) || null;
+const AREA_LIST = [...AREAS.values()];
+
+function inPoland(lat, lng) {
   let inside = false;
-  for (let i = 0, j = CITY.length - 1; i < CITY.length; j = i++) {
-    const [yi, xi] = CITY[i], [yj, xj] = CITY[j];
+  for (let i = 0, j = POLAND.length - 1; i < POLAND.length; j = i++) {
+    const [yi, xi] = POLAND[i], [yj, xj] = POLAND[j];
     if ((yi > lat) !== (yj > lat) && lng < (xj - xi) * (lat - yi) / (yj - yi) + xi) inside = !inside;
   }
   return inside;
 }
+
+// Do którego obszaru należy punkt. Miasto wybieramy po stosunku odległości do promienia,
+// więc np. centrum Pruszkowa należy do Pruszkowa, a Ursus do Warszawy.
+function areaAt(lat, lng) {
+  const p = { lat, lng };
+  let best = null, score = Infinity, nearest = null, nd = Infinity;
+  for (const c of CITY_LIST) {
+    const d = haversineKm(p, c); const s = d / c.radius;
+    if (s < score) { score = s; best = c; }
+    if (d < nd) { nd = d; nearest = c; }
+  }
+  if (best && score <= 1) {
+    if (!best.districts) return AREAS.get(best.name);
+    let dn = null, dd = Infinity;
+    for (const [n, la, ln] of best.districts) { const d = haversineKm(p, { lat: la, lng: ln }); if (d < dd) { dd = d; dn = n; } }
+    return AREAS.get(`${best.name}/${dn}`);
+  }
+  return AREAS.get(`${nearest.name}/okolice`);
+}
+const areaLabel = a => a.kind === 'district' ? `${a.name}, ${a.city}` : a.name;
+
+// Obszary w pobliżu punktu (bez „okolic”: nie mają kształtu i nie da się ich wyróżnić).
+function areasNear(lat, lng, km) {
+  const p = { lat, lng };
+  return AREA_LIST.filter(a => a.kind !== 'outskirts' && haversineKm(p, a) <= km);
+}
+const servesArea = (provider, area) => roadKm({ lat: provider.base_lat, lng: provider.base_lng }, area) <= provider.radius_km;
 
 // Czy wykonawca dojeżdża pod punkt: w zasięgu, do 5 km dalej z dopłatą, albo wcale.
 function reach(provider, point) {
@@ -57,51 +75,58 @@ function reach(provider, point) {
   const status = km <= r ? 'in' : (provider.fee_gr > 0 && km <= r + 5) ? 'fee' : 'out';
   return { km: Math.round(km * 10) / 10, eta: driveMin(km), reach: status, feeGr: status === 'fee' ? provider.fee_gr : 0 };
 }
-const servesDistrict = (provider, name) => {
-  const [lat, lng] = DISTRICTS[name];
-  return roadKm({ lat: provider.base_lat, lng: provider.base_lng }, { lat, lng }) <= provider.radius_km;
-};
 
+// ---------- kształty obszarów (GeoJSON) ----------
+// Dzielnice: komórki Woronoja wokół środków dzielnic przycięte do koła miasta. Miasta bez dzielnic: koło.
+const K = Math.cos(52 * Math.PI / 180);
+function circleRing(lat, lng, km, n = 48) {
+  const out = []; for (let i = 0; i < n; i++) { const a = i / n * Math.PI * 2; out.push([lng + km / (111.32 * Math.cos(toRad(lat))) * Math.cos(a), lat + km / 110.57 * Math.sin(a)]); }
+  return out;
+}
+function clipHalf(poly, a, b) {
+  const mx = (a[0] + b[0]) / 2, my = (a[1] + b[1]) / 2, nx = b[0] - a[0], ny = b[1] - a[1];
+  const f = q => (q[0] - mx) * nx + (q[1] - my) * ny; const out = [];
+  for (let i = 0; i < poly.length; i++) {
+    const A = poly[i], B = poly[(i + 1) % poly.length], fa = f(A), fb = f(B);
+    if (fa <= 0) out.push(A);
+    if ((fa < 0 && fb > 0) || (fa > 0 && fb < 0)) { const t = fa / (fa - fb); out.push([A[0] + (B[0] - A[0]) * t, A[1] + (B[1] - A[1]) * t]); }
+  }
+  return out;
+}
+const SHAPES = new Map();
+function areaShape(a) {
+  if (SHAPES.has(a.key)) return SHAPES.get(a.key);
+  const city = CITY_LIST.find(c => c.name === a.city);
+  let ring;
+  if (a.kind === 'district') {
+    const P = ([lng, lat]) => [lng * K, lat];
+    let poly = circleRing(city.lat, city.lng, city.radius, 64).map(P);
+    city.districts.forEach(([n, la, ln]) => { if (n !== a.name) poly = clipHalf(poly, P([a.lng, a.lat]), P([ln, la])); });
+    ring = poly.map(([x, y]) => [x / K, y]);
+  } else ring = circleRing(a.lat, a.lng, city.radius);
+  ring = ring.map(([x, y]) => [Math.round(x * 1e5) / 1e5, Math.round(y * 1e5) / 1e5]); ring.push(ring[0]);
+  const feature = { type: 'Feature', properties: { key: a.key, name: a.name, city: a.city, kind: a.kind }, geometry: { type: 'Polygon', coordinates: [ring] } };
+  SHAPES.set(a.key, feature); return feature;
+}
+
+// ---------- adresy bez Mapbox ----------
+// Słownik ulic (Warszawa) i miast do podpowiedzi oraz adres z punktu: najbliższe miasto lub dzielnica.
+const STREETS = [
+  ['ul. Puławska', 52.1950, 21.0240], ['ul. Odyńca', 52.1925, 21.0130], ['ul. Marszałkowska', 52.2290, 21.0110], ['ul. Nowy Świat', 52.2330, 21.0190],
+  ['ul. Grójecka', 52.2140, 20.9800], ['ul. Racławicka', 52.2000, 21.0050], ['ul. Wołoska', 52.1880, 21.0000], ['al. KEN', 52.1450, 21.0450],
+  ['ul. Targowa', 52.2550, 21.0360], ['ul. Grochowska', 52.2460, 21.0950], ['ul. Słowackiego', 52.2680, 20.9850], ['ul. Górczewska', 52.2400, 20.9300],
+  ['ul. Floriańska (Kraków)', 50.0640, 19.9400], ['ul. Długa (Gdańsk)', 54.3490, 18.6510], ['ul. Piotrkowska (Łódź)', 51.7590, 19.4580],
+  ['ul. Święty Marcin (Poznań)', 52.4070, 16.9230], ['ul. Świdnicka (Wrocław)', 51.1060, 17.0310]
+];
 function reverse(lat, lng) {
-  let best = STREETS[0], bd = Infinity;
-  for (const s of STREETS) { const d = haversineKm({ lat, lng }, { lat: s[1], lng: s[2] }); if (d < bd) { bd = d; best = s; } }
-  const no = Math.abs(Math.round(lat * 3700 + lng * 5300)) % 140 + 1;
-  return { street: `${best[0]} ${no}`, district: districtAt(lat, lng), inArea: inWarsaw(lat, lng) };
+  const a = areaAt(lat, lng); const inArea = inPoland(lat, lng);
+  return { street: areaLabel(a), district: a.name, area: a, inArea };
 }
-function searchStreets(q) {
+function searchLocal(q) {
   const s = String(q || '').trim().toLowerCase(); if (s.length < 2) return [];
-  return STREETS.filter(x => x[0].toLowerCase().includes(s)).slice(0, 8).map(x => ({ street: x[0], lat: x[1], lng: x[2], district: districtAt(x[1], x[2]) }));
+  const streets = STREETS.filter(x => x[0].toLowerCase().includes(s)).map(x => ({ street: x[0], lat: x[1], lng: x[2] }));
+  const cities = CITY_LIST.filter(c => c.name.toLowerCase().startsWith(s)).map(c => ({ street: c.name, lat: c.lat, lng: c.lng }));
+  return streets.concat(cities).slice(0, 8).map(x => { const a = areaAt(x.lat, x.lng); return Object.assign(x, { full: `${areaLabel(a)}, woj. ${a.region}`, district: a.name, area: a, inArea: true }); });
 }
 
-// Kształty dzielnic jako GeoJSON. Jeśli w DATA_DIR leży plik dzielnice-warszawy.geojson (np. z PRG/OSM,
-// z właściwością "name"), używamy prawdziwych granic. Inaczej: komórki Woronoja wokół środków dzielnic przycięte do obrysu miasta.
-let SHAPES = null;
-function districtShapes() {
-  if (SHAPES) return SHAPES;
-  try {
-    const fs = require('node:fs'), path = require('node:path'); const { config } = require('./config');
-    const f = path.join(config.dataDir, 'dzielnice-warszawy.geojson');
-    if (fs.existsSync(f)) { SHAPES = JSON.parse(fs.readFileSync(f, 'utf8')); SHAPES.approximate = false; return SHAPES; }
-  } catch (e) { }
-  const K = Math.cos(52.23 * Math.PI / 180); // rzut: x = lng·cos(φ), y = lat
-  const P = ([lat, lng]) => [lng * K, lat];
-  const clip = (poly, a, b) => {
-    const mx = (a[0] + b[0]) / 2, my = (a[1] + b[1]) / 2, nx = b[0] - a[0], ny = b[1] - a[1];
-    const f = q => (q[0] - mx) * nx + (q[1] - my) * ny; const out = [];
-    for (let i = 0; i < poly.length; i++) {
-      const A = poly[i], B = poly[(i + 1) % poly.length], fa = f(A), fb = f(B);
-      if (fa <= 0) out.push(A);
-      if ((fa < 0 && fb > 0) || (fa > 0 && fb < 0)) { const t = fa / (fa - fb); out.push([A[0] + (B[0] - A[0]) * t, A[1] + (B[1] - A[1]) * t]); }
-    }
-    return out;
-  };
-  const city = CITY.map(P); const names = Object.keys(DISTRICTS);
-  SHAPES = { type: 'FeatureCollection', approximate: true, features: names.map(n => {
-    let poly = city; names.forEach(m => { if (m !== n) poly = clip(poly, P(DISTRICTS[n]), P(DISTRICTS[m])); });
-    const ring = poly.map(([x, y]) => [Math.round(x / K * 1e5) / 1e5, Math.round(y * 1e5) / 1e5]); ring.push(ring[0]);
-    return { type: 'Feature', properties: { name: n, center: [DISTRICTS[n][1], DISTRICTS[n][0]] }, geometry: { type: 'Polygon', coordinates: [ring] } };
-  }) };
-  return SHAPES;
-}
-
-module.exports = { districtShapes, DISTRICTS, POPULATION, BASE_DEMAND, STREETS, haversineKm, roadKm, driveMin, districtAt, inWarsaw, reach, servesDistrict, reverse, searchStreets };
+module.exports = { CITY_LIST, AREAS, AREA_LIST, areaByKey, areaAt, areaLabel, areasNear, areaShape, servesArea, inPoland, haversineKm, roadKm, driveMin, reach, reverse, searchLocal, demandFromPop, cityRadius };

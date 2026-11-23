@@ -15,10 +15,18 @@ function createDomain(db) {
   const mustProvider = slug => providerBySlug(slug) || notFound('Nie ma takiego wykonawcy');
 
   // ---------- popyt: wyszukiwania z ostatnich 7 dni, nie mniej niż wartość startowa ----------
-  function demand(district) {
+  // Kolumna search_log.district (i boosts.district) przechowuje klucz obszaru, np. "Kraków/Krowodrza" albo "Gdańsk".
+  function demand(key) {
     const since = new Date(Date.now() - 7 * 86400e3).toISOString();
-    const n = db.get('SELECT COUNT(*) c FROM search_log WHERE district = ? AND created_at > ?', district, since).c;
-    return Math.max(geo.BASE_DEMAND[district] || 5, Math.round(n / 7));
+    const n = db.get('SELECT COUNT(*) c FROM search_log WHERE district = ? AND created_at > ?', key, since).c;
+    const a = geo.areaByKey(key);
+    return Math.max(a ? geo.demandFromPop(a.pop) : 5, Math.round(n / 7));
+  }
+  const areaView = a => a && { key: a.key, name: a.name, city: a.city, region: a.region, kind: a.kind, label: geo.areaLabel(a) };
+  // Obszary, które wykonawca obsługuje (środek obszaru w zasięgu dojazdu), od najbliższego.
+  function coveredAreas(p) {
+    const base = { lat: p.base_lat, lng: p.base_lng };
+    return geo.areasNear(p.base_lat, p.base_lng, p.radius_km).filter(a => geo.servesArea(p, a)).sort((a, b) => geo.haversineKm(base, a) - geo.haversineKm(base, b));
   }
 
   // ---------- wolne terminy ----------
@@ -45,18 +53,18 @@ function createDomain(db) {
   const activeBoosts = (now = localNow()) => db.all('SELECT * FROM boosts WHERE starts_at <= ? AND ends_at > ?', now, now);
   const creditGr = providerId => db.get('SELECT COALESCE(SUM(amount_gr),0) s FROM credit_ledger WHERE provider_id = ?', providerId).s;
   function boostQuote(p, days) {
-    return Object.keys(geo.DISTRICTS).filter(n => geo.servesDistrict(p, n)).map(n => {
-      const d = demand(n);
-      return { district: n, demand: d, searchers: d * 7, priceZl: boostPriceGr(d, days) / 100, guaranteedViews: boostGuaranteedViews(d, days), competitors: countServing(n) };
+    return coveredAreas(p).map(a => {
+      const d = demand(a.key);
+      return { district: a.key, area: areaView(a), demand: d, searchers: d * 7, priceZl: boostPriceGr(d, days) / 100, guaranteedViews: boostGuaranteedViews(d, days), competitors: countServing(a.key) };
     });
   }
-  const countServing = n => db.all('SELECT * FROM providers WHERE published = 1').filter(x => geo.servesDistrict(x, n)).length;
+  const countServing = key => { const a = geo.areaByKey(key); return a ? db.all('SELECT * FROM providers WHERE published = 1').filter(x => geo.servesArea(x, a)).length : 0; };
 
   // ---------- widok wykonawcy dla klienta ----------
   function providerView(p, point, { promoted = false, full = false, road = null } = {}) {
     const r = point ? reachWith(p, point, road) : null; const ns = nextSlot(p);
     const out = {
-      id: p.slug, name: p.display_name, ini: p.initials, tone: p.tone, kind: p.kind, area: geo.districtAt(p.base_lat, p.base_lng),
+      id: p.slug, name: p.display_name, ini: p.initials, tone: p.tone, kind: p.kind, area: geo.areaLabel(geo.areaAt(p.base_lat, p.base_lng)), city: geo.areaAt(p.base_lat, p.base_lng).city,
       tagline: p.tagline, services: json(p.services, []), langs: json(p.langs, []), rate: p.rate_gr / 100, minH: p.min_hours,
       fixed: !!p.fixed_price, perWindow: p.per_window_gr ? p.per_window_gr / 100 : 0, since: p.since, super: !!p.super,
       verified: p.id_status === 'verified', insured: !!p.insured, invoice: !!p.invoice, supplies: !!p.supplies, eco: !!p.eco, pets: !!p.pets,
@@ -76,8 +84,8 @@ function createDomain(db) {
 
   // ---------- wyszukiwanie i ranking ----------
   function search(q, point, roads = null) {
-    const district = q.district && geo.DISTRICTS[q.district] ? q.district : null;
-    const where = district || geo.districtAt(point.lat, point.lng);
+    const picked = geo.areaByKey(q.area || q.district); const district = picked && picked.kind !== 'outskirts' ? picked.key : null;
+    const here = geo.areaAt(point.lat, point.lng); const where = district || here.key;
     db.run('INSERT INTO search_log (district, created_at) VALUES (?, ?)', where, new Date().toISOString());
     const text = String(q.q || '').trim().toLowerCase();
     let list = db.all('SELECT * FROM providers WHERE published = 1 AND online = 1').map(p => ({ p, v: providerView(p, point, { road: roads && roads.get(p.user_id) }) })).filter(({ p, v }) => {
@@ -87,7 +95,7 @@ function createDomain(db) {
       if (q.minRating && v.rating < Number(q.minRating)) return false;
       for (const k of ['verified', 'insured', 'supplies', 'eco', 'pets', 'invoice']) if (q[k] === '1' && !v[k]) return false;
       if (q.today === '1' && !v.todayFree) return false;
-      if (district) return geo.servesDistrict(p, district);
+      if (district) return geo.servesArea(p, picked);
       if (v.reach === 'out' && q.far !== '1') return false;
       if (q.maxDist && Number(q.maxDist) < 15 && v.dist > Number(q.maxDist)) return false;
       return true;
@@ -102,7 +110,7 @@ function createDomain(db) {
       promo.forEach(o => { o.x.v.promoted = true; db.run('UPDATE boosts SET views = views + 1 WHERE id = ?', o.b.id); });
       list = promo.map(o => o.x).concat(list.filter(x => !promo.some(o => o.x === x)));
     }
-    return { district: where, results: list.map(x => x.v) };
+    return { district: where, area: areaView(geo.areaByKey(where)), results: list.map(x => x.v) };
   }
 
   // ---------- widok rezerwacji ----------
@@ -114,7 +122,7 @@ function createDomain(db) {
     const out = {
       id: b.id, status: b.status, service: b.service, serviceName: SERVICE_NAMES[b.service], startsAt: b.starts_at, endsAt: addHours(b.starts_at, b.hours), hours: b.hours,
       m2: b.m2, rooms: b.rooms, baths: b.baths, extras: json(b.extras, []), freq: b.freq, totalZl: b.price_gr / 100, travelFeeZl: b.travel_fee_gr / 100, payMethod: b.pay_method,
-      address: b.address_text, addressId: b.address_id, lat: b.lat, lng: b.lng, onsite: b.onsite_name ? { name: b.onsite_name, phone: b.onsite_phone } : null,
+      address: b.address_text, area: geo.areaLabel(geo.areaAt(b.lat, b.lng)), addressId: b.address_id, lat: b.lat, lng: b.lng, onsite: b.onsite_name ? { name: b.onsite_name, phone: b.onsite_phone } : null,
       entry: b.entry, pets: b.pets, note: b.note, viaPromo: !!b.via_promo,
       provider: { id: p.slug, name: p.display_name, ini: p.initials, tone: p.tone, base: { lat: p.base_lat, lng: p.base_lng } },
       report: report ? { id: report.id, category: report.category, want: report.want, status: report.status, at: report.created_at, answeredAt: report.answered_at } : null,
@@ -127,7 +135,7 @@ function createDomain(db) {
   }
   const reliability = u => u.noshow_count >= 2 ? 'niska' : u.noshow_count === 1 || u.late_cancel_count >= 2 ? 'średnia' : 'wysoka';
 
-  return { providerBySlug, providerById, mustProvider, demand, slotsFor, nextSlot, activeBoosts, creditGr, boostQuote, countServing, providerView, search, bookingView, ACTIVE };
+  return { providerBySlug, providerById, mustProvider, demand, slotsFor, nextSlot, activeBoosts, creditGr, boostQuote, countServing, coveredAreas, areaView, providerView, search, bookingView, ACTIVE };
 }
 
 const firstName = name => String(name || 'Klient').split(' ')[0];

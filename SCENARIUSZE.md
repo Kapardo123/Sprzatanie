@@ -89,18 +89,18 @@ Lśni nie pośredniczy w płatnościach, więc nie zwraca pieniędzy. Może za t
 
 ## 6. Klient spoza obsługiwanego obszaru
 
-**Kto:** Paweł mieszka w Ząbkach, tuż za granicą Warszawy.
+**Kto:** Paweł mieszka w małej miejscowości pod Olsztynem.
 
-**Sytuacja:** pobrał aplikację po poleceniu znajomej, ale nikt do niego nie dojeżdża.
+**Sytuacja:** pobrał aplikację po poleceniu znajomej, ale nikt do niego nie dojeżdża. (Wcześniej przykładem były Ząbki, ale od kiedy aplikacja działa w całej Polsce, Ząbki to zwykły obszar z własnymi wykonawcami.)
 
 **Potrzeby:**
 - uczciwa informacja zamiast pustej listy,
 - możliwość zapisania się, żeby dostać wiadomość, gdy usługa ruszy w jego okolicy.
 
-To ważne przy starcie w jednej dzielnicy, bo z listy oczekujących widać, gdzie wchodzić dalej.
+To ważne przy starcie w całym kraju naraz, bo z listy oczekujących widać, w których miastach brakuje wykonawców i gdzie ich szukać najpierw.
 
 **Status:**
-- **Dodane: lista oczekujących.** Działa przy wyborze adresu poza miastem i w wynikach, gdy nikt nie dojeżdża pod wybrany adres.
+- **Dodane: lista oczekujących.** Działa w wynikach i przy wyborze miejsca na mapie, gdy nikt nie dojeżdża pod wybrany adres. Lista zapisuje obszar (np. „Olsztyn (okolice)”), a zespół widzi w panelu, gdzie czeka najwięcej osób.
 
 ## 7. Wykonawca ustala szczegóły przed wizytą
 
@@ -175,7 +175,7 @@ Pozycje, które makieta potrzebowała od serwera. Szczegóły są w [server/READ
 | Telefon | **Zrobione:** sesje z PIN-em i endpoint dla bramki telefonicznej. **Do podpięcia:** numer u operatora z IVR. |
 | Zgłoszenia | **Zrobione:** zgłoszenia ze zdjęciami, odpowiedź wykonawcy, eskalacja po 24 h, nieobecności i panel zespołu do ich obsługi. |
 | Opinie | **Zrobione:** automatyczna moderacja, moderacja w panelu, publiczne odpowiedzi wykonawców. |
-| Mapa | **Zrobione:** Mapbox (prawdziwa mapa, wyszukiwanie adresów, czasy dojazdu po drogach, trasy). **Do podpięcia:** token Mapbox i opcjonalnie prawdziwe granice dzielnic. |
+| Mapa | **Zrobione:** Mapbox (prawdziwa mapa, wyszukiwanie adresów, czasy dojazdu po drogach, trasy) w całej Polsce, z obszarami: dzielnice 5 największych miast i ok. 115 miast. **Do podpięcia:** dokładne granice z PRG. |
 | Prawo | **Projekty gotowe:** regulamin, polityka prywatności i zasady rankingu w `server/legal/`. **Wymagają sprawdzenia przez prawnika.** DAC7 do potwierdzenia z księgową. |
 | Płatności za wyróżnienia | **Do podpięcia:** zakup z kredytu działa. Dopłata ponad kredyt zwraca kwotę do zapłaty i czeka na operatora (Przelewy24 lub Stripe). |
 | Giełda zleceń z ofertami | **Na później:** w trybie online działa jeszcze lokalnie (dane demo). |

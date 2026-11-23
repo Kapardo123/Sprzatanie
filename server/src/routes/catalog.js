@@ -15,14 +15,14 @@ module.exports = function catalogRoutes(r, { db, domain, mapbox }) {
       .map(p => ({ id: p.user_id, lat: p.base_lat, lng: p.base_lng }));
     return mapbox.matrix(near, point);
   }
-  // Punkt odniesienia: zapisany adres zalogowanego, współrzędne z zapytania albo centrum Mokotowa.
+  // Punkt odniesienia: zapisany adres zalogowanego, współrzędne z zapytania albo centrum Warszawy.
   function pointFrom(query, user) {
     if (query.addressId && user) {
       const a = db.get('SELECT lat, lng FROM addresses WHERE id = ? AND user_id = ?', query.addressId, user.id);
       if (a) return a;
     }
     if (query.lat && query.lng) return { lat: v.num(query.lat, 'lat', { min: 49, max: 55 }), lng: v.num(query.lng, 'lng', { min: 14, max: 25 }) };
-    return { lat: geo.DISTRICTS['Mokotów'][0], lng: geo.DISTRICTS['Mokotów'][1] };
+    return { lat: 52.2297, lng: 21.0122 };
   }
 
   r.get('/api/health', () => ({ ok: true, time: localNow(), version: '0.1.0' }));
@@ -34,22 +34,43 @@ module.exports = function catalogRoutes(r, { db, domain, mapbox }) {
       js: localGl ? '/vendor/mapbox-gl.js' : 'https://api.mapbox.com/mapbox-gl-js/v3.34.2/mapbox-gl.js',
       css: localGl ? '/vendor/mapbox-gl.css' : 'https://api.mapbox.com/mapbox-gl-js/v3.34.2/mapbox-gl.css' } : null
   }));
-  r.get('/api/meta', () => ({ services: SERVICES.map(id => ({ id, name: SERVICE_NAMES[id] })), extras: Object.entries(EXTRAS).map(([id, h]) => ({ id, hours: h })), districts: Object.keys(geo.DISTRICTS) }));
+  r.get('/api/meta', () => ({ services: SERVICES.map(id => ({ id, name: SERVICE_NAMES[id] })), extras: Object.entries(EXTRAS).map(([id, h]) => ({ id, hours: h })), cities: geo.CITY_LIST.map(c => c.name) }));
 
   // ---------- geografia ----------
-  r.get('/api/geo/streets', ({ query }) => geo.searchStreets(query.q));
-  // Wyszukiwanie prawdziwych adresów (Mapbox), a bez Mapboxa: lokalny słownik ulic.
-  r.get('/api/geo/search', async ({ query, ip }) => {
+  const withArea = x => { const a = geo.areaAt(x.lat, x.lng); return Object.assign(x, { district: a.name, areaKey: a.key, area: domain.areaView(a), inArea: x.inArea !== undefined ? x.inArea : geo.inPoland(x.lat, x.lng) }); };
+  // Wyszukiwanie prawdziwych adresów w całej Polsce (Mapbox), bez Mapboxa: miasta i lokalny słownik ulic.
+  // near=lat,lng ustawia wyniki najbliżej użytkownika (np. „Długa” w Gdańsku, gdy klient jest w Gdańsku).
+  r.get('/api/geo/search', async ({ query }) => {
     const q = v.str(query.q, 'adres', { min: 2, max: 120 });
-    const found = await mapbox.search(q);
-    return { source: found ? 'mapbox' : 'local', results: (found || geo.searchStreets(q).map(x => Object.assign(x, { full: `${x.district}, Warszawa`, inArea: true }))).filter(x => x.street) };
+    const near = String(query.near || '').split(',').map(Number);
+    const prox = near.length === 2 && near.every(Number.isFinite) && geo.inPoland(near[0], near[1]) ? { lat: near[0], lng: near[1] } : null;
+    const found = await mapbox.search(q, prox);
+    return { source: found ? 'mapbox' : 'local', results: (found || geo.searchLocal(q)).filter(x => x.street).map(withArea) };
   });
   r.get('/api/geo/reverse', async ({ query }) => {
     const lat = v.num(query.lat, 'lat', { min: 49, max: 55 }), lng = v.num(query.lng, 'lng', { min: 14, max: 25 });
     const found = await mapbox.reverse(lat, lng); const local = geo.reverse(lat, lng);
-    return found ? Object.assign({}, local, { street: found.street, full: found.full, source: 'mapbox' }) : Object.assign(local, { source: 'local' });
+    const out = found ? Object.assign({}, local, { street: found.street, full: found.full, city: found.city, postcode: found.postcode, inArea: found.inArea, source: 'mapbox' }) : Object.assign(local, { full: `${geo.areaLabel(local.area)}, woj. ${local.area.region}`, source: 'local' });
+    const area = local.area; out.areaKey = area.key; out.area = domain.areaView(area);
+    if (area.kind !== 'outskirts') out.stats = areaStats(area);
+    return out;
   });
-  r.get('/api/geo/districts/shapes', ({ res }) => geo.districtShapes());
+  // Obszary w promieniu km od punktu: kształty (GeoJSON) i statystyki. Zastępuje stałą listę dzielnic Warszawy.
+  r.get('/api/geo/areas', ({ query }) => {
+    const lat = v.num(query.lat ?? 52.2297, 'lat', { min: 49, max: 55 }), lng = v.num(query.lng ?? 21.0122, 'lng', { min: 14, max: 25 });
+    const km = v.num(query.km ?? 25, 'promień', { min: 1, max: 80 });
+    const here = geo.areaAt(lat, lng);
+    const list = geo.areasNear(lat, lng, km).sort((a, b) => geo.haversineKm({ lat, lng }, a) - geo.haversineKm({ lat, lng }, b)).slice(0, 40);
+    return { here: domain.areaView(here), areas: list.map(a => Object.assign(domain.areaView(a), { center: [a.lat, a.lng], population: a.pop * 1000 }, areaStats(a))),
+      shapes: { type: 'FeatureCollection', features: list.map(geo.areaShape) } };
+  });
+  function areaStats(a) {
+    const today = localNow().slice(0, 10);
+    const sv = db.all('SELECT * FROM providers WHERE published = 1').filter(p => geo.servesArea(p, a)); const hourly = sv.filter(p => !p.fixed_price);
+    return { demand: domain.demand(a.key), providers: sv.length,
+      avgRate: hourly.length ? Math.round(hourly.reduce((s, p) => s + p.rate_gr, 0) / hourly.length / 100) : 0,
+      freeToday: sv.reduce((s, p) => s + domain.slotsFor(p, today).length, 0) };
+  }
   // Trasa między dwoma punktami (dla zalogowanych, żeby nikt nie zużywał limitów Mapboxa z zewnątrz).
   r.get('/api/geo/route', { auth: 'user' }, async ({ query }) => {
     const [a, b] = ['from', 'to'].map(k => String(query[k] || '').split(',').map(Number));
@@ -58,30 +79,18 @@ module.exports = function catalogRoutes(r, { db, domain, mapbox }) {
     const km = Math.round(geo.roadKm({ lat: a[0], lng: a[1] }, { lat: b[0], lng: b[1] }) * 10) / 10;
     return rt ? Object.assign(rt, { source: 'mapbox' }) : { coordinates: [[a[1], a[0]], [b[1], b[0]]], km, min: geo.driveMin(km), source: 'estimate' };
   });
-  r.get('/api/geo/districts', () => {
-    const today = localNow().slice(0, 10);
-    const providers = db.all('SELECT * FROM providers WHERE published = 1');
-    const stats = Object.keys(geo.DISTRICTS).map(n => {
-      const sv = providers.filter(p => geo.servesDistrict(p, n)); const hourly = sv.filter(p => !p.fixed_price);
-      return { district: n, center: geo.DISTRICTS[n], population: geo.POPULATION[n], demand: domain.demand(n), providers: sv.length,
-        avgRate: hourly.length ? Math.round(hourly.reduce((a, p) => a + p.rate_gr, 0) / hourly.length / 100) : 0,
-        freeToday: sv.reduce((a, p) => a + domain.slotsFor(p, today).length, 0) };
-    });
-    return stats;
-  });
-
   // ---------- wykonawcy ----------
   r.get('/api/providers', async ({ query, user }) => {
     const point = pointFrom(query, user);
     if (query.service && !SERVICES.includes(query.service)) v.oneOf(query.service, 'usługa', SERVICES);
     const roads = await roadsTo(point, db.all('SELECT * FROM providers WHERE published = 1 AND online = 1'));
     const res = domain.search(query, point, roads);
-    return Object.assign(res, { point, inArea: geo.inWarsaw(point.lat, point.lng) });
+    return Object.assign(res, { point, inArea: geo.inPoland(point.lat, point.lng) });
   });
   r.get('/api/providers/:id', async ({ params, query, user }) => {
     const p = domain.mustProvider(params.id); if (!p.published) notFound('Ten profil nie jest już dostępny');
     const point = pointFrom(query, user);
-    if (query.src === 'promo') { const b = domain.activeBoosts().find(x => x.provider_id === p.user_id && x.district === geo.districtAt(point.lat, point.lng)); if (b) db.run('UPDATE boosts SET opens = opens + 1 WHERE id = ?', b.id); }
+    if (query.src === 'promo') { const b = domain.activeBoosts().find(x => x.provider_id === p.user_id && x.district === geo.areaAt(point.lat, point.lng).key); if (b) db.run('UPDATE boosts SET opens = opens + 1 WHERE id = ?', b.id); }
     const roads = await roadsTo(point, [p]);
     return domain.providerView(p, point, { full: true, road: roads && roads.get(p.user_id) });
   });

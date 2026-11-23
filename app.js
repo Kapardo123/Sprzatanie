@@ -186,17 +186,30 @@ const addrById = id => S.addresses.find(a => a.id === id);
 const curAddr = () => addrById(S.addrId) || S.addresses[0];
 function reachFor(p, a) { const d = roadKm(p, a); return { d, eta: driveMin(d), reach: d <= p.r ? 'in' : (p.fee && d <= p.r + 5) ? 'fee' : 'out' }; }
 function updateGeo() { const a = curAddr(); PROS.forEach(p => { const r = reachFor(p, a); p.dist = Math.round(r.d * 10) / 10; p.eta = r.eta; p.reach = r.reach; }); }
-const serves = (p, n) => Math.hypot(p.x - SITES[n][0], p.y - SITES[n][1]) * 1.3 <= p.r;
+// Obszary: w demo 12 dzielnic schematycznej Warszawy. W trybie online lista przychodzi z serwera
+// dla okolicy użytkownika (dzielnice dużych miast i miasta w całej Polsce), klucze np. "Kraków/Krowodrza" albo "Gdańsk".
+let AREAX = null; // { list, by, here, near, lat, lng }
+const areaKeys = () => AREAX ? AREAX.list.map(a => a.key) : Object.keys(SITES);
+const areaName = n => AREAX && AREAX.by[n] ? AREAX.by[n].name : String(n || '').replace(/^[^/]+\//, '');
+const areaLabel = n => AREAX && AREAX.by[n] ? AREAX.by[n].label : String(n || '').split('/').reverse().join(', ');
+const demandOf = n => AREAX ? (AREAX.by[n] ? AREAX.by[n].demand : 5) : DEMAND[n];
+// odległość drogowa (szacunek) od punktu z x/y albo lat/lng do środka obszaru
+const kmTo = (p, n) => AREAX ? (AREAX.by[n] && p.lat != null ? haversine(p.lat, p.lng, AREAX.by[n].center[0], AREAX.by[n].center[1]) * 1.3 : 1e9) : Math.hypot(p.x - SITES[n][0], p.y - SITES[n][1]) * 1.3;
+const serves = (p, n) => kmTo(p, n) <= p.r;
 function dstats(n) {
   const sv = PROS.filter(p => serves(p, n)); const hourly = sv.filter(p => !p.fixed && !p.perWindow);
+  if (AREAX) { const a = AREAX.by[n] || {}; const count = Math.max(sv.length, a.providers || 0), demand = a.demand || 5; return { sv, count, avg: a.avgRate || 0, free: a.freeToday || 0, demand, pop: Math.round((a.population || 0) / 1000), pressure: demand / (count + 1) }; }
   const avg = hourly.length ? Math.round(hourly.reduce((a, p) => a + p.rate, 0) / hourly.length) : 0;
   const free = sv.reduce((a, p) => a + SLOTS.filter(t => !slotTaken(p.id, 0, t)).length, 0);
-  return { sv, avg, free, demand: DEMAND[n], pop: DPOP[n], pressure: DEMAND[n] / (sv.length + 1) };
+  return { sv, count: sv.length, avg, free, demand: DEMAND[n], pop: DPOP[n], pressure: DEMAND[n] / (sv.length + 1) };
 }
-const boostBase = n => Math.round(8 + DEMAND[n] * .6);
+// obszar adresu: z serwera (online) albo najbliższa dzielnica schematu (demo)
+const areaOfAddr = a => AREAX ? (a.areaKey && AREAX.by[a.areaKey] ? a.areaKey : AREAX.near) : districtAt(a.x, a.y);
+const placeOf = a => a.place || districtAt(a.x, a.y);
+const boostBase = n => Math.round(8 + demandOf(n) * .6);
 const boostPrice = (n, days) => days === 3 ? Math.round(boostBase(n) * .5) : days === 14 ? Math.round(boostBase(n) * 1.8) : boostBase(n);
-const boostViews = (n, days) => Math.round(DEMAND[n] * 3 * days / 7);
-const searchers = n => DEMAND[n] * 7;
+const boostViews = (n, days) => Math.round(demandOf(n) * 3 * days / 7);
+const searchers = n => demandOf(n) * 7;
 const cssVar = name => getComputedStyle(document.documentElement).getPropertyValue('--' + name).trim();
 const hexRgb = h => { h = h.replace('#', ''); if (h.length === 3) h = h.split('').map(c => c + c).join(''); const n = parseInt(h.slice(0, 6), 16); return [n >> 16 & 255, n >> 8 & 255, n & 255]; };
 const mixFill = (tok, pct) => { try { const a = hexRgb(cssVar(tok)), b = hexRgb(cssVar('surface-2')), k = Math.max(0, Math.min(100, pct)) / 100; return `rgb(${a.map((v, i) => Math.round(v * k + b[i] * (1 - k))).join(',')})`; } catch (e) { return `color-mix(in srgb, var(--${tok}) ${Math.round(pct)}%, var(--surface-2))`; } };
@@ -206,6 +219,9 @@ const resolveColor = c => { const m = /^var\(--([\w-]+)\)$/.exec(String(c || '')
 const MAPCFG = {}; let mapDragAt = 0, mapTapAt = 0;
 function geoMap(id, o) {
   if (S.mbx) return mbxMap(id, o);
+  // Online bez Mapboxa: schemat Warszawy nie pasuje do obszarów z całej Polski, więc rysujemy go bez dzielnic
+  // (statystyki i wybór obszarów są w listach pod mapą).
+  if (AREAX) o = Object.assign({}, o, { fill: null, labelExtra: null, labels: false, onTap: (x, y) => o.onTap && o.mb && o.mb.onTapReal && !/explore|boost/.test(id) ? o.mb.onTapReal(GEOFIT.toReal(x, y).lat, GEOFIT.toReal(x, y).lng) : null });
   const c0 = o.center || [12.5, 13];
   if (!S.maps[id] || o.reset) S.maps[id] = { x: c0[0], y: c0[1], z: o.zoom || 13 };
   MAPCFG[id] = o; const C = cells();
@@ -292,7 +308,7 @@ function shapeAt(lat, lng) {
   for (const f of DISTRICT_SHAPES.features) {
     const ring = f.geometry.coordinates[0]; let inside = false;
     for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) { const [xi, yi] = ring[i], [xj, yj] = ring[j]; if ((yi > lat) !== (yj > lat) && lng < (xj - xi) * (lat - yi) / (yj - yi) + xi) inside = !inside; }
-    if (inside) return f.properties.name;
+    if (inside) return f.properties.key || f.properties.name;
   }
   return null;
 }
@@ -335,7 +351,7 @@ function mountMapbox(box) {
   const zoom = (cfg.mb && cfg.mb.zoom) || zoomFromGrid(cfg.zoom || 13);
   if (!e) {
     const el = document.createElement('div'); el.className = 'mbx-canvas'; box.querySelector('.mbx-slot').appendChild(el);
-    const map = new mapboxgl.Map({ container: el, style: mbxStyle(), center: mbxCenter(cfg), zoom, minZoom: 9, maxZoom: 18, maxBounds: [[20.55, 51.95], [21.55, 52.52]],
+    const map = new mapboxgl.Map({ container: el, style: mbxStyle(), center: mbxCenter(cfg), zoom, minZoom: 5, maxZoom: 18, maxBounds: [[13.2, 48.6], [24.9, 55.2]], // cała Polska z zapasem
       dragRotate: false, pitchWithRotate: false, touchPitch: false, cooperativeGestures: true, attributionControl: false, locale: MBX_LOCALE, fadeDuration: 150 });
     map.touchZoomRotate.disableRotation();
     map.addControl(new mapboxgl.AttributionControl({ compact: true }), 'bottom-right');
@@ -368,7 +384,7 @@ function mbxSync(id) {
   const map = e.map, c = e.cfg, mb = c.mb || {};
   const firstSymbol = (map.getStyle().layers.find(l => l.type === 'symbol') || {}).id;
   // dzielnice (warstwa kolorów pod etykietami ulic)
-  const districts = c.fill && DISTRICT_SHAPES ? DISTRICT_SHAPES.features.map(f => { const st = c.fill(f.properties.name) || {}; return { type: 'Feature', geometry: f.geometry, properties: { name: f.properties.name, color: resolveColor(st.fill) || 'rgba(0,0,0,0)', sel: st.cls === 'sel' ? 1 : 0, off: st.cls === 'off' ? 1 : 0 } }; }) : [];
+  const districts = c.fill && DISTRICT_SHAPES ? DISTRICT_SHAPES.features.map(f => { const k = f.properties.key || f.properties.name; const st = c.fill(k) || {}; return { type: 'Feature', geometry: f.geometry, properties: { name: k, color: resolveColor(st.fill) || 'rgba(0,0,0,0)', sel: st.cls === 'sel' ? 1 : 0, off: st.cls === 'off' ? 1 : 0 } }; }) : [];
   setSource(map, 'lsni-districts', fcol(districts));
   ensureLayer(map, { id: 'lsni-districts-fill', type: 'fill', source: 'lsni-districts', paint: { 'fill-color': ['get', 'color'], 'fill-opacity': ['case', ['==', ['get', 'off'], 1], 0.25, 0.6] } }, firstSymbol);
   ensureLayer(map, { id: 'lsni-districts-line', type: 'line', source: 'lsni-districts', paint: { 'line-color': ['case', ['==', ['get', 'sel'], 1], cssVar('ink'), cssVar('paper')], 'line-width': ['case', ['==', ['get', 'sel'], 1], 2.5, 1.2] } }, firstSymbol);
@@ -388,7 +404,8 @@ function mbxSync(id) {
   ensureLayer(map, { id: 'lsni-route-done', type: 'line', source: 'lsni-route-done', layout: { 'line-join': 'round', 'line-cap': 'round' }, paint: { 'line-color': cssVar('cloth'), 'line-width': 5 } });
   // pinezki (HTML w stylu aplikacji) i etykiety dzielnic
   Object.values(e.markers).forEach(m => m.remove()); e.markers = {};
-  const labels = c.labelExtra ? Object.keys(REAL_CENTERS).map(n => ({ lat: REAL_CENTERS[n][0], lng: REAL_CENTERS[n][1], cls: 'gm-label', html: `${n}<em>${c.labelExtra(n)}</em>` })) : [];
+  const labels = !c.labelExtra ? [] : AREAX ? AREAX.list.map(a => ({ lat: a.center[0], lng: a.center[1], cls: 'gm-label', html: `${esc(a.name)}<em>${c.labelExtra(a.key)}</em>` }))
+    : Object.keys(REAL_CENTERS).map(n => ({ lat: REAL_CENTERS[n][0], lng: REAL_CENTERS[n][1], cls: 'gm-label', html: `${n}<em>${c.labelExtra(n)}</em>` }));
   labels.concat(c.markers || []).forEach((m, i) => {
     const r = realOf(m); const el = document.createElement(m.act ? 'button' : 'div');
     el.className = 'mbx-m ' + (m.cls || ''); if (m.act) { el.type = 'button'; el.dataset.act = m.act; el.dataset.a = m.a || ''; el.setAttribute('aria-label', m.label || ''); }
@@ -404,7 +421,6 @@ async function loadMapbox() {
   const ok = await new Promise(res => { const sc = document.createElement('script'); sc.src = cfg.mapbox.js; sc.onload = () => res(true); sc.onerror = () => res(false); document.head.appendChild(sc); setTimeout(() => res(!!window.mapboxgl), 8000); });
   if (!ok || !window.mapboxgl || !mapboxgl.supported || (mapboxgl.supported && !mapboxgl.supported())) return false;
   mapboxgl.accessToken = cfg.mapbox.token;
-  try { DISTRICT_SHAPES = await window.LsniAPI.call('GET', '/api/geo/districts/shapes'); } catch (e) { DISTRICT_SHAPES = null; }
   S.mbx = cfg.mapbox;
   matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => { mbxRestyle(); render(); });
   return true;
@@ -746,7 +762,7 @@ screens.home = () => {
   return `<div class="ptr" id="ptr"><span class="ptr-drop"><svg viewBox="0 0 24 32" aria-hidden="true"><path d="M12 2C12 2 3 13 3 20a9 9 0 0 0 18 0C21 13 12 2 12 2z"/></svg></span><span class="ptr-t">Pociągnij, żeby odświeżyć</span></div>
   <div class="scroll" id="homeScroll"><div class="ptr-inner">
     <div class="hello">
-      <button class="loc" data-act="openLocation">${ic('map-pin', 's')}${esc(curAddr().street.split('/')[0])}, ${districtAt(curAddr().x, curAddr().y)} ${ic('chevron-down', 'xs')}</button>
+      <button class="loc" data-act="openLocation">${ic('map-pin', 's')}${esc(curAddr().street.split('/')[0])}, ${esc(placeOf(curAddr()))} ${ic('chevron-down', 'xs')}</button>
       <button class="iconbtn" data-act="openNotifs" aria-label="Powiadomienia">${ic('bell', 's')}${S.notifs.some(n => !n.read) ? `<span class="badge">${S.notifs.filter(n => !n.read).length}</span>` : ''}</button>
     </div>
     <div class="pad">
@@ -839,7 +855,7 @@ function filteredPros() {
   list.sort(sorters[f.sort]);
   // najwyżej 2 profile „Promowane” na górze, tylko przy domyślnym sortowaniu
   PROS.forEach(p => { p._promoted = false; });
-  const where = f.district || (f.bounds ? null : districtAt(curAddr().x, curAddr().y));
+  const where = f.district || (f.bounds ? null : areaOfAddr(curAddr()));
   if (f.sort === 'rec' && where) {
     const promo = list.filter(p => p.promo.includes(where) && p.reach !== 'out').slice(0, 2);
     promo.forEach(p => { p._promoted = true; });
@@ -867,7 +883,7 @@ screens.search = () => {
     <div class="scroll"><div class="pad">
       <div class="hscroll" style="padding-bottom:4px">
         <button class="chip geo" data-act="openLocation">${ic('map-pin', 'xs')}${esc(curAddr().label)}</button>
-        ${f.district ? `<button class="chip on" data-act="clearGeo" data-a="district">${f.district} ${ic('x', 'xs')}</button>` : ''}
+        ${f.district ? `<button class="chip on" data-act="clearGeo" data-a="district">${esc(areaName(f.district))} ${ic('x', 'xs')}</button>` : ''}
         ${f.bounds ? `<button class="chip on" data-act="clearGeo" data-a="bounds">Obszar z mapy ${ic('x', 'xs')}</button>` : ''}
         <button class="chip ${f.today ? 'on' : ''}" data-act="toggleF" data-a="today">${ic('zap', 'xs')}Wolne dziś</button>
         <button class="chip ${f.supplies ? 'on' : ''}" data-act="toggleF" data-a="supplies">Własne środki</button>
@@ -875,7 +891,7 @@ screens.search = () => {
         <button class="chip ${f.pets ? 'on' : ''}" data-act="toggleF" data-a="pets">Zwierzęta OK</button>
         <button class="chip ${f.eco ? 'on' : ''}" data-act="toggleF" data-a="eco">Eco</button>
       </div>
-      <div class="resultbar"><span>${list.length} ${list.length === 1 ? 'wykonawca' : list.length < 5 && list.length > 1 ? 'wykonawców' : 'wykonawców'} ${f.district ? '· obsługuje: ' + f.district : f.bounds ? 'w zaznaczonym obszarze' : 'dojeżdża pod adres: ' + esc(curAddr().label)}</span>
+      <div class="resultbar"><span>${list.length} ${list.length === 1 ? 'wykonawca' : list.length < 5 && list.length > 1 ? 'wykonawców' : 'wykonawców'} ${f.district ? '· obsługuje: ' + esc(areaLabel(f.district)) : f.bounds ? 'w zaznaczonym obszarze' : 'dojeżdża pod adres: ' + esc(curAddr().label)}</span>
         <label class="row" style="gap:4px">Sortuj:<select id="sort" data-model="filters.sort" data-rr="1">
           ${[['rec', 'polecane'], ['price', 'cena'], ['dist', 'odległość'], ['rating', 'ocena']].map(([v, l]) => `<option value="${v}" ${f.sort === v ? 'selected' : ''}>${l}</option>`).join('')}
         </select></label></div>
@@ -974,7 +990,7 @@ screens.location = () => {
     <div class="sugg" id="locSug"></div>
     <button class="opt mt8" data-act="useGps">${ic('locate-fixed', 's')}<div class="grow"><b class="small">Użyj mojej lokalizacji</b><div class="tiny faint">W makiecie lokalizacja jest symulowana</div></div></button>
     <div class="section-h"><h3>Zapisane adresy</h3></div>
-    <div class="options">${S.addresses.map(ad => { const d = districtAt(ad.x, ad.y); return `<button class="opt ${ad.id === S.addrId ? 'on' : ''}" data-act="pickAddr" data-a="${ad.id}"><span class="radio"></span><div class="grow"><b class="small">${esc(ad.label)}</b><div class="tiny faint">${esc(ad.street)}, ${d}${ad.note ? ' · ' + esc(ad.note) : ''}</div></div><span class="tag ${countIn(ad) > 5 ? 'mint' : ''}">${countIn(ad)} wyk.</span></button>`; }).join('')}</div>
+    <div class="options">${S.addresses.map(ad => { const d = esc(placeOf(ad)); return `<button class="opt ${ad.id === S.addrId ? 'on' : ''}" data-act="pickAddr" data-a="${ad.id}"><span class="radio"></span><div class="grow"><b class="small">${esc(ad.label)}</b><div class="tiny faint">${esc(ad.street)}, ${d}${ad.note ? ' · ' + esc(ad.note) : ''}</div></div><span class="tag ${countIn(ad) > 5 ? 'mint' : ''}">${countIn(ad)} wyk.</span></button>`; }).join('')}</div>
     <div class="section-h"><h3>Wskaż na mapie</h3><span class="tiny faint">przesuń mapę pod pinezkę</span></div>
     ${geoMap('loc', { h: 260, center: [a.x, a.y], zoom: 34, fixedPin: true, labels: true, locate: true,
       mb: { center: S.locReal || (a.lat != null ? { lat: a.lat, lng: a.lng } : null), zoom: 15.5, onMoveReal: (lat, lng, end) => { S.locReal = { lat, lng }; if (end) liveLocReal(lat, lng); } },
@@ -985,7 +1001,7 @@ screens.location = () => {
     <div class="field"><label for="anote">Piętro, kod, wskazówki dojazdu</label><input class="input" id="anote" placeholder="np. 3 piętro, bez windy, parking od podwórza" data-model="newAddrNote" value="${esc(S.newAddrNote || '')}"></div>
     <div class="sp"></div>
   </div></div>
-  <div class="footer"><button class="btn primary block" data-act="saveAddr" id="saveAddrBtn" ${inCity(c[0], c[1]) ? '' : 'disabled'}>${ic('map-pin-plus', 's')}Zapisz i szukaj tutaj</button></div>`;
+  <div class="footer"><button class="btn primary block" data-act="saveAddr" id="saveAddrBtn" ${S.online || inCity(c[0], c[1]) ? '' : 'disabled'}>${ic('map-pin-plus', 's')}Zapisz i szukaj tutaj</button></div>`;
 };
 function waitlistCard() {
   const a = curAddr(); const key = 'addr-' + a.id; const on = S.waitlist.includes(key);
@@ -994,7 +1010,7 @@ function waitlistCard() {
     <button class="btn line sm" data-act="toast" data-a="Link skopiowany. Im więcej osób z okolicy, tym szybciej ruszymy">${ic('share', 's')}Poleć sąsiadom</button></div>`;
 }
 function locCardHTML(x, y) {
-  if (!inCity(x, y)) return `<div class="row">${ic('map-pin-off', 's')}<div class="grow"><b class="small">Poza Warszawą</b><div class="tiny faint">Na razie działamy w granicach Warszawy. Zostaw kontakt, a damy znać, gdy ruszymy w Twojej okolicy.</div>
+  if (!inCity(x, y)) return `<div class="row">${ic('map-pin-off', 's')}<div class="grow"><b class="small">Poza mapą makiety</b><div class="tiny faint">Makieta pokazuje tylko schemat Warszawy. Wersja z serwerem działa w całej Polsce. Zostaw kontakt, a damy znać, gdy ruszymy w Twojej okolicy.</div>
     ${S.waitlist.includes('out-' + Math.round(x) + '-' + Math.round(y)) ? `<span class="tag mint mt8">${ic('check', 'xs')}Jesteś na liście</span>` : `<button class="btn sm dark mt8" data-act="joinWaitlist" data-a="out-${Math.round(x)}-${Math.round(y)}">${ic('bell-plus', 's')}Daj znać, gdy ruszycie</button>`}</div></div>`;
   const rg = reverseGeo(x, y); const pt = { x, y };
   const near = PROS.map(p => Object.assign({ p }, reachFor(p, pt))).filter(r => r.reach !== 'out').sort((a, b) => a.d - b.d);
@@ -1015,11 +1031,14 @@ function liveLocReal(lat, lng) {
   }, 250);
 }
 function locCardReal(lat, lng, rev) {
-  if (!rev.inArea) return `<div class="row">${ic('map-pin-off', 's')}<div class="grow"><b class="small">${esc(rev.street || 'Poza Warszawą')}</b><div class="tiny faint">Na razie działamy w granicach Warszawy. Zostaw kontakt, a damy znać, gdy ruszymy w Twojej okolicy.</div>
+  if (!rev.inArea) return `<div class="row">${ic('map-pin-off', 's')}<div class="grow"><b class="small">${esc(rev.street || 'Poza Polską')}</b><div class="tiny faint">To miejsce jest poza Polską. Działamy w całym kraju, ale tylko pod polskimi adresami.</div>
     ${S.waitlist.includes('out-' + lat.toFixed(2) + '-' + lng.toFixed(2)) ? `<span class="tag mint mt8">${ic('check', 'xs')}Jesteś na liście</span>` : `<button class="btn sm dark mt8" data-act="joinWaitlist" data-a="out-${lat.toFixed(2)}-${lng.toFixed(2)}">${ic('bell-plus', 's')}Daj znać, gdy ruszycie</button>`}</div></div>`;
   const near = PROS.filter(p => p.lat != null).map(p => { const km = haversine(p.lat, p.lng, lat, lng) * ROAD; return { p, km, reach: km <= p.r ? 'in' : (p.fee && km <= p.r + 5) ? 'fee' : 'out' }; }).filter(x => x.reach !== 'out').sort((a, b) => a.km - b.km);
-  const g = GEOFIT.toGrid(lat, lng); const st = dstats(rev.district);
-  return `<div class="row">${ic('map-pin', 's')}<div class="grow"><b class="small">${esc(rev.street)}</b><div class="tiny faint">${rev.district} · ${near.length} wykonawców dojeżdża · najbliżej ok. ${near[0] ? driveMin(near[0].km) + ' min' : '—'}</div></div></div>
+  const st = rev.stats ? { avg: rev.stats.avgRate, free: rev.stats.freeToday } : dstats(rev.district); const count = rev.stats ? Math.max(rev.stats.providers, near.length) : near.length;
+  const where = rev.area ? rev.area.label : rev.district;
+  if (!count) return `<div class="row">${ic('map-pin', 's')}<div class="grow"><b class="small">${esc(rev.street)}</b><div class="tiny faint">${esc(where)} · jeszcze nikt tu nie dojeżdża</div>
+    ${S.waitlist.includes('out-' + lat.toFixed(2) + '-' + lng.toFixed(2)) ? `<span class="tag mint mt8">${ic('check', 'xs')}Jesteś na liście</span>` : `<button class="btn sm dark mt8" data-act="joinWaitlist" data-a="out-${lat.toFixed(2)}-${lng.toFixed(2)}">${ic('bell-plus', 's')}Daj znać, gdy ktoś się pojawi</button>`}</div></div>`;
+  return `<div class="row">${ic('map-pin', 's')}<div class="grow"><b class="small">${esc(rev.street)}</b><div class="tiny faint">${esc(where)} · ${count} wykonawców dojeżdża${near[0] ? ` · najbliżej ok. ${driveMin(near[0].km)} min` : ''}</div></div></div>
     <div class="minis mt12"><div><b class="num">${st.avg || '—'} zł</b><span>śr. stawka</span></div><div><b class="num">${st.free}</b><span>wolne dziś</span></div><div><b class="num">${near.filter(r => r.reach === 'fee').length}</b><span>z dopłatą</span></div></div>`;
 }
 const haversine = (la1, ln1, la2, ln2) => { const r = Math.PI / 180, dLa = (la2 - la1) * r, dLn = (ln2 - ln1) * r; const h = Math.sin(dLa / 2) ** 2 + Math.cos(la1 * r) * Math.cos(la2 * r) * Math.sin(dLn / 2) ** 2; return 2 * 6371 * Math.asin(Math.sqrt(h)); };
@@ -1030,17 +1049,18 @@ function liveLoc(x, y) {
 
 /* ---------- mapa okolicy z warstwami ---------- */
 const LAYERS = {
-  pros: { name: 'Wykonawcy', tok: 'cloth', val: st => st.sv.length, fmt: v => v + ' wyk.', lo: 'mniej', hi: 'więcej wykonawców' },
+  pros: { name: 'Wykonawcy', tok: 'cloth', val: st => st.count, fmt: v => v + ' wyk.', lo: 'mniej', hi: 'więcej wykonawców' },
   price: { name: 'Ceny', tok: 'glove', val: st => st.avg, fmt: v => v + ' zł/h', lo: 'taniej', hi: 'drożej' },
   free: { name: 'Wolne dziś', tok: 'mint', val: st => st.free, fmt: v => v + ' wolnych', lo: 'mało', hi: 'dużo terminów' },
   demand: { name: 'Popyt', tok: 'rose', val: st => Math.round(st.pressure * 10) / 10, fmt: (v, st) => st.demand + ' zapytań', lo: 'spokojnie', hi: 'brakuje wykonawców' }
 };
 screens.explore = () => {
-  const a = curAddr(); const L = LAYERS[S.exploreLayer]; const names = Object.keys(SITES);
+  const a = curAddr(); const L = LAYERS[S.exploreLayer]; const names = areaKeys();
+  if (!names.length) return `${topbar('Mapa okolicy')}<div class="scroll"><div class="pad"><div class="empty">${ic('map', 'l')}<b>Wczytujemy okolicę</b><span>Za chwilę pokażemy obszary wokół Twojego adresu.</span></div></div></div>`;
   const stats = Object.fromEntries(names.map(n => [n, dstats(n)])); const vals = names.map(n => L.val(stats[n]));
   const lo = Math.min(...vals), hi = Math.max(...vals);
   const fill = n => ({ fill: mixFill(L.tok, 12 + (L.val(stats[n]) - lo) / ((hi - lo) || 1) * 70), cls: S.exploreSel === n ? 'sel' : '' });
-  const myD = districtAt(a.x, a.y); const mySt = stats[myD]; const cityAvg = Math.round(names.reduce((x, n) => x + stats[n].avg, 0) / names.length);
+  const myD = stats[areaOfAddr(a)] ? areaOfAddr(a) : names[0]; const mySt = stats[myD]; const cityAvg = Math.round(names.reduce((x, n) => x + stats[n].avg, 0) / names.length);
   return `${topbar('Mapa okolicy', `<button class="iconbtn" data-act="openLocation" aria-label="Zmień adres">${ic('map-pin', 's')}</button>`)}
   <div class="scroll"><div class="pad">
     <div class="hscroll" style="padding-bottom:10px">${Object.entries(LAYERS).map(([k, l]) => `<button class="chip ${S.exploreLayer === k ? 'on' : ''}" data-act="exploreLayer" data-a="${k}">${l.name}</button>`).join('')}</div>
@@ -1051,10 +1071,10 @@ screens.explore = () => {
       overlay: `<div class="gm-over gm-legend"><span>${L.lo}</span><i style="background:linear-gradient(90deg, ${mixFill(L.tok, 12)}, ${mixFill(L.tok, 82)})"></i><span>${L.hi}</span></div>`,
       mb: { center: a.lat != null ? { lat: a.lat - 0.02, lng: a.lng } : null, zoom: 10.4, onTapReal: (lat, lng) => { const n = shapeAt(lat, lng); if (!n) return; S.exploreSel = n; buzz(8); A.sheet('district', n); } },
       onTap: (x, y) => { if (!inCity(x, y)) return; const n = districtAt(x, y); S.exploreSel = n; buzz(8); A.sheet('district', n); } })}
-    <div class="hint" style="text-align:center">Dotknij dzielnicy, żeby zobaczyć szczegóły. Przesuwaj i przybliżaj palcami.</div>
+    <div class="hint" style="text-align:center">Dotknij ${AREAX ? 'obszaru' : 'dzielnicy'}, żeby zobaczyć szczegóły. Przesuwaj i przybliżaj palcami.</div>
     <div class="card mt16">
-      <div class="row between"><div><div class="eyebrow">Twoja okolica</div><b style="font-family:var(--f-display);font-size:20px">${myD}</b></div><button class="btn sm line" data-act="sheet" data-a="district" data-b="${myD}">Szczegóły</button></div>
-      <div class="minis mt12"><div><b class="num">${mySt.sv.length}</b><span>wykonawców</span></div><div><b class="num">${mySt.avg} zł</b><span>${mySt.avg > cityAvg ? '+' : ''}${mySt.avg - cityAvg} zł vs miasto</span></div><div><b class="num">${mySt.free}</b><span>wolne dziś</span></div></div>
+      <div class="row between"><div><div class="eyebrow">Twoja okolica</div><b style="font-family:var(--f-display);font-size:20px">${esc(areaLabel(myD))}</b></div><button class="btn sm line" data-act="sheet" data-a="district" data-b="${myD}">Szczegóły</button></div>
+      <div class="minis mt12"><div><b class="num">${mySt.count}</b><span>wykonawców</span></div><div><b class="num">${mySt.avg} zł</b><span>${mySt.avg > cityAvg ? '+' : ''}${mySt.avg - cityAvg} zł vs ${AREAX ? 'okolica' : 'miasto'}</span></div><div><b class="num">${mySt.free}</b><span>wolne dziś</span></div></div>
     </div>
     <div class="sp"></div>
   </div></div>`;
@@ -1128,7 +1148,7 @@ function bookStep3(b, p) {
   return `
   <div class="field"><span class="lbl">Adres</span>
     <div class="options">
-      ${S.addresses.map(ad => { const r = reachFor(p, ad); return `<button class="opt ${b.addr === ad.id ? 'on' : ''}" data-act="bset" data-a="addr" data-b="${ad.id}" ${r.reach === 'out' ? 'disabled style="opacity:.5"' : ''}><span class="radio"></span><div class="grow"><b class="small">${esc(ad.label)}</b><div class="tiny faint">${esc(ad.street)}, ${districtAt(ad.x, ad.y)}${ad.note ? ' · ' + esc(ad.note) : ''}</div></div>
+      ${S.addresses.map(ad => { const r = reachFor(p, ad); return `<button class="opt ${b.addr === ad.id ? 'on' : ''}" data-act="bset" data-a="addr" data-b="${ad.id}" ${r.reach === 'out' ? 'disabled style="opacity:.5"' : ''}><span class="radio"></span><div class="grow"><b class="small">${esc(ad.label)}</b><div class="tiny faint">${esc(ad.street)}, ${esc(placeOf(ad))}${ad.note ? ' · ' + esc(ad.note) : ''}</div></div>
         <span class="tag ${r.reach === 'in' ? 'mint' : r.reach === 'fee' ? 'yellow' : 'rose'}">${r.reach === 'in' ? r.eta + ' min' : r.reach === 'fee' ? '+' + p.fee + ' zł' : 'za daleko'}</span></button>`; }).join('')}
       <button class="opt" data-act="openLocation">${ic('plus', 's')}<b class="small">Dodaj nowy adres na mapie</b></button>
     </div></div>
@@ -1601,7 +1621,7 @@ screens.listing = () => {
       <button class="nearby" data-act="openArea">
         ${geoMap('listing-mini', { h: 140, static: true, reset: true, center: [L.base.x, L.base.y], zoom: 120 / (L.radius + 1), labels: false, mb: { circles: L.base.lat != null ? [{ lat: L.base.lat, lng: L.base.lng, km: L.radius / ROAD }] : [] },
           fill: n => ({ fill: areaCovered(n) ? mixFill('cloth', 35) : 'var(--surface-2)' }), layer: circleSVG(L.base.x, L.base.y, L.radius, 'gm-reach strong'), markers: [homeMark(L.base)] })}
-        <div class="nearby-t"><b>${L.radius} km od bazy (${districtAt(L.base.x, L.base.y)}) · ${coveredDistricts().length} ${dzielnic(coveredDistricts().length)}</b><span>${coveredDistricts().join(', ')}${L.feeOn ? ` · dalej +${L.fee} zł` : ''}</span></div>
+        <div class="nearby-t"><b>${L.radius} km od bazy (${esc(baseArea())}) · ${coveredDistricts().length} ${areaWord(coveredDistricts().length)}</b><span>${esc(coveredDistricts().map(areaName).join(', '))}${L.feeOn ? ` · dalej +${L.fee} zł` : ''}</span></div>
       </button></div>
 
     <div class="field"><span class="lbl">Udogodnienia</span><div class="card" style="padding:2px 16px">
@@ -1636,18 +1656,21 @@ screens.selfpreview = () => {
   </div></div>`;
 };
 
-const areaCovered = n => { const L = S.pro.listing; return Math.hypot(L.base.x - SITES[n][0], L.base.y - SITES[n][1]) * 1.3 <= L.radius; };
-const coveredDistricts = () => Object.keys(SITES).filter(areaCovered);
+const areaCovered = n => kmTo(S.pro.listing.base, n) <= S.pro.listing.radius;
+const coveredDistricts = () => areaKeys().filter(areaCovered);
+// nazwa miejsca bazy: obszar z serwera (online) albo dzielnica schematu
+const baseArea = () => { const L = S.pro.listing; return AREAX && L.base.lat != null ? (S.pro.baseArea || AREAX.here.label) : districtAt(L.base.x, L.base.y); };
+const areaWord = n => AREAX ? (n === 1 ? 'obszar' : n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 10 || n % 100 >= 20) ? 'obszary' : 'obszarów') : dzielnic(n);
 function areaStatsHTML() {
   const L = S.pro.listing; const cov = coveredDistricts();
-  const demand = cov.reduce((a, n) => a + DEMAND[n], 0); const pop = cov.reduce((a, n) => a + DPOP[n], 0);
+  const demand = cov.reduce((a, n) => a + demandOf(n), 0); const pop = cov.reduce((a, n) => a + dstats(n).pop, 0);
   const comp = PROS.filter(p => cov.some(n => serves(p, n))).length;
   const share = demand ? demand / (comp + 1) : 0; const potential = Math.round(share * 3.2 * L.rate / 10) * 10;
-  const out = Object.keys(SITES).filter(n => !cov.includes(n)).map(n => { const st = dstats(n); const need = Math.ceil(Math.hypot(L.base.x - SITES[n][0], L.base.y - SITES[n][1]) * 1.3); return { n, need, score: DEMAND[n] / (st.sv.length + 1) / Math.max(1, need - L.radius), st }; }).filter(o => o.need <= 20).sort((a, b) => b.score - a.score)[0];
-  return `<div class="minis"><div><b class="num">${cov.length}</b><span>${dzielnic(cov.length)}</span></div><div><b class="num">${pop}</b><span>tys. mieszk.</span></div><div><b class="num">${demand}</b><span>zapytań/tydz.</span></div><div><b class="num">${comp}</b><span>konkurentów</span></div></div>
-    <div class="chips mt12">${cov.map(n => `<span class="tag blue">${n}</span>`).join('') || '<span class="small muted">Żadna dzielnica nie mieści się w zasięgu.</span>'}</div>
+  const out = areaKeys().filter(n => !cov.includes(n)).map(n => { const st = dstats(n); const need = Math.ceil(kmTo(L.base, n)); return { n, need, score: demandOf(n) / (st.count + 1) / Math.max(1, need - L.radius), st }; }).filter(o => o.need <= 20).sort((a, b) => b.score - a.score)[0];
+  return `<div class="minis"><div><b class="num">${cov.length}</b><span>${areaWord(cov.length)}</span></div><div><b class="num">${pop}</b><span>tys. mieszk.</span></div><div><b class="num">${demand}</b><span>zapytań/tydz.</span></div><div><b class="num">${comp}</b><span>konkurentów</span></div></div>
+    <div class="chips mt12">${cov.map(n => `<span class="tag blue">${esc(areaName(n))}</span>`).join('') || `<span class="small muted">${AREAX ? 'Żaden obszar' : 'Żadna dzielnica'} nie mieści się w zasięgu.</span>`}</div>
     <div class="note mint mt12">${ic('trending-up', 's')}<span>Szacowany potencjał: <b>ok. ${zl(potential)} tygodniowo</b> przy Twojej stawce, jeśli odpowiesz na co najmniej połowę zapytań.</span></div>
-    ${out ? `<div class="note yellow mt8">${ic('lightbulb', 's')}<span>${out.n}: ${out.st.demand} zapytań w tygodniu i tylko ${out.st.sv.length} wykonawców. Zwiększ zasięg do ${out.need} km, żeby go objąć.</span><button class="btn sm dark" style="height:30px;flex:none" data-act="setRadius" data-a="${out.need}">${out.need} km</button></div>` : ''}`;
+    ${out ? `<div class="note yellow mt8">${ic('lightbulb', 's')}<span>${esc(areaLabel(out.n))}: ${out.st.demand} zapytań w tygodniu i tylko ${out.st.count} wykonawców. Zwiększ zasięg do ${out.need} km, żeby go objąć.</span><button class="btn sm dark" style="height:30px;flex:none" data-act="setRadius" data-a="${out.need}">${out.need} km</button></div>` : ''}`;
 }
 screens.area = () => {
   const L = S.pro.listing;
@@ -1656,18 +1679,18 @@ screens.area = () => {
   <div class="scroll"><div class="pad">
     <p class="small muted" style="margin:0 0 12px">Dotknij mapy, żeby przenieść bazę (skąd wyjeżdżasz). Klienci spoza zasięgu Cię nie zobaczą, chyba że przyjmujesz dalsze zlecenia z dopłatą.</p>
     ${geoMap('area', { h: 330, center: [L.base.x, L.base.y], zoom: 12, locate: true, fill,
-      labelExtra: n => areaCovered(n) ? 'w zasięgu' : DEMAND[n] + ' zap.',
+      labelExtra: n => areaCovered(n) ? 'w zasięgu' : demandOf(n) + ' zap.',
       layer: circleSVG(L.base.x, L.base.y, L.radius, 'gm-reach strong', 'areaCircle') + (L.feeOn ? circleSVG(L.base.x, L.base.y, L.radius + 5, 'gm-reach fee', 'areaFee') : ''),
       markers: [Object.assign(homeMark(L.base, 'Baza'), { id: 'areaBase' })],
       mb: { center: L.base.lat != null ? { lat: L.base.lat, lng: L.base.lng } : null, zoom: 10.6,
         fit: L.base.lat != null ? circleBounds(L.base.lat, L.base.lng, (L.radius + (L.feeOn ? 5 : 0)) / ROAD) : null, fitKey: `${L.base.lat},${L.base.lng},${L.radius},${L.feeOn}`,
         circles: L.base.lat != null ? [{ lat: L.base.lat, lng: L.base.lng, km: L.radius / ROAD }].concat(L.feeOn ? [{ lat: L.base.lat, lng: L.base.lng, km: (L.radius + 5) / ROAD, kind: 'fee' }] : []) : [],
-        onTapReal: (lat, lng) => { if (!shapeAt(lat, lng)) return; const g = GEOFIT.toGrid(lat, lng); L.base = { x: g.x, y: g.y, lat, lng }; buzz(8); render(); } },
+        onTapReal: (lat, lng) => { if (!AREAX && !shapeAt(lat, lng)) return; const g = GEOFIT.toGrid(lat, lng); L.base = { x: g.x, y: g.y, lat, lng }; buzz(8); render(); if (AREAX) moveBase(lat, lng); } },
       onTap: (x, y) => { if (!inCity(x, y)) return; L.base = { x: Math.round(x * 10) / 10, y: Math.round(y * 10) / 10 }; buzz(8); render(); } })}
     <div class="legend-row"><span><i style="background:${mixFill('cloth', 38)}"></i>w zasięgu</span><span><i style="background:${mixFill('rose', 50)}"></i>duży popyt, mało wykonawców</span></div>
     <div class="field"><div class="row between"><span class="lbl" style="margin:0">Zasięg dojazdu</span><span class="big-val num" id="aradVal">${L.radius}<small>km</small></span></div>
       <input type="range" id="arad" min="2" max="20" step="1" value="${L.radius}" data-model="pro.listing.radius" data-type="num" data-live="arad" data-rr="1" aria-label="Zasięg">
-      <div class="market"><span>2 km</span><span>baza: ${reverseGeo(L.base.x, L.base.y).street}</span><span>20 km</span></div></div>
+      <div class="market"><span>2 km</span><span>baza: ${esc(AREAX ? baseArea() : reverseGeo(L.base.x, L.base.y).street)}</span><span>20 km</span></div></div>
     <div class="card mt12" id="areaStats">${areaStatsHTML()}</div>
     <div class="field"><span class="lbl">Dalsze zlecenia</span><div class="card" style="padding:2px 16px">
       <button class="toggle-row" data-act="ltoggle" data-a="feeOn"><div class="grow"><b>Przyjmuję do 5 km dalej z dopłatą</b><span>Klient widzi dopłatę w wycenie przed rezerwacją</span></div><span class="switch ${L.feeOn ? 'on' : ''}"></span></button>
@@ -1701,10 +1724,10 @@ function dayRoute(jobs) {
 }
 function boostCard() {
   const B = S.pro.boost; const a = B.active[0];
-  if (!a) return `<button class="boostcta" data-act="openBoost"><span class="bc-ill">${illo('dom')}</span><div class="grow"><b>Wyróżnij się w swojej okolicy</b><span>Masz ${zl(B.credit)} kredytu. Wyróżnienie na Mokotowie: ${boostPrice('Mokotów', 7)} zł/tydz.</span></div>${ic('chevron-right', 's')}</button>`;
+  if (!a) return `<button class="boostcta" data-act="openBoost"><span class="bc-ill">${illo('dom')}</span><div class="grow"><b>Wyróżnij się w swojej okolicy</b><span>Masz ${zl(B.credit)} kredytu. ${(() => { const c = coveredDistricts()[0]; return c ? `Wyróżnienie: ${esc(areaLabel(c))} od ${boostPrice(c, 7)} zł/tydz.` : 'Wybierz obszar, w którym chcesz być wyżej.'; })()}</span></div>${ic('chevron-right', 's')}</button>`;
   const goal = boostViews(a.d, a.days);
   return `<button class="boostlive" data-act="openBoost">
-    <div class="row between"><span class="livebadge"><i></i>Wyróżnienie: ${a.d}${S.pro.boost.active.length > 1 ? ` +${S.pro.boost.active.length - 1}` : ''}</span><span class="tiny faint">zostało ${a.left} dni</span></div>
+    <div class="row between"><span class="livebadge"><i></i>Wyróżnienie: ${esc(areaName(a.d))}${S.pro.boost.active.length > 1 ? ` +${S.pro.boost.active.length - 1}` : ''}</span><span class="tiny faint">zostało ${a.left} dni</span></div>
     <div class="minis mt12"><div><b class="num" id="bst-v">${a.views}</b><span>wyświetleń</span></div><div><b class="num" id="bst-o">${a.opens}</b><span>wejść w profil</span></div><div><b class="num" id="bst-r">${a.req}</b><span>zapytań</span></div></div>
     <div class="meter"><i id="bst-m" style="width:${Math.min(100, a.views / goal * 100)}%;background:var(--cloth)"></i></div>
     <div class="tiny faint" id="bst-g">${a.views >= goal ? 'Gwarancja spełniona' : `Gwarancja: ${goal} wyświetleń, inaczej zwrot kredytu`}</div>
@@ -1715,29 +1738,29 @@ screens.boost = () => {
   const activeD = B.active.map(a => a.d);
   const total = D.ds.reduce((x, n) => x + boostPrice(n, D.days), 0);
   const fromCredit = Math.min(total, B.credit); const extra = total - fromCredit;
-  const fill = n => cov.includes(n) ? (D.ds.includes(n) ? { fill: mixFill('cloth', 70), cls: 'sel' } : activeD.includes(n) ? { fill: mixFill('mint', 55) } : { fill: mixFill('glove', 15 + DEMAND[n] * 1.3) }) : { fill: 'var(--surface-2)', cls: 'off' };
+  const fill = n => cov.includes(n) ? (D.ds.includes(n) ? { fill: mixFill('cloth', 70), cls: 'sel' } : activeD.includes(n) ? { fill: mixFill('mint', 55) } : { fill: mixFill('glove', 15 + Math.min(60, demandOf(n) * 1.3)) }) : { fill: 'var(--surface-2)', cls: 'off' };
   return `${topbar('Wyróżnienie')}
   <div class="scroll"><div class="pad">
     <div class="credit"><div><span class="eyebrow">Twój kredyt</span><b class="num">${zl(B.credit)}</b></div><button class="btn sm line" data-act="openInvite">${ic('user-plus', 's')}Zdobądź więcej</button></div>
-    <p class="small muted">Klienci z wybranych dzielnic zobaczą Cię na górze wyników z oznaczeniem „Promowane”. Wyróżnione mogą być najwyżej 2 profile naraz, a opinie i odznaki zostają bez zmian.</p>
+    <p class="small muted">Klienci z wybranych ${AREAX ? 'obszarów' : 'dzielnic'} zobaczą Cię na górze wyników z oznaczeniem „Promowane”. Wyróżnione mogą być najwyżej 2 profile naraz, a opinie i odznaki zostają bez zmian.</p>
     ${geoMap('boost', { h: 300, center: [L.base.x, L.base.y], zoom: 13, fill, labelExtra: n => cov.includes(n) ? (activeD.includes(n) ? 'aktywne' : boostPrice(n, D.days) + ' zł') : '',
       layer: circleSVG(L.base.x, L.base.y, L.radius, 'gm-reach'), markers: [homeMark(L.base, 'Baza')],
       mb: { center: L.base.lat != null ? { lat: L.base.lat, lng: L.base.lng } : null, zoom: 10.6, fit: L.base.lat != null ? circleBounds(L.base.lat, L.base.lng, L.radius / ROAD) : null, fitKey: `${L.base.lat},${L.radius}`,
         circles: L.base.lat != null ? [{ lat: L.base.lat, lng: L.base.lng, km: L.radius / ROAD }] : [], onTapReal: (lat, lng) => { const n = shapeAt(lat, lng); if (n) A.boostToggle(n); } },
       onTap: (x, y) => { if (!inCity(x, y)) return; const n = districtAt(x, y); A.boostToggle(n); } })}
     <div class="legend-row"><span><i style="background:${mixFill('glove', 60)}"></i>im ciemniej, tym większy popyt</span><span><i style="background:${mixFill('mint', 55)}"></i>trwa wyróżnienie</span></div>
-    <div class="field"><span class="lbl">Dzielnice w Twoim zasięgu</span>
-      <div class="options">${cov.map(n => { const on = D.ds.includes(n), act = activeD.includes(n); return `<button class="opt ${on ? 'on' : ''}" data-act="boostToggle" data-a="${n}" ${act ? 'disabled style="opacity:.6"' : ''}><span class="radio"></span><div class="grow"><b class="small">${n}</b><div class="tiny faint">${searchers(n)} osób szukało sprzątania w zeszłym tygodniu · ${dstats(n).sv.length} wykonawców</div></div><b class="num small">${act ? 'aktywne' : boostPrice(n, D.days) + ' zł'}</b></button>`; }).join('')}</div>
-      <div class="hint">Dzielnic poza zasięgiem nie da się wyróżnić. Zasięg zmienisz w Obszarze pracy.</div></div>
+    <div class="field"><span class="lbl">${AREAX ? 'Obszary' : 'Dzielnice'} w Twoim zasięgu</span>
+      <div class="options">${cov.map(n => { const on = D.ds.includes(n), act = activeD.includes(n); return `<button class="opt ${on ? 'on' : ''}" data-act="boostToggle" data-a="${n}" ${act ? 'disabled style="opacity:.6"' : ''}><span class="radio"></span><div class="grow"><b class="small">${esc(areaLabel(n))}</b><div class="tiny faint">${searchers(n)} osób szukało sprzątania w zeszłym tygodniu · ${dstats(n).count} wykonawców</div></div><b class="num small">${act ? 'aktywne' : boostPrice(n, D.days) + ' zł'}</b></button>`; }).join('')}</div>
+      <div class="hint">${AREAX ? 'Obszarów' : 'Dzielnic'} poza zasięgiem nie da się wyróżnić. Zasięg zmienisz w Obszarze pracy.</div></div>
     <div class="field"><span class="lbl">Na jak długo?</span><div class="seg">${[3, 7, 14].map(d => `<button class="${D.days === d ? 'on' : ''}" data-act="boostDays" data-a="${d}">${d} dni${d === 14 ? ' · −10%' : ''}</button>`).join('')}</div></div>
-    ${D.ds.length ? `<div class="receipt mt16">${D.ds.map(n => `<div class="ln"><span>${n} · gwarancja ${boostViews(n, D.days)} wyświetleń</span><b>${zl(boostPrice(n, D.days))}</b></div>`).join('')}
+    ${D.ds.length ? `<div class="receipt mt16">${D.ds.map(n => `<div class="ln"><span>${esc(areaName(n))} · gwarancja ${boostViews(n, D.days)} wyświetleń</span><b>${zl(boostPrice(n, D.days))}</b></div>`).join('')}
       <div class="ln"><span>Z kredytu</span><b style="color:var(--mint)">−${zl(fromCredit)}</b></div>
       <div class="tot"><span class="muted small">${extra ? 'Dopłata BLIK-iem' : 'Do zapłaty'}</span><b class="num">${zl(extra)}</b></div></div>
       <div class="note mt12">${ic('shield-check', 's')}<span>Jeśli w tym czasie zobaczy Cię mniej klientów, niż gwarantujemy, oddamy kredyt proporcjonalnie.</span></div>` : ''}
     ${B.history.length ? `<div class="section-h"><h3>Historia kredytu</h3></div><div class="card" style="padding:4px 16px">${B.history.slice().reverse().map(h => `<div class="toggle-row"><span class="grow small">${esc(h.t)}</span><b class="num small" style="color:var(--${h.v > 0 ? 'mint' : 'ink'})">${h.v > 0 ? '+' : ''}${zl(h.v)}</b></div>`).join('')}</div>` : ''}
     <div class="sp"></div>
   </div></div>
-  <div class="footer slidefoot">${swipeBtn('buyBoost', '', D.ds.length ? `Przesuń, aby wyróżnić za ${zl(total)}` : 'Wybierz dzielnicę', !D.ds.length)}</div>`;
+  <div class="footer slidefoot">${swipeBtn('buyBoost', '', D.ds.length ? `Przesuń, aby wyróżnić za ${zl(total)}` : AREAX ? 'Wybierz obszar' : 'Wybierz dzielnicę', !D.ds.length)}</div>`;
 };
 function fakeQR(seed) {
   let h = 0; for (const ch of seed) h = (h * 31 + ch.charCodeAt(0)) >>> 0; const rnd = () => (h = (h * 1103515245 + 12345) >>> 0) / 4294967296;
@@ -2021,17 +2044,17 @@ const sheets = {
       <div class="note yellow mt16">${ic('megaphone', 's')}<span><b>Promowane</b> oznacza, że wykonawca zapłacił za wyższą pozycję w Twojej dzielnicy. Pokazujemy najwyżej 2 takie profile. Płatne wyróżnienie nie wpływa na opinie, oceny ani odznaki weryfikacji.</span></div>` };
   },
   district(n) {
-    const st = dstats(n); const names = Object.keys(SITES); const cityAvg = Math.round(names.reduce((x, k) => x + dstats(k).avg, 0) / names.length);
+    const st = dstats(n); const names = areaKeys(); const cityAvg = Math.round(names.reduce((x, k) => x + dstats(k).avg, 0) / (names.length || 1));
     const top = st.sv.slice().sort((a, b) => b.rating - a.rating).slice(0, 3);
     const lvl = st.pressure > 6 ? ['Bardzo duży', 'rose'] : st.pressure > 3 ? ['Duży', 'yellow'] : ['Umiarkowany', 'mint'];
-    return { title: n, body: `<div class="small muted" style="margin-top:-4px">${st.pop} tys. mieszkańców · ${st.demand} zapytań o sprzątanie w tym tygodniu</div>
-      <div class="minis mt12"><div><b class="num">${st.sv.length}</b><span>wykonawców</span></div><div><b class="num">${st.avg} zł</b><span>${st.avg >= cityAvg ? '+' : ''}${st.avg - cityAvg} vs miasto</span></div><div><b class="num">${st.free}</b><span>wolne dziś</span></div></div>
+    return { title: esc(areaLabel(n)), body: `<div class="small muted" style="margin-top:-4px">${st.pop} tys. mieszkańców · ${st.demand} zapytań o sprzątanie w tym tygodniu</div>
+      <div class="minis mt12"><div><b class="num">${st.count}</b><span>wykonawców</span></div><div><b class="num">${st.avg} zł</b><span>${st.avg >= cityAvg ? '+' : ''}${st.avg - cityAvg} vs ${AREAX ? 'okolica' : 'miasto'}</span></div><div><b class="num">${st.free}</b><span>wolne dziś</span></div></div>
       <div class="row between mt16"><span class="small">Popyt względem liczby wykonawców</span><span class="tag ${lvl[1]}">${lvl[0]}</span></div>
       <div class="meter"><i style="width:${Math.min(100, st.pressure * 12)}%;background:var(--${lvl[1] === 'yellow' ? 'glove' : lvl[1]})"></i></div>
       ${DTOP[n] ? `<div class="small muted mt12">Najczęściej zamawiane: ${DTOP[n].map(c => catById(c).name.toLowerCase()).join(', ')}</div>` : ''}
       <div class="lbl small mt16" style="font-weight:650">Najwyżej oceniani tutaj</div>
       <div class="stack mt8">${top.map(p => `<button class="opt" data-act="openPro" data-a="${p.id}">${avatar(p, 'sm')}<div class="grow"><b class="small">${esc(p.name)}</b><div class="tiny faint">${stars(p.rating)} · ${p.rate} zł/h · baza: ${p.area}</div></div>${ic('chevron-right', 's')}</button>`).join('') || '<div class="small muted">Nikt jeszcze tu nie dojeżdża.</div>'}</div>`,
-      foot: `<button class="btn line" data-act="closeSheet">Zamknij</button><button class="btn dark" style="flex:1" data-act="districtSearch" data-a="${n}">Pokaż ${st.sv.length} wykonawców</button>` };
+      foot: `<button class="btn line" data-act="closeSheet">Zamknij</button><button class="btn dark" style="flex:1" data-act="districtSearch" data-a="${n}">Pokaż ${st.count} wykonawców</button>` };
   },
   pickOffer(arg) {
     const [pid, oid] = arg.split('|'); const x = S.posts.find(y => y.id === pid); const o = x.offers.find(y => y.id === oid); const p = proById(o.pro);
@@ -2324,7 +2347,7 @@ const A = {
   openExplore() { go('explore'); },
   exploreLayer(k) { S.exploreLayer = k; render(); },
   districtSearch(n) { S.sheet = null; S.filters.district = n; S.filters.bounds = null; S.searchView = 'list'; go('search'); },
-  pickAddr(id) { S.addrId = id; updateGeo(); const ad = curAddr(); toast(`Szukamy dla: ${ad.label}, ${districtAt(ad.x, ad.y)}`, 'map-pin'); afterAddrChange(id); },
+  pickAddr(id) { S.addrId = id; updateGeo(); const ad = curAddr(); toast(`Szukamy dla: ${ad.label}, ${placeOf(ad)}`, 'map-pin'); afterAddrChange(id); },
   newAddrLabel(l) { S.newAddrLabel = l; render(); },
   useGps() { S.maps.loc = { x: 12.7, y: 10.1, z: 40 }; toast('Lokalizacja symulowana: Centrum', 'locate-fixed'); render(); },
   locPickReal(ll) {
@@ -2381,8 +2404,8 @@ const A = {
   openBoost() { const D = S.pro.boost.draft; D.ds = D.ds.filter(n => coveredDistricts().includes(n)); go('boost'); },
   openInvite() { go('invite'); },
   boostToggle(n) {
-    if (!coveredDistricts().includes(n)) { toast(`${n} jest poza Twoim zasięgiem`, 'map-pin-off'); return; }
-    if (S.pro.boost.active.some(a => a.d === n)) { toast(`W dzielnicy ${n} wyróżnienie już trwa`, 'rocket'); return; }
+    if (!coveredDistricts().includes(n)) { toast(`${areaLabel(n)}: poza Twoim zasięgiem`, 'map-pin-off'); return; }
+    if (S.pro.boost.active.some(a => a.d === n)) { toast(`${areaLabel(n)}: wyróżnienie już trwa`, 'rocket'); return; }
     const D = S.pro.boost.draft; const i = D.ds.indexOf(n); i >= 0 ? D.ds.splice(i, 1) : D.ds.push(n); buzz(8); render();
   },
   boostDays(d) { S.pro.boost.draft.days = Number(d); render(); },
@@ -2507,7 +2530,7 @@ function liveUpdate(kind) {
     if (S.mbx && MBX.area) { const c = MBX.area.cfg; if (c.mb && L.base.lat != null) c.mb.circles = [{ lat: L.base.lat, lng: L.base.lng, km: L.radius / ROAD }].concat(L.feeOn ? [{ lat: L.base.lat, lng: L.base.lng, km: (L.radius + 5) / ROAD, kind: 'fee' }] : []); mbxSync('area'); } document.getElementById('aradVal').innerHTML = `${L.radius}<small>km</small>`;
     const c = document.getElementById('areaCircle'); if (c) c.setAttribute('r', L.radius * U); const f = document.getElementById('areaFee'); if (f) f.setAttribute('r', (L.radius + 5) * U);
     document.querySelectorAll('#gm-area .gm-d').forEach(el => { const n = el.dataset.d; el.style.fill = areaCovered(n) ? mixFill('cloth', 38) : mixFill('rose', Math.min(60, dstats(n).pressure * 9)); });
-    document.querySelectorAll('#gm-area .gm-label').forEach(el => { const n = el.firstChild.textContent; const em = el.querySelector('em'); if (em && SITES[n]) em.textContent = areaCovered(n) ? 'w zasięgu' : DEMAND[n] + ' zap.'; });
+    document.querySelectorAll('#gm-area .gm-label').forEach(el => { const n = el.firstChild.textContent; const em = el.querySelector('em'); if (em && SITES[n]) em.textContent = areaCovered(n) ? 'w zasięgu' : demandOf(n) + ' zap.'; });
     document.getElementById('areaStats').innerHTML = areaStatsHTML();
   }
   if (kind === 'locq' && S.online) {
@@ -2515,9 +2538,9 @@ function liveUpdate(kind) {
     clearTimeout(locTimer); if (q.length < 3) { box.innerHTML = ''; return; }
     const seq = ++locSeq;
     locTimer = setTimeout(async () => {
-      let r; try { r = await window.LsniAPI.call('GET', `/api/geo/search?q=${encodeURIComponent(q)}`); } catch (e) { return; }
+      let r; try { const ad = curAddr(); r = await window.LsniAPI.call('GET', `/api/geo/search?q=${encodeURIComponent(q)}${ad && ad.lat != null ? `&near=${ad.lat.toFixed(3)},${ad.lng.toFixed(3)}` : ''}`); } catch (e) { return; }
       if (seq !== locSeq) return;
-      box.innerHTML = r.results.length ? r.results.map(x => `<button class="sug" data-act="locPickReal" data-a="${x.lat},${x.lng}">${ic(x.inArea ? 'map-pin' : 'map-pin-off', 's')}<span class="grow"><b class="small">${esc(x.street)}</b><span class="tiny faint" style="display:block">${esc(x.full || x.district)}</span></span><span class="tiny faint">${x.inArea ? esc(x.district) : 'poza Warszawą'}</span></button>`).join('') : '<div class="tiny faint" style="padding:8px 4px">Nie znaleźliśmy takiego adresu. Wpisz ulicę i numer, np. Racławicka 99.</div>';
+      box.innerHTML = r.results.length ? r.results.map(x => `<button class="sug" data-act="locPickReal" data-a="${x.lat},${x.lng}">${ic(x.inArea ? 'map-pin' : 'map-pin-off', 's')}<span class="grow"><b class="small">${esc(x.street)}</b><span class="tiny faint" style="display:block">${esc(x.full || x.district)}</span></span><span class="tiny faint">${x.inArea ? esc(x.area ? x.area.name : x.district) : 'poza Polską'}</span></button>`).join('') : '<div class="tiny faint" style="padding:8px 4px">Nie znaleźliśmy takiego adresu. Wpisz ulicę, numer i miasto, np. Floriańska 10, Kraków.</div>';
     }, 250);
     return;
   }
@@ -2643,7 +2666,7 @@ function accountMenu() {
 }
 
 // ---------- mapowanie danych z API na model aplikacji ----------
-function mapAddress(a) { const g = GEOFIT.toGrid(a.lat, a.lng); return { id: a.id, label: a.label, street: a.street, note: a.note || '', lat: a.lat, lng: a.lng, x: g.x, y: g.y }; }
+function mapAddress(a) { const g = GEOFIT.toGrid(a.lat, a.lng); return { id: a.id, label: a.label, street: a.street, note: a.note || '', lat: a.lat, lng: a.lng, x: g.x, y: g.y, place: a.district || '', areaKey: a.areaKey || '', city: a.city || '' }; }
 function mapProvider(v) {
   const g = GEOFIT.toGrid(v.base.lat, v.base.lng); let p = PROS.find(x => x.id === v.id);
   if (!p) { p = { id: v.id, repeat: 65, reviewsList: [] }; PROS.push(p); }
@@ -2664,16 +2687,33 @@ function mapOrder(b) {
     issue: b.report ? { cat: b.report.category, want: b.report.want, status: { open: 'sent', escalated: 'sent', answered: 'answered', resolved: 'resolved' }[b.report.status], at: relTime(b.report.at), answeredAt: b.report.answeredAt ? relTime(b.report.answeredAt) : '' } : null });
 }
 function mapNotif(n) { const [k, v] = String(n.link || '').split(':'); const act = k === 'booking' ? (S.role === 'pro' ? 'noop' : 'openOrder') : k === 'thread' ? (S.role === 'pro' ? 'openPChat' : 'openChat') : k === 'provider' ? 'openPro' : k === 'boosts' ? 'openBoost' : k === 'search' ? 'openSearch' : 'noop'; return { id: n.id, icon: NICON[n.kind] || 'bell', t: n.title, d: n.body, at: relTime(n.at), read: n.read, act, a: v || '' }; }
-function mapJob(b) { const g = GEOFIT.toGrid(b.lat, b.lng); return { id: b.id, day: dayOffset(b.startsAt), time: b.startsAt.slice(11, 16), end: b.endsAt.slice(11, 16), client: b.client ? b.client.name : 'Klient', service: b.service, area: districtAt(g.x, g.y), pay: b.totalZl, tone: b.status === 'confirmed' ? '' : 'y', x: g.x, y: g.y, lat: b.lat, lng: b.lng, thread: b.client ? b.client.id : '', noshow: b.status === 'noshow' }; }
-function mapRequest(b) { const g = GEOFIT.toGrid(b.lat, b.lng); return { id: b.id, client: b.client.name, crating: { wysoka: 5, 'średnia': 4, niska: 3 }[b.client.reliability] || 5, service: b.service, m2: b.m2, rooms: b.rooms, baths: b.baths, day: dayOffset(b.startsAt), time: b.startsAt.slice(11, 16), h: b.hours, pay: b.totalZl, area: `${districtAt(g.x, g.y)}, ${b.address}`, note: b.note || 'Bez uwag.', freq: b.freq, expires: 60, x: g.x, y: g.y, payHow: (PAYL[b.payMethod] || 'gotówka').toLowerCase() }; }
+function mapJob(b) { const g = GEOFIT.toGrid(b.lat, b.lng); return { id: b.id, day: dayOffset(b.startsAt), time: b.startsAt.slice(11, 16), end: b.endsAt.slice(11, 16), client: b.client ? b.client.name : 'Klient', service: b.service, area: b.area || districtAt(g.x, g.y), pay: b.totalZl, tone: b.status === 'confirmed' ? '' : 'y', x: g.x, y: g.y, lat: b.lat, lng: b.lng, thread: b.client ? b.client.id : '', noshow: b.status === 'noshow' }; }
+function mapRequest(b) { const g = GEOFIT.toGrid(b.lat, b.lng); return { id: b.id, client: b.client.name, crating: { wysoka: 5, 'średnia': 4, niska: 3 }[b.client.reliability] || 5, service: b.service, m2: b.m2, rooms: b.rooms, baths: b.baths, day: dayOffset(b.startsAt), time: b.startsAt.slice(11, 16), h: b.hours, pay: b.totalZl, area: `${b.address}, ${b.area || districtAt(g.x, g.y)}`, note: b.note || 'Bez uwag.', freq: b.freq, expires: 60, x: g.x, y: g.y, payHow: (PAYL[b.payMethod] || 'gotówka').toLowerCase() }; }
 
 // ---------- pobieranie danych ----------
 async function refreshProviders() {
   const res = await API.call('GET', `/api/providers?${pointQuery()}`);
   const seen = new Set(res.results.map(v => mapProvider(v).id));
   PROS.forEach(p => { if (!seen.has(p.id)) p.reach = 'out'; });
-  const where = districtAt(curAddr().x, curAddr().y);
+  const where = res.district; const ad = curAddr(); if (ad && !ad.areaKey) ad.areaKey = where;
   res.results.forEach(v => { const p = PROS.find(x => x.id === v.id); p.promo = v.promoted ? [where] : []; });
+  await loadAreas(ad.lat, ad.lng, 25);
+}
+// Obszary wokół punktu (kształty na mapę i statystyki). Pobieramy ponownie dopiero po przesunięciu o kilka km.
+async function loadAreas(lat, lng, km, force) {
+  if (AREAX && !force && AREAX.km === km && haversine(lat, lng, AREAX.lat, AREAX.lng) < 3) return;
+  const r = await API.call('GET', `/api/geo/areas?lat=${lat.toFixed(5)}&lng=${lng.toFixed(5)}&km=${km}`);
+  const by = Object.fromEntries(r.areas.map(a => [a.key, a]));
+  AREAX = { list: r.areas, by, here: r.here, near: by[r.here.key] ? r.here.key : (r.areas[0] || {}).key, lat, lng, km };
+  DISTRICT_SHAPES = r.shapes;
+}
+// Wykonawca przeniósł bazę na mapie: wczytujemy obszary nowej okolicy (np. przeprowadzka do innego miasta).
+let baseTimer = null;
+function moveBase(lat, lng) {
+  clearTimeout(baseTimer);
+  baseTimer = setTimeout(async () => {
+    try { await loadAreas(lat, lng, 35); const rev = await API.call('GET', `/api/geo/reverse?lat=${lat.toFixed(5)}&lng=${lng.toFixed(5)}`); S.pro.baseArea = rev.area ? rev.area.label : ''; render(); } catch (e) { }
+  }, 300);
 }
 async function refreshOrders() { const list = await API.call('GET', '/api/bookings'); S.orders = list.map(mapOrder); }
 async function refreshNotifs() { const list = await API.call('GET', '/api/notifications'); S.notifs = list.map(mapNotif); }
@@ -2695,6 +2735,8 @@ async function loadSlots(id) {
 async function refreshPro() {
   const [me, dash, jobs, boosts, invite] = await Promise.all([API.call('GET', '/api/pro/me'), API.call('GET', '/api/pro/dashboard'), API.call('GET', '/api/bookings?as=provider&scope=upcoming'), API.call('GET', '/api/pro/boosts'), API.call('GET', '/api/pro/invite')]);
   const L = S.pro.listing; const g = GEOFIT.toGrid(me.base.lat, me.base.lng);
+  S.pro.baseArea = me.homeArea ? me.homeArea.label : '';
+  await loadAreas(me.base.lat, me.base.lng, 35);
   Object.assign(L, { name: me.name, tagline: me.tagline, services: me.services, rate: me.rate, minH: me.minH, base: { x: g.x, y: g.y, lat: me.base.lat, lng: me.base.lng }, radius: me.radiusKm, fee: me.fee || 15, feeOn: me.fee > 0, supplies: me.supplies, eco: me.eco, pets: me.pets, invoice: me.invoice, bio: me.bio || '', idVerified: me.idStatus === 'verified', insured: me.insured, published: me.published });
   S.pro.online = me.online;
   S.pro.requests = dash.requests.map(mapRequest);
@@ -2709,7 +2751,7 @@ async function hydrate() {
   const me = await API.call('GET', '/api/me'); S.me = me;
   S.role = me.role === 'pro' ? 'pro' : 'client'; S.tab = S.role === 'pro' ? 'dash' : 'home'; S.stacks = {}; S.sheet = null;
   S.addresses = me.addresses.map(mapAddress);
-  if (!S.addresses.length) { const c = REAL_CENTERS['Mokotów']; S.addresses = [mapAddress({ id: '_default', label: 'Mokotów (dodaj swój adres)', street: 'Centrum Mokotowa', lat: c[0], lng: c[1] })]; }
+  if (!S.addresses.length) S.addresses = [mapAddress({ id: '_default', label: 'Warszawa (dodaj swój adres)', street: 'Centrum', district: 'Warszawa', lat: 52.2297, lng: 21.0122 })];
   if (!S.addresses.some(a => a.id === S.addrId)) S.addrId = S.addresses[0].id;
   S.orders = []; S.threads = {}; S.notifs = []; S.pro.threads = {}; S.pro.requests = []; S.pro.jobs = []; S.favs = S.favs.filter(id => PROS.some(p => p.id === id));
   await refreshProviders();
@@ -2808,13 +2850,18 @@ const ON = {
   async readAll() { try { await API.call('POST', '/api/notifications/read', { all: true }); } catch (e) { } S.notifs.forEach(n => { n.read = true; }); render(); },
   async openNotif(id) { API.call('POST', '/api/notifications/read', { ids: [id] }).catch(() => { }); DEMO.openNotif(id); },
   async notifPref(k) { try { const me = await API.call('PATCH', '/api/me', { prefs: { [k]: !S.notifPrefs[k] } }); S.notifPrefs = me.prefs; render(); } catch (e) { failToast(e); } },
-  async pickAddr(id) { S.addrId = id; try { await refreshProviders(); } catch (e) { failToast(e); } const ad = curAddr(); toast(`Szukamy dla: ${ad.label}, ${districtAt(ad.x, ad.y)}`, 'map-pin'); afterAddrChange(id); },
+  async pickAddr(id) { S.addrId = id; try { await refreshProviders(); } catch (e) { failToast(e); } const ad = curAddr(); toast(`Szukamy dla: ${ad.label}, ${placeOf(ad)}`, 'map-pin'); afterAddrChange(id); },
+  // Wykonawcy obsługujący wybrany obszar (także spoza listy wczytanej dla adresu).
+  async districtSearch(n) {
+    try { const res = await API.call('GET', `/api/providers?${pointQuery()}&area=${encodeURIComponent(n)}`); res.results.forEach(mapProvider); } catch (e) { return failToast(e); }
+    DEMO.districtSearch(n);
+  },
   async saveAddr() {
     const v = S.maps.loc; if (!v && !S.locReal) return; const real = S.mbx && S.locReal ? S.locReal : GEOFIT.toReal(v.x, v.y);
     try {
       const a = await API.call('POST', '/api/addresses', { label: S.newAddrLabel || 'Adres', lat: real.lat, lng: real.lng, note: S.newAddrNote || '', street: S.mbx && S.locRev && S.locRev.street ? S.locRev.street : undefined });
       S.addresses = S.addresses.filter(x => !x.id.startsWith('_')).concat(mapAddress(a)); S.addrId = a.id; await refreshProviders();
-      toast(`Zapisano: ${a.street}, ${a.district}`, 'map-pin-plus'); afterAddrChange(a.id);
+      toast(`Zapisano: ${a.street}, ${a.area || a.district}`, 'map-pin-plus'); afterAddrChange(a.id);
     } catch (e) { failToast(e); }
   },
   async joinWaitlist(key) {
@@ -2826,7 +2873,7 @@ const ON = {
   async buyBoost() {
     const D = S.pro.boost.draft;
     try { await API.call('POST', '/api/pro/boosts', { districts: D.ds, days: D.days }); D.ds = []; await refreshPro(); toast('Wyróżnienie aktywne', 'rocket'); back(); }
-    catch (e) { failToast(e.code === 'payment_required' ? { message: `Brakuje ${zl(e.data.missingZl)} kredytu. Zaproś klientów albo wybierz mniej dzielnic.` } : e); render(); }
+    catch (e) { failToast(e.code === 'payment_required' ? { message: `Brakuje ${zl(e.data.missingZl)} kredytu. Zaproś klientów albo wybierz mniej obszarów.` } : e); render(); }
   },
   async reportNoShow(i) {
     const j = S.pro.jobs[Number(i)];

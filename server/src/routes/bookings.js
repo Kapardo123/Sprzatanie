@@ -39,14 +39,14 @@ module.exports = function bookingRoutes(r, { db, domain, notifier, mapbox }) {
     let addr;
     if (body.addressId) addr = db.get('SELECT * FROM addresses WHERE id = ? AND user_id = ?', body.addressId, user.id) || notFound('Nie ma takiego adresu');
     else addr = { id: null, lat: v.num(body.lat, 'lat', { min: 49, max: 55 }), lng: v.num(body.lng, 'lng', { min: 14, max: 25 }), street: v.str(body.street, 'adres', { max: 120 }) };
-    if (!geo.inWarsaw(addr.lat, addr.lng)) fail(422, 'outside_area', 'Ten adres jest poza obszarem, w którym działamy');
+    if (!geo.inPoland(addr.lat, addr.lng)) fail(422, 'outside_area', 'Ten adres jest poza Polską');
     const road = mapbox.enabled() ? await mapbox.matrix([{ id: p.user_id, lat: p.base_lat, lng: p.base_lng }], addr) : null;
     const rc = reachWith(p, addr, road && road.get(p.user_id));
     if (rc.reach === 'out') fail(422, 'out_of_reach', `${p.display_name} nie dojeżdża pod ten adres`);
     const at = `${v.date(body.date, 'data')}T${v.time(body.time, 'godzina')}`;
     if (!isSlotFree(p, at)) conflict('Ten termin jest już zajęty albo niedostępny. Wybierz inny.', 'slot_taken');
     const q = quote(p, scope, rc.reach === 'fee' ? p.fee_gr : 0);
-    const district = geo.districtAt(addr.lat, addr.lng);
+    const district = geo.areaAt(addr.lat, addr.lng).key;
     const boost = domain.activeBoosts().find(b => b.provider_id === p.user_id && b.district === district);
     const invite = db.get('SELECT * FROM invites WHERE provider_id = ? AND client_id = ?', p.user_id, user.id);
     const id = newId('bkg_'); const t = nowIso();

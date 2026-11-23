@@ -36,31 +36,33 @@ Na komputerze aplikacja wyświetla się w ramce telefonu, a na telefonie na peł
 - Panel: zarobki w tygodniu, nowe zapytania (przyjmij lub odrzuć z możliwością cofnięcia), statystyki ogłoszenia, lista rzeczy do uzupełnienia w profilu
 - Giełda zleceń w okolicy: wysłanie oferty z ceną (z kwotą po prowizji), terminem i wiadomością
 - Grafik: zlecenia na dany dzień i stała dostępność w tygodniu
-- Edytor ogłoszenia z podglądem na żywo: usługi, stawka na tle średniej w dzielnicy, prognoza zarobków, obszar dojazdu, udogodnienia, zdjęcia, weryfikacja
+- Edytor ogłoszenia z podglądem na żywo: usługi, stawka na tle średniej w okolicy, prognoza zarobków, obszar dojazdu, udogodnienia, zdjęcia, weryfikacja
 
 Dane są przykładowe i zapisują się w `localStorage` przeglądarki. Link „Zresetuj dane demo” przywraca stan początkowy.
 
 ## Model biznesowy (na start)
 
 - **Klient nic nie płaci w aplikacji.** Rezerwuje termin, a z wykonawcą rozlicza się na miejscu: gotówką, BLIK-iem na telefon lub przelewem.
-- **Wykonawca nie płaci prowizji ani abonamentu.** Płaci tylko za **wyróżnienie**: wyższą pozycję w wybranych dzielnicach z oznaczeniem „Promowane”, najwyżej 2 profile naraz.
-- **Cena wyróżnienia zależy od popytu w dzielnicy**, np. Mokotów około 37 zł/tydz., Targówek około 13 zł/tydz. Każde wyróżnienie ma gwarancję liczby wyświetleń, a jeśli nie zostanie spełniona, kredyt wraca.
+- **Wykonawca nie płaci prowizji ani abonamentu.** Płaci tylko za **wyróżnienie**: wyższą pozycję w wybranych obszarach (dzielnicach dużych miast albo miastach) z oznaczeniem „Promowane”, najwyżej 2 profile naraz.
+- **Cena wyróżnienia zależy od popytu w obszarze**, np. Mokotów w Warszawie około 36 zł/tydz., Stare Miasto w Krakowie około 12 zł/tydz. Każde wyróżnienie ma gwarancję liczby wyświetleń, a jeśli nie zostanie spełniona, kredyt wraca.
 - **Kredyt na wyróżnienia:** 50 zł na start oraz 20 zł za każdego własnego klienta, którego wykonawca przyprowadzi do aplikacji swoim linkiem lub kodem QR. W ten sposób wykonawcy ściągają klientów.
 - Ekran „Jak ustalamy kolejność” wyjaśnia ranking i oznaczenie „Promowane” (wymóg przejrzystości wobec konsumentów).
 
 ## Lokalizacja
 
-Aplikacja ma uproszczony model Warszawy w kilometrach: 12 dzielnic (komórki Woronoja przycięte do granic miasta), Wisłę, główne ulice i parki. Mapy są rysowane w SVG, bez zewnętrznych usług. Można je przesuwać, przybliżać kółkiem albo dwoma palcami.
+**Z serwerem i tokenem Mapbox aplikacja działa w całej Polsce:** adresy z każdego miasta i wsi, prawdziwa mapa, czasy dojazdu po drogach. Do statystyk, popytu i wyróżnień kraj jest podzielony na obszary: dzielnice w Warszawie, Krakowie, Łodzi, Wrocławiu i Poznaniu oraz ok. 115 miast (szczegóły w [server/README.md](server/README.md#cała-polska-obszary)). Mapa okolicy pokazuje obszary wokół adresu klienta, a edytor zasięgu i wyróżnienia obszary wokół bazy wykonawcy.
+
+**Tryb demo** (bez serwera) ma uproszczony model Warszawy w kilometrach: 12 dzielnic, Wisłę, główne ulice i parki, rysowane w SVG bez zewnętrznych usług. Mapy można przesuwać, przybliżać kółkiem albo dwoma palcami.
 
 **Klient**
 - Wybór adresu: wyszukiwarka ulic, zapisane adresy i wskazywanie miejsca pinezką na mapie. Przy każdym adresie widać, ilu wykonawców tam dojeżdża.
 - Odległość i czas dojazdu każdego wykonawcy liczone od wybranego adresu. Wykonawcy poza zasięgiem są ukryci, a ci tuż za granicą zasięgu pokazują dopłatę za dojazd, która trafia do wyceny.
-- Mapa okolicy z warstwami: wykonawcy, ceny, wolne terminy dziś i popyt. Po dotknięciu dzielnicy widać jej statystyki i najlepiej ocenianych wykonawców.
+- Mapa okolicy z warstwami: wykonawcy, ceny, wolne terminy dziś i popyt. Po dotknięciu dzielnicy lub miasta widać jego statystyki i najlepiej ocenianych wykonawców.
 - Wyszukiwarka z mapą: zasięg wybranego wykonawcy, „Szukaj w tym obszarze”, filtr odległości.
 - Śledzenie dojazdu wykonawcy na mapie z odliczaniem czasu. Po dojeździe zlecenie samo przechodzi w „W trakcie”.
 
 **Wykonawca**
-- Edytor obszaru pracy: baza (dotknij mapy), promień dojazdu, dopłata za dalsze zlecenia, dzielnice w zasięgu, liczba mieszkańców, zapytania, konkurencja, szacowany potencjał i podpowiedź, gdzie warto się rozszerzyć.
+- Edytor obszaru pracy: baza (dotknij mapy), promień dojazdu, dopłata za dalsze zlecenia, dzielnice i miasta w zasięgu, liczba mieszkańców, zapytania, konkurencja, szacowany potencjał i podpowiedź, gdzie warto się rozszerzyć.
 - Odległość od bazy przy zapytaniach i zleceniach z giełdy.
 - Trasa dnia w grafiku: kolejność wizyt, kilometry i czas jazdy między zleceniami.
 

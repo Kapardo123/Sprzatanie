@@ -21,7 +21,7 @@ module.exports = function proRoutes(r, { db, domain, notifier, sms, mapbox }) {
     const rate = v.num(body.rate ?? (existing && existing.rate_gr / 100), 'stawka', { min: 25, max: 200 });
     const lat = v.num(body.baseLat ?? (existing && existing.base_lat), 'baza (szerokość)', { min: 49, max: 55 });
     const lng = v.num(body.baseLng ?? (existing && existing.base_lng), 'baza (długość)', { min: 14, max: 25 });
-    if (!geo.inWarsaw(lat, lng)) fail(422, 'outside_area', 'Baza musi być w Warszawie');
+    if (!geo.inPoland(lat, lng)) fail(422, 'outside_area', 'Baza musi być w Polsce');
     const radius = v.num(body.radiusKm ?? (existing ? existing.radius_km : 6), 'zasięg', { min: 2, max: 20 });
     const fee = v.num(body.fee ?? (existing ? existing.fee_gr / 100 : 0), 'dopłata za dojazd', { min: 0, max: 50 });
     const flag = (k, col) => (body[k] !== undefined ? (v.bool(body[k]) ? 1 : 0) : existing ? existing[col] : 0);
@@ -61,7 +61,8 @@ module.exports = function proRoutes(r, { db, domain, notifier, sms, mapbox }) {
     return Object.assign(domain.providerView(p, null, { full: true }), {
       published: !!p.published, online: !!p.online, idStatus: p.id_status, insuranceStatus: p.insurance_status, inviteCode: p.invite_code,
       creditZl: domain.creditGr(id) / 100, bio: p.bio,
-      coveredDistricts: Object.keys(geo.DISTRICTS).filter(n => geo.servesDistrict(p, n)),
+      coveredDistricts: domain.coveredAreas(p).map(a => a.key),
+      coveredAreas: domain.coveredAreas(p).map(domain.areaView), homeArea: domain.areaView(geo.areaAt(p.base_lat, p.base_lng)),
       availability: db.all('SELECT weekday, start_hour, end_hour FROM availability WHERE provider_id = ? ORDER BY weekday', id)
     });
   }
@@ -130,7 +131,7 @@ module.exports = function proRoutes(r, { db, domain, notifier, sms, mapbox }) {
   });
 
   // ---------- wyróżnienia i kredyt ----------
-  const boostView = b => ({ id: b.id, district: b.district, days: b.days, priceZl: b.price_gr / 100, startsAt: b.starts_at, endsAt: b.ends_at, views: b.views, opens: b.opens, requests: b.requests, guaranteedViews: b.guaranteed_views, settled: !!b.settled, refundedZl: b.refunded_gr / 100 });
+  const boostView = b => ({ id: b.id, district: b.district, area: geo.areaByKey(b.district) ? geo.areaLabel(geo.areaByKey(b.district)) : b.district, days: b.days, priceZl: b.price_gr / 100, startsAt: b.starts_at, endsAt: b.ends_at, views: b.views, opens: b.opens, requests: b.requests, guaranteedViews: b.guaranteed_views, settled: !!b.settled, refundedZl: b.refunded_gr / 100 });
   r.get('/api/pro/boosts', { auth: 'pro' }, ({ user, query, now }) => {
     const p = domain.providerById(user.id); const days = [3, 7, 14].includes(Number(query.days)) ? Number(query.days) : 7;
     const active = db.all('SELECT * FROM boosts WHERE provider_id = ? AND starts_at <= ? AND ends_at > ? ORDER BY ends_at', user.id, now, now);
@@ -145,11 +146,14 @@ module.exports = function proRoutes(r, { db, domain, notifier, sms, mapbox }) {
   r.post('/api/pro/boosts', { auth: 'pro' }, ({ user, body, now }) => {
     const p = domain.providerById(user.id) || notFound('Najpierw utwórz profil wykonawcy');
     const days = v.oneOf(Number(body.days), 'czas trwania', [3, 7, 14]);
-    const districts = v.arr(body.districts, 'dzielnice', { max: 12, of: Object.keys(geo.DISTRICTS) });
-    if (!districts.length) badRequest('Wybierz co najmniej jedną dzielnicę', 'validation');
+    // Obszary podaje się kluczami, np. "Warszawa/Mokotów", "Kraków/Krowodrza" albo "Gdańsk".
+    const districts = v.arr(body.districts ?? body.areas, 'obszary', { max: 12 }).map(String);
+    if (!districts.length) badRequest('Wybierz co najmniej jeden obszar', 'validation');
     for (const n of districts) {
-      if (!geo.servesDistrict(p, n)) fail(422, 'outside_reach', `${n} jest poza Twoim zasięgiem dojazdu`);
-      if (db.get('SELECT 1 FROM boosts WHERE provider_id = ? AND district = ? AND ends_at > ?', user.id, n, now)) conflict(`W dzielnicy ${n} wyróżnienie już trwa`, 'already_active');
+      const a = geo.areaByKey(n);
+      if (!a || a.kind === 'outskirts') badRequest(`Nie znamy obszaru „${n}”`, 'validation');
+      if (!geo.servesArea(p, a)) fail(422, 'outside_reach', `${geo.areaLabel(a)}: poza Twoim zasięgiem dojazdu`);
+      if (db.get('SELECT 1 FROM boosts WHERE provider_id = ? AND district = ? AND ends_at > ?', user.id, n, now)) conflict(`${geo.areaLabel(a)}: wyróżnienie już trwa`, 'already_active');
     }
     const items = districts.map(n => { const d = domain.demand(n); return { n, price: boostPriceGr(d, days), views: boostGuaranteedViews(d, days) }; });
     const total = items.reduce((a, x) => a + x.price, 0); const credit = domain.creditGr(user.id);
@@ -158,7 +162,7 @@ module.exports = function proRoutes(r, { db, domain, notifier, sms, mapbox }) {
     const created = db.tx(() => items.map(x => {
       const id = newId('bst_');
       db.run('INSERT INTO boosts (id, provider_id, district, days, price_gr, paid_credit_gr, guaranteed_views, starts_at, ends_at) VALUES (?,?,?,?,?,?,?,?,?)', id, user.id, x.n, days, x.price, x.price, x.views, now, addDays(now, days));
-      db.run('INSERT INTO credit_ledger (id, provider_id, amount_gr, reason, ref, created_at) VALUES (?,?,?,?,?,?)', newId('crd_'), user.id, -x.price, `Wyróżnienie: ${x.n} (${days} dni)`, id, nowIso());
+      db.run('INSERT INTO credit_ledger (id, provider_id, amount_gr, reason, ref, created_at) VALUES (?,?,?,?,?,?)', newId('crd_'), user.id, -x.price, `Wyróżnienie: ${geo.areaLabel(geo.areaByKey(x.n))} (${days} dni)`, id, nowIso());
       return id;
     }));
     return { __status: 201, data: { boosts: created.map(id => boostView(db.get('SELECT * FROM boosts WHERE id = ?', id))), creditZl: domain.creditGr(user.id) / 100 } };

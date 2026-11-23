@@ -5,9 +5,7 @@
 const { config } = require('../config');
 const geo = require('../geo');
 
-// Prostokąt obejmujący Warszawę z okolicą: zawęża wyniki geokodowania.
-const BBOX = '20.82,52.08,21.30,52.38';
-const PROXIMITY = '21.0122,52.2297';
+// Wyniki z całej Polski; bez punktu odniesienia Mapbox szereguje je według IP użytkownika.
 const round = (n, d = 4) => Math.round(n * 10 ** d) / 10 ** d;
 
 function createMapbox(db) {
@@ -46,12 +44,19 @@ function createMapbox(db) {
   // ---------- geokodowanie ----------
   const toAddress = f => {
     const [lng, lat] = f.geometry.coordinates; const p = f.properties || {};
-    return { street: p.name || p.full_address || '', full: p.full_address || p.place_formatted || '', lat: round(lat, 6), lng: round(lng, 6), district: geo.districtAt(lat, lng), inArea: geo.inWarsaw(lat, lng) };
+    const ctx = p.context || {};
+    const city = (ctx.place && ctx.place.name) || (p.feature_type === 'place' ? p.name : '') || (ctx.locality && ctx.locality.name) || '';
+    const country = ctx.country && ctx.country.country_code;
+    return { street: p.name || p.full_address || '', full: p.full_address || p.place_formatted || '', lat: round(lat, 6), lng: round(lng, 6),
+      city, region: (ctx.region && ctx.region.name) || '', postcode: (ctx.postcode && ctx.postcode.name) || '', kind: p.feature_type || '',
+      inArea: country ? country.toLowerCase() === 'pl' : geo.inPoland(lat, lng) };
   };
-  async function search(q) {
+  async function search(q, near = null) {
     const text = String(q || '').trim(); if (text.length < 3) return null;
-    return cached(`fwd:${text.toLowerCase()}`, 30 * 86400, async () => {
-      const d = await call('/search/geocode/v6/forward', { q: text, country: 'pl', language: 'pl', limit: '6', types: 'address,street', bbox: BBOX, proximity: PROXIMITY, autocomplete: 'true' });
+    // Punkt odniesienia zaokrąglony do ok. 10 km, żeby pamięć podręczna działała dla sąsiadów.
+    const prox = near ? `${round(near.lng, 1)},${round(near.lat, 1)}` : 'ip';
+    return cached(`fwd:${prox}:${text.toLowerCase()}`, 30 * 86400, async () => {
+      const d = await call('/search/geocode/v6/forward', { q: text, country: 'pl', language: 'pl', limit: '6', types: 'address,street,place,locality,neighborhood', proximity: prox, autocomplete: 'true' });
       return (d.features || []).map(toAddress);
     });
   }

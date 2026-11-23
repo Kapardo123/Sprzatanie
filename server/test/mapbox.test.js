@@ -12,8 +12,9 @@ const fake = http.createServer((req, res) => {
   const send = (code, body) => { res.writeHead(code, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(body)); };
   if (u.searchParams.get('access_token') !== 'pk.test') return send(401, { message: 'Not Authorized - Invalid Token' });
   if (u.pathname === '/search/geocode/v6/forward') return send(200, { features: [
-    { geometry: { coordinates: [21.0021, 52.2006] }, properties: { name: 'Racławicka 99', full_address: 'Racławicka 99, 02-634 Warszawa, Polska', place_formatted: '02-634 Warszawa' } },
-    { geometry: { coordinates: [21.0, 52.4] }, properties: { name: 'Racławicka 1', full_address: 'Racławicka 1, Łomianki' } }] });
+    { geometry: { coordinates: [21.0021, 52.2006] }, properties: { name: 'Racławicka 99', full_address: 'Racławicka 99, 02-634 Warszawa, Polska', place_formatted: '02-634 Warszawa',
+      context: { place: { name: 'Warszawa' }, region: { name: 'mazowieckie' }, postcode: { name: '02-634' }, country: { country_code: 'PL' } } } },
+    { geometry: { coordinates: [13.40, 52.52] }, properties: { name: 'Racławicka 1', full_address: 'Racławicka 1, Berlin', context: { place: { name: 'Berlin' }, country: { country_code: 'DE' } } } }] });
   if (u.pathname === '/search/geocode/v6/reverse') return send(200, { features: [{ geometry: { coordinates: [21.024, 52.195] }, properties: { name: 'Puławska 112', full_address: 'Puławska 112, 02-620 Warszawa' } }] });
   if (u.pathname.startsWith('/directions-matrix/v1/mapbox/driving/')) {
     if (failMatrix) return send(500, { message: 'boom' });
@@ -57,9 +58,13 @@ test('wyszukiwanie adresów przez Mapbox, z pamięcią podręczną', async () =>
   const r = await api('GET', '/api/geo/search?q=Racławicka 99');
   assert.equal(r.data.source, 'mapbox');
   assert.equal(r.data.results[0].street, 'Racławicka 99'); assert.equal(r.data.results[0].district, 'Mokotów'); assert.equal(r.data.results[0].inArea, true);
-  assert.equal(r.data.results[1].inArea, false, 'adres poza Warszawą jest oznaczony');
+  assert.equal(r.data.results[0].city, 'Warszawa'); assert.equal(r.data.results[0].areaKey, 'Warszawa/Mokotów');
+  assert.equal(r.data.results[1].inArea, false, 'adres poza Polską jest oznaczony');
+  // inne miejsce odniesienia = osobne zapytanie (wyniki najbliżej użytkownika)
+  await api('GET', '/api/geo/search?q=Racławicka 99&near=50.06,19.94');
+  assert.ok(calls.some(c => c.includes('forward')));
   await api('GET', '/api/geo/search?q=racławicka 99');
-  assert.equal(calls.filter(c => c.includes('forward')).length, before + 1, 'drugie zapytanie z pamięci podręcznej');
+  assert.equal(calls.filter(c => c.includes('forward')).length, before + 2, 'powtórzone zapytanie z pamięci podręcznej');
   const rev = await api('GET', '/api/geo/reverse?lat=52.195&lng=21.024');
   assert.equal(rev.data.street, 'Puławska 112'); assert.equal(rev.data.source, 'mapbox');
 });
@@ -90,10 +95,10 @@ test('trasa dojazdu do rezerwacji i trasa dnia wykonawcy po drogach', async () =
   assert.equal(d.data.source, 'mapbox'); assert.ok(d.data.geometry.length >= 3); assert.ok(d.data.legs.every(l => l.min === 11));
 });
 
-test('kształty dzielnic jako GeoJSON', async () => {
-  const r = await api('GET', '/api/geo/districts/shapes');
-  assert.equal(r.data.features.length, 12);
-  const mok = r.data.features.find(f => f.properties.name === 'Mokotów');
+test('kształty obszarów jako GeoJSON', async () => {
+  const r = (await api('GET', '/api/geo/areas?lat=52.2297&lng=21.0122&km=12')).data.shapes;
+  assert.ok(r.features.filter(f => f.properties.city === 'Warszawa').length >= 12);
+  const mok = r.features.find(f => f.properties.key === 'Warszawa/Mokotów');
   const ring = mok.geometry.coordinates[0]; assert.deepEqual(ring[0], ring[ring.length - 1]);
   assert.ok(ring.every(([lng, lat]) => lng > 20.8 && lng < 21.3 && lat > 52.0 && lat < 52.4));
 });
