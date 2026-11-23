@@ -1,17 +1,22 @@
 # Lśni
 
-Klikalna makieta aplikacji mobilnej: marketplace usług sprzątania. Klienci znajdują i rezerwują wykonawców, a wykonawcy publikują ogłoszenia i przyjmują zlecenia.
+Marketplace usług sprzątania: klienci znajdują i rezerwują wykonawców w okolicy, a wykonawcy publikują ogłoszenia i przyjmują zlecenia. Repozytorium zawiera aplikację (makietę z warstwą online) i backend.
 
 ## Uruchomienie
 
-Bez instalacji i bez budowania. Otwórz `index.html` w przeglądarce albo wystaw katalog dowolnym serwerem:
+**Z serwerem (tryb online):** prawdziwe konta, baza danych i rezerwacje. Wymaga Node.js 22.5 lub nowszego.
 
 ```bash
-python3 -m http.server 8000
-# http://localhost:8000
+cd server
+npm start
+# aplikacja: http://localhost:8080   panel zespołu: http://localhost:8080/admin
 ```
 
-Na komputerze aplikacja wyświetla się w ramce telefonu, a na telefonie na pełnym ekranie. Przełącznik „Tryb klienta / Tryb wykonawcy” jest w panelu po lewej, a w aplikacji w zakładce Profil.
+Logowanie kodem SMS. W trybie deweloperskim kod pojawia się w konsoli i sam wpisuje się w aplikacji. Konta testowe: klientka **500 100 200**, wykonawczyni **500 100 300**, zespół **500 100 999**. Szczegóły, integracje i wdrożenie opisuje [server/README.md](server/README.md).
+
+**Bez serwera (tryb demo):** otwórz `index.html` w przeglądarce. Dane są przykładowe i zapisują się tylko w przeglądarce.
+
+Na komputerze aplikacja wyświetla się w ramce telefonu, a na telefonie na pełnym ekranie. W trybie demo przełącznik „Tryb klienta / Tryb wykonawcy” jest w panelu po lewej, a w aplikacji w zakładce Profil.
 
 ## Co działa
 
@@ -81,5 +86,9 @@ Plik [SCENARIUSZE.md](SCENARIUSZE.md) opisuje 10 sytuacji z życia klientów i w
 ## Pliki
 
 - `index.html`: układ i style (tokeny kolorów dla jasnego i ciemnego motywu)
-- `app.js`: dane, ekrany i nawigacja (czysty JavaScript)
+- `app.js`: dane, ekrany i nawigacja (czysty JavaScript). Na końcu jest warstwa trybu online.
+- `api.js`: klient API, który wykrywa serwer i przechowuje sesję
+- `server/`: backend (Node.js, SQLite, bez zależności z npm), panel zespołu, dokumenty prawne, testy
+- `Dockerfile`: aplikacja i serwer w jednym kontenerze
+- `SCENARIUSZE.md`: scenariusze użycia i to, co z nich wynikło
 - Ikony: [Lucide](https://lucide.dev) z CDN, fonty: Bricolage Grotesque i Onest z Google Fonts

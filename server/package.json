@@ -1,0 +1,14 @@
+{
+  "name": "lsni-server",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Backend aplikacji Lśni: konta, rezerwacje, powiadomienia, zgłoszenia, wyróżnienia i panel administracyjny.",
+  "main": "src/index.js",
+  "engines": { "node": ">=22.5" },
+  "scripts": {
+    "start": "node --disable-warning=ExperimentalWarning src/index.js",
+    "dev": "NODE_ENV=development node --disable-warning=ExperimentalWarning --watch src/index.js",
+    "seed": "node --disable-warning=ExperimentalWarning src/seed.js --reset",
+    "test": "node --disable-warning=ExperimentalWarning --test test/*.test.js"
+  }
+}

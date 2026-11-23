@@ -403,6 +403,7 @@ S.stacks = {}; S.sheet = null;
 })();
 updateGeo();
 const persist = () => {
+  if (S.online) return; // w trybie online dane są na serwerze; nie nadpisujemy danych demo
   const { sheet, stacks, booking, ...rest } = S;
   store.set('state', rest);
 };
@@ -592,8 +593,8 @@ const swipeBtn = (act, arg, label, off) => `<div class="slide ${off ? 'off' : ''
 const screens = {};
 
 screens.home = () => {
-  const next = S.orders.filter(o => o.date >= 0 && !['done', 'cancel'].includes(o.status)).sort((a, b) => a.date - b.date)[0];
-  const quick = PROS.filter(p => p.todayFree && p.reach !== 'out').sort((a, b) => a.dist - b.dist)[0] || PROS.filter(p => p.todayFree)[0];
+  const next = S.orders.filter(o => o.date >= 0 && !PAST.includes(o.status)).sort((a, b) => a.date - b.date)[0];
+  const quick = PROS.filter(p => p.todayFree && p.reach !== 'out').sort((a, b) => a.dist - b.dist)[0] || PROS.filter(p => p.todayFree)[0] || PROS.filter(p => p.reach !== 'out')[0] || PROS[0];
   const ha = curAddr(); const nearCnt = PROS.filter(p => p.reach !== 'out').length; const nearFree = PROS.filter(p => p.reach !== 'out').reduce((x, p) => x + SLOTS.filter(t => !slotTaken(p.id, 0, t)).length, 0);
   const qEst = estimate({ service: 'dom', m2: 54, rooms: 2, baths: 1, extras: [], freq: 'once' }, quick);
   const featured = PROS.filter(p => (p.super || p.rating > 4.85) && p.reach !== 'out').sort((a, b) => a.dist - b.dist);
@@ -604,7 +605,7 @@ screens.home = () => {
       <button class="iconbtn" data-act="openNotifs" aria-label="Powiadomienia">${ic('bell', 's')}${S.notifs.some(n => !n.read) ? `<span class="badge">${S.notifs.filter(n => !n.read).length}</span>` : ''}</button>
     </div>
     <div class="pad">
-      <div class="greet">${ic(DAYPARTS[daypart()].icon, 's')}${DAYPARTS[daypart()].hello}, Kasiu</div>
+      <div class="greet">${ic(DAYPARTS[daypart()].icon, 's')}${DAYPARTS[daypart()].hello}${S.me ? '' : ', Kasiu'}</div>
       <h1 class="hero-h">Kto ${DAYPARTS[daypart()].when} u&nbsp;Ciebie posprząta?</h1>
       <form class="searchbox" data-form="search">
         ${ic('search', 's faint')}
@@ -634,7 +635,7 @@ screens.home = () => {
         ${ic('chevron-right', 's')}
       </button>`; })() : ''}
 
-      <div class="section-h"><h3>Wolne jeszcze dziś</h3></div>
+      <div class="section-h"><h3>${quick.todayFree ? 'Wolne jeszcze dziś' : 'Najbliższy wolny termin'}</h3></div>
       <div class="quick">
         <span class="quick-illo">${illo(quick.services[0])}</span>
         <div class="eyebrow" style="color:inherit;opacity:.75">${quick.area} · ${String(quick.dist).replace('.', ',')} km od Ciebie</div>
@@ -764,7 +765,7 @@ screens.provider = ({ id }) => {
         <div><b>${p.response}</b><span>odpowiedź</span></div>
       </div>
       <p class="muted" style="margin:16px 0 0;font-size:14px">${esc(p.bio)}</p>
-      <div class="section-h"><h3>Przed i po</h3><span class="tiny faint">${p.area}, ${p.reviewsList[0].when}</span></div>
+      <div class="section-h"><h3>Przed i po</h3><span class="tiny faint">${p.area}${p.reviewsList[0] ? ', ' + p.reviewsList[0].when : ''}</span></div>
       <div class="ba hint" id="ba">
         <div class="ba-after">${kitchen(false)}</div><div class="ba-before">${kitchen(true)}</div>
         <span class="ba-tag l">Przed</span><span class="ba-tag r">Po</span>
@@ -1016,7 +1017,9 @@ screens.booked = ({ id }) => {
 };
 
 /* ---------- orders ---------- */
+const PAST = ['done', 'cancel', 'noshow'];
 const STATUS = {
+  noshow: ['Nieobecność', 'st-cancel'],
   pending: ['Czeka na potwierdzenie', 'st-pending'], confirmed: ['Potwierdzone', 'st-confirmed'], enroute: ['W drodze', 'st-enroute'],
   progress: ['W trakcie', 'st-progress'], done: ['Zakończone', 'st-done'], cancel: ['Odwołane', 'st-cancel']
 };
@@ -1024,8 +1027,8 @@ const statusText = s => STATUS[s][0];
 const statusPill = s => `<span class="status ${STATUS[s][1]}">${STATUS[s][0]}</span>`;
 
 screens.orders = () => {
-  const up = S.orders.filter(o => !['done', 'cancel'].includes(o.status)).sort((a, b) => a.date - b.date);
-  const past = S.orders.filter(o => ['done', 'cancel'].includes(o.status)).sort((a, b) => b.date - a.date);
+  const up = S.orders.filter(o => !PAST.includes(o.status)).sort((a, b) => a.date - b.date);
+  const past = S.orders.filter(o => PAST.includes(o.status)).sort((a, b) => b.date - a.date);
   const list = S.ordersSeg === 'up' ? up : past;
   return `<div class="scroll"><div class="pad">
     <div class="row between" style="margin-top:12px"><h1 class="pagetitle" style="margin:0">Zlecenia</h1><button class="btn sm line" data-act="newPost">${ic('plus', 's')}Dodaj zlecenie</button></div><div style="height:14px"></div>
@@ -1058,7 +1061,7 @@ screens.order = ({ id }) => {
     ['Zakończone', 'Płacisz na miejscu i oceniasz', 'flag']
   ];
   const cur = o.status === 'cancel' ? -2 : o.status === 'done' ? 5 : idx + 1;
-  const active = !['done', 'cancel'].includes(o.status);
+  const active = !PAST.includes(o.status);
   const e = { h: o.h };
   return `${topbar('Zlecenie', `<button class="iconbtn" data-act="openChat" data-a="${p.id}" aria-label="Czat">${ic('message-circle', 's')}</button>`)}
   <div class="scroll"><div class="pad">
@@ -1072,7 +1075,7 @@ screens.order = ({ id }) => {
     ${o.status === 'done' && o.report ? reportBlock(o, p) : ''}
     ${o.issue ? issueBlock(o, p) : ''}
     <div class="card mt16"><div class="timeline">${tl.map((t, i) => `<div class="tl ${cur > i ? 'ok' : cur === i ? 'now' : ''}"><span class="dot">${ic(cur > i ? 'check' : t[2], 'xs')}</span><div><b>${t[0]}</b><span>${t[1]}</span></div></div>`).join('')}</div>
-      ${active ? `<button class="btn sm line mt16" data-act="advanceOrder" data-a="${o.id}">${ic('fast-forward', 's')}Symuluj kolejny status</button>` : ''}</div>
+      ${active && !S.online ? `<button class="btn sm line mt16" data-act="advanceOrder" data-a="${o.id}">${ic('fast-forward', 's')}Symuluj kolejny status</button>` : ''}</div>
 
     <div class="card mt12"><div class="row">${avatar(p, 'sm')}<div class="grow"><div class="name">${esc(p.name)}</div><div class="tiny faint">${stars(p.rating)} · odpowiada w ${p.response}</div></div>
       <button class="iconbtn" data-act="toast" data-a="Połączenie przez numer maskowany w pełnej wersji" aria-label="Zadzwoń">${ic('phone', 's')}</button></div></div>
@@ -1135,7 +1138,7 @@ screens.chat = ({ id }) => {
   const p = proById(id);
   const t = (S.threads[id] ||= { unread: 0, msgs: [{ me: false, t: `Dzień dobry! Tu ${p.name.split(' ')[0]}. W czym mogę pomóc?`, at: nowTime() }] });
   t.unread = 0;
-  const o = S.orders.find(x => x.pro === id && !['done', 'cancel'].includes(x.status));
+  const o = S.orders.find(x => x.pro === id && !PAST.includes(x.status));
   const qr = ['Czy masz własny odkurzacz?', 'Kod do domofonu: 14K2580', 'Mam kota, będzie w sypialni', 'Czy możesz godzinę wcześniej?'];
   return `<div class="topbar">${backBtn()}${avatar(p, 'sm')}<div class="grow" style="min-width:0"><div class="name">${esc(p.name)}</div><div class="tiny faint">${typingFor === id ? 'pisze…' : 'odpowiada zwykle w ' + p.response}</div></div>
     <button class="iconbtn" data-act="openPro" data-a="${p.id}" aria-label="Profil">${ic('user-round', 's')}</button></div>
@@ -1283,8 +1286,8 @@ screens.profile = () => {
   if (S.role === 'pro') return proProfile();
   const done = S.orders.filter(o => o.status === 'done').length;
   return `<div class="scroll"><div class="pad">
-    <div class="row mt16" style="gap:14px"><div class="avatar lg t-blue" style="width:72px;height:72px;font-size:26px;border-radius:24px">KN</div>
-      <div><h1 class="pagetitle" style="margin:0;font-size:26px">Kasia Nowicka</h1><div class="small muted">Klientka od marca 2025 · ${done} zakończonych zleceń</div></div></div>
+    <div class="row mt16" style="gap:14px"><div class="avatar lg t-blue" style="width:72px;height:72px;font-size:26px;border-radius:24px">${S.me ? esc(S.me.name.split(' ').map(w => w[0]).join('').slice(0, 2)) : 'KN'}</div>
+      <div><h1 class="pagetitle" style="margin:0;font-size:26px">${esc(S.me ? S.me.name : 'Kasia Nowicka')}</h1><div class="small muted">${S.me ? esc(S.me.phone.replace(/^\+48(\d{3})(\d{3})(\d{3})$/, '$1 $2 $3')) : 'Klientka od marca 2025'} · ${done} zakończonych zleceń</div></div></div>
     <div class="section-h"><h3>Ulubieni</h3></div>
     <div class="stack">${S.favs.map(id => proById(id)).filter(Boolean).map(p => `<div class="pcard" style="padding:12px;align-items:center" role="button" tabindex="0" data-act="openPro" data-a="${p.id}">${avatar(p, 'sm')}<div class="grow"><div class="name">${esc(p.name)}</div><div class="tiny faint">${stars(p.rating)} · ${p.nextSlot}</div></div><button class="btn sm primary" data-act="startBooking" data-a="${p.id}">Rezerwuj</button></div>`).join('') || '<div class="small muted">Dotknij serca przy wykonawcy, żeby dodać go tutaj.</div>'}</div>
     <div class="menu mt24">
@@ -1292,6 +1295,7 @@ screens.profile = () => {
       <button class="mi" data-act="toast" data-a="Dane do faktury w pełnej wersji">${ic('receipt', 's')}Dane do faktury<span class="r">${ic('chevron-right', 's')}</span></button>
       <button class="mi" data-act="toast" data-a="Ustawienia powiadomień w pełnej wersji">${ic('bell', 's')}Powiadomienia<span class="r">${ic('chevron-right', 's')}</span></button>
       <button class="mi" data-act="toast" data-a="Centrum pomocy w pełnej wersji">${ic('life-buoy', 's')}Pomoc i gwarancja<span class="r">${ic('chevron-right', 's')}</span></button>
+      ${S.online ? accountMenu() : ''}
     </div>
     <div class="becomepro mt24">
       <svg viewBox="0 0 120 120" aria-hidden="true"><rect x="38" y="44" width="44" height="64" rx="12" fill="currentColor" opacity=".9"/><rect x="48" y="22" width="24" height="26" rx="6" fill="currentColor" opacity=".9"/><path d="M72 30 h22 v8 h-22z" fill="currentColor" opacity=".9"/><circle cx="104" cy="22" r="4" fill="currentColor" opacity=".5"/><circle cx="110" cy="36" r="3" fill="currentColor" opacity=".4"/><circle cx="100" cy="44" r="2.5" fill="currentColor" opacity=".3"/></svg>
@@ -1305,7 +1309,7 @@ screens.profile = () => {
 /* ================= PROVIDER SCREENS ================= */
 screens.dash = () => {
   const P = S.pro; const L = P.listing;
-  const week = [{ d: 'pn', v: 180 }, { d: 'wt', v: 0 }, { d: 'śr', v: 320 }, { d: 'cz', v: 210 }, { d: 'pt', v: 0 }, { d: 'sb', v: 530 }, { d: 'nd', v: 0 }];
+  const week = S.online && S.pro.week ? S.pro.week : [{ d: 'pn', v: 180 }, { d: 'wt', v: 0 }, { d: 'śr', v: 320 }, { d: 'cz', v: 210 }, { d: 'pt', v: 0 }, { d: 'sb', v: 530 }, { d: 'nd', v: 0 }];
   const todayIdx = (today.getDay() + 6) % 7; const max = Math.max(...week.map(w => w.v));
   const sum = week.reduce((a, b) => a + b.v, 0);
   const todos = profileTodos();
@@ -1591,6 +1595,7 @@ function proProfile() {
       <button class="mi" data-act="openInvite">${ic('user-plus', 's')}Zaproś swoich klientów<span class="r">+20 zł ${ic('chevron-right', 's')}</span></button>
       <button class="mi" data-act="toast" data-a="Zestawienie miesięczne wysłane na e-mail">${ic('file-text', 's')}Rozliczenia i PIT<span class="r">${ic('chevron-right', 's')}</span></button>
       <button class="mi" data-act="previewPro">${ic('eye', 's')}Podgląd mojego profilu<span class="r">${ic('chevron-right', 's')}</span></button>
+      ${S.online ? accountMenu() : ''}
       <button class="mi" data-act="toast" data-a="Poradnik: jak zdobyć pierwszych klientów">${ic('graduation-cap', 's')}Akademia wykonawcy<span class="r">${ic('chevron-right', 's')}</span></button>
     </div>
     <button class="btn dark block mt24" data-act="setRole" data-a="client">${ic('repeat', 's')}Przełącz na tryb klienta</button>
@@ -1859,12 +1864,12 @@ const sheets = {
 /* ================= render ================= */
 let lastKey = '', scrollMemo = {};
 function render() {
-  const t = top(); const key = stackKey() + ':' + stack().length + ':' + t.name;
+  const t = S.online && !S.loggedIn ? { name: 'login', p: {} } : top(); const key = stackKey() + ':' + stack().length + ':' + t.name;
   const sc = $app.querySelector('.scroll');
   if (sc && lastKey) scrollMemo[lastKey] = sc.scrollTop;
   const fn = screens[t.name];
   const html = fn ? fn(t.p || {}) : '<div class="pad">Brak ekranu</div>';
-  const showTabs = stack().length === 1;
+  const showTabs = stack().length === 1 && t.name !== 'login';
   const tabs = TABS[S.role];
   const unread = Object.values(S.threads).reduce((a, x) => a + x.unread, 0);
   const needRate = S.orders.some(o => o.status === 'done' && !o.rated);
@@ -2061,7 +2066,7 @@ const A = {
     }, 700);
   },
   openOrder: id => go('order', { id }),
-  openOrderFromDone(id) { S.tab = 'orders'; S.ordersSeg = 'up'; S.stacks[stackKey()] = [{ name: 'orders' }, { name: 'order', p: { id } }]; anim = 'enter'; render(); },
+  openOrderFromDone(id) { S.stacks[stackKey()] = [{ name: S.tab }]; S.tab = 'orders'; S.ordersSeg = 'up'; S.stacks[stackKey()] = [{ name: 'orders' }, { name: 'order', p: { id } }]; anim = 'enter'; render(); },
   seg(a) { S.ordersSeg = a; render(); },
   advanceOrder(id) {
     const o = S.orders.find(x => x.id === id); const flow = ['pending', 'confirmed', 'enroute', 'progress', 'done'];
@@ -2267,6 +2272,7 @@ document.addEventListener('change', e => {
 document.addEventListener('submit', e => {
   e.preventDefault();
   const f = e.target; const kind = f.dataset.form;
+  if (kind === 'login') { loginSubmit(f); return; }
   if (kind === 'loc') { const first = document.querySelector('#locSug .sug'); if (first) first.click(); return; }
   if (kind === 'search' || kind === 'search2') { S.filters.q = f.q.value; if (kind === 'search') { S.filters.cat = null; go('search'); } else render(); }
   if (kind === 'pchat') { const v = f.m.value; f.m.value = ''; sendPMsg(f.dataset.id, v); setTimeout(() => { const i = document.getElementById('chatInput'); i && i.focus(); }, 0); }
@@ -2349,21 +2355,21 @@ setInterval(() => {
   });
   S.orders.forEach(o => {
     if (o.status !== 'enroute') return;
-    const p = proById(o.pro); o.track = Math.min(1, (o.track || 0) + .06);
+    const p = proById(o.pro); o.track = Math.min(S.online ? .95 : 1, (o.track || 0) + .06);
     const m = mapInst('trk-' + o.id);
     if (m) { const { a, pts } = trackRoute(o, p); const pos = alongRoute(pts, o.track); const car = document.getElementById('trk-' + o.id); if (car) m.place(car, pos[0], pos[1]);
       const done = document.getElementById('trkdone-' + o.id); if (done) done.setAttribute('points', pts.filter((q, i) => i === 0 || (i === 1 && o.track > .5)).concat([pos]).map(q => `${q[0] * U},${q[1] * U}`).join(' '));
       const et = document.getElementById('eta-' + o.id); if (et) et.innerHTML = etaText(o, p, o.track, roadKm(p, a)); }
-    if (o.track >= 1) { o.status = 'progress'; o.prog = 0; o.started = nowTime(); toast(`${p.name.split(' ')[0]} jest na miejscu`, 'map-pin'); if (t.name === 'order' && t.p.id === o.id) dirty = true; }
+    if (o.track >= 1 && !S.online) { o.status = 'progress'; o.prog = 0; o.started = nowTime(); toast(`${p.name.split(' ')[0]} jest na miejscu`, 'map-pin'); if (t.name === 'order' && t.p.id === o.id) dirty = true; }
   });
   S.orders.forEach(o => {
     if (o.status !== 'progress') return;
-    const total = checklistFor(o).length; o.prog = (o.prog || 0) + 1;
-    if (o.prog >= total) { o.status = 'done'; finishOrder(o); }
+    const total = checklistFor(o).length; o.prog = Math.min(total - (S.online ? 1 : 0), (o.prog || 0) + 1);
+    if (o.prog >= total && !S.online) { o.status = 'done'; finishOrder(o); }
     if (t.name === 'order' && t.p.id === o.id) dirty = true;
   });
   const bA = S.pro.boost.active[0];
-  if (bA) {
+  if (bA && !S.online) {
     bA.views += Math.random() < .7 ? 1 + Math.floor(Math.random() * 2) : 0; if (Math.random() < .12) bA.opens++;
     if (Math.random() < .015) { bA.req++; if (S.role === 'pro') toast(`Nowe zapytanie dzięki wyróżnieniu: ${bA.d}`, 'rocket'); }
     const g = boostViews(bA.d, bA.days); const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
@@ -2374,6 +2380,283 @@ setInterval(() => {
   S.posts.forEach(x => { x.justAdded = null; });
 }, 1300);
 
+/* ================= TRYB ONLINE: dane z serwera Lśni ================= */
+// Otwarta z serwera (katalog server/) aplikacja loguje kodem SMS i działa na prawdziwych danych.
+// W podglądzie albo z pliku zostaje tryb demo z danymi w przeglądarce.
+const API = window.LsniAPI || null;
+const REAL_CENTERS = { 'Bielany': [52.2930, 20.9350], 'Żoliborz': [52.2680, 20.9850], 'Bemowo': [52.2540, 20.9100], 'Wola': [52.2360, 20.9600], 'Śródmieście': [52.2310, 21.0120], 'Ochota': [52.2120, 20.9720], 'Mokotów': [52.1900, 21.0250], 'Ursynów': [52.1500, 21.0450], 'Wilanów': [52.1600, 21.0900], 'Praga-Płn.': [52.2580, 21.0350], 'Targówek': [52.2900, 21.0550], 'Praga-Płd.': [52.2380, 21.0850] };
+// Przeliczenie prawdziwych współrzędnych na schematyczną mapę: dopasowanie afiniczne (najmniejsze kwadraty) po środkach dzielnic.
+const GEOFIT = (() => {
+  const names = Object.keys(SITES); const rows = names.map(n => [REAL_CENTERS[n][1], REAL_CENTERS[n][0], 1]);
+  const solve = target => {
+    const M = [[0, 0, 0], [0, 0, 0], [0, 0, 0]], b = [0, 0, 0];
+    rows.forEach((r, i) => { for (let a = 0; a < 3; a++) { b[a] += r[a] * target[i]; for (let c = 0; c < 3; c++) M[a][c] += r[a] * r[c]; } });
+    for (let i = 0; i < 3; i++) { let pv = i; for (let k = i + 1; k < 3; k++) if (Math.abs(M[k][i]) > Math.abs(M[pv][i])) pv = k; [M[i], M[pv]] = [M[pv], M[i]]; [b[i], b[pv]] = [b[pv], b[i]]; for (let k = i + 1; k < 3; k++) { const f = M[k][i] / M[i][i]; for (let c = i; c < 3; c++) M[k][c] -= f * M[i][c]; b[k] -= f * b[i]; } }
+    const x = [0, 0, 0]; for (let i = 2; i >= 0; i--) { let sm = b[i]; for (let c = i + 1; c < 3; c++) sm -= M[i][c] * x[c]; x[i] = sm / M[i][i]; } return x;
+  };
+  const X = solve(names.map(n => SITES[n][0])), Y = solve(names.map(n => SITES[n][1])); const det = X[0] * Y[1] - X[1] * Y[0];
+  return {
+    toGrid: (lat, lng) => ({ x: X[0] * lng + X[1] * lat + X[2], y: Y[0] * lng + Y[1] * lat + Y[2] }),
+    toReal: (x, y) => { const dx = x - X[2], dy = y - Y[2]; return { lng: (dx * Y[1] - X[1] * dy) / det, lat: (X[0] * dy - Y[0] * dx) / det }; }
+  };
+})();
+const pad2 = n => String(n).padStart(2, '0');
+const ymd = d => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+const dayOffset = iso => Math.round((new Date(iso.slice(0, 10) + 'T00:00') - today) / 864e5);
+const relTime = iso => { const d = new Date(iso); return ymd(d) === ymd(new Date()) ? `${d.getHours()}:${pad2(d.getMinutes())}` : `${d.getDate()} ${MON[d.getMonth()]}`; };
+const PAYL = { cash: 'Gotówka', blikphone: 'BLIK na telefon', transfer: 'Przelew', invoice: 'Faktura VAT' };
+const NICON = { booking_request: 'calendar-plus', booking_confirmed: 'badge-check', booking_cancelled: 'calendar-x', booking_declined: 'calendar-x', booking_reschedule: 'calendar-clock', booking_skip: 'calendar-x', booking_enroute: 'car', booking_done: 'sparkles', reminder: 'bell-ring', message: 'message-circle', report: 'flag', report_answer: 'message-circle', report_resolved: 'check', report_escalated: 'flag', review: 'star', review_request: 'star', credit: 'rocket', boost_end: 'rocket', verification: 'badge-check', noshow: 'door-closed', waitlist: 'map-pin' };
+const SLOTCACHE = {};
+const pointQuery = () => { const a = curAddr(); return a && a.id && !a.id.startsWith('_') ? `addressId=${encodeURIComponent(a.id)}` : `lat=${a.lat}&lng=${a.lng}`; };
+function accountMenu() {
+  return `${S.me && S.me.role === 'admin' ? `<a class="mi" href="/admin" target="_blank" rel="noopener">${ic('shield', 's')}Panel zespołu<span class="r">${ic('external-link', 's')}</span></a>` : ''}
+    <a class="mi" href="/legal/regulamin" target="_blank" rel="noopener">${ic('file-text', 's')}Regulamin i prywatność<span class="r">${ic('external-link', 's')}</span></a>
+    <button class="mi" data-act="logout">${ic('log-out', 's')}Wyloguj<span class="r">${esc(S.me ? S.me.phone : '')}</span></button>`;
+}
+
+// ---------- mapowanie danych z API na model aplikacji ----------
+function mapAddress(a) { const g = GEOFIT.toGrid(a.lat, a.lng); return { id: a.id, label: a.label, street: a.street, note: a.note || '', lat: a.lat, lng: a.lng, x: g.x, y: g.y }; }
+function mapProvider(v) {
+  const g = GEOFIT.toGrid(v.base.lat, v.base.lng); let p = PROS.find(x => x.id === v.id);
+  if (!p) { p = { id: v.id, repeat: 65, reviewsList: [] }; PROS.push(p); }
+  Object.assign(p, { name: v.name, ini: v.ini, tone: v.tone, kind: v.kind, area: v.area, rating: v.rating, reviews: v.reviews, jobs: v.jobs, response: v.response, rate: v.rate, minH: v.minH, since: v.since,
+    verified: v.verified, insured: v.insured, invoice: v.invoice, supplies: v.supplies, eco: v.eco, pets: v.pets, langs: v.langs, services: v.services, super: v.super, nextSlot: v.nextSlot, todayFree: v.todayFree,
+    fixed: v.fixed, perWindow: v.perWindow, tagline: v.tagline, x: g.x, y: g.y, r: v.radiusKm, fee: v.fee, _api: true });
+  if (v.dist !== undefined) Object.assign(p, { dist: v.dist, eta: v.eta, reach: v.reach });
+  if (v.bio !== undefined) p.bio = v.bio;
+  if (v.reviewsList) p.reviewsList = v.reviewsList.map(r => ({ who: r.who, stars: r.stars, when: `${r.when.slice(8, 10)}.${r.when.slice(5, 7)}`, text: r.text + (r.reply ? `\n\nOdpowiedź: ${r.reply}` : ''), tags: r.tags }));
+  return p;
+}
+function ensureProvider(x) { if (!PROS.find(p => p.id === x.id)) PROS.push({ id: x.id, name: x.name, ini: x.ini, tone: x.tone || 't-blue', rating: 0, reviews: 0, rate: 0, minH: 3, services: ['dom'], reviewsList: [], response: '—', nextSlot: '—', x: 13, y: 15, r: 0, fee: 0, reach: 'out', promo: [], langs: ['PL'], area: '', tagline: '', kind: '' }); }
+function mapOrder(b) {
+  ensureProvider(b.provider); const old = S.orders.find(o => o.id === b.id) || {};
+  const st = b.status === 'cancelled' || b.status === 'declined' ? 'cancel' : b.status;
+  return Object.assign(old, { id: b.id, pro: b.provider.id, service: b.service, date: dayOffset(b.startsAt), time: b.startsAt.slice(11, 16), h: b.hours, m2: b.m2, total: b.totalZl, freq: b.freq, status: st, extras: b.extras,
+    addr: b.address, addrId: b.addressId, pay: PAYL[b.payMethod] || 'Gotówka', onsite: b.onsite ? `${b.onsite.name} · ${b.onsite.phone}` : '', rated: b.rated,
+    issue: b.report ? { cat: b.report.category, want: b.report.want, status: { open: 'sent', escalated: 'sent', answered: 'answered', resolved: 'resolved' }[b.report.status], at: relTime(b.report.at), answeredAt: b.report.answeredAt ? relTime(b.report.answeredAt) : '' } : null });
+}
+function mapNotif(n) { const [k, v] = String(n.link || '').split(':'); const act = k === 'booking' ? (S.role === 'pro' ? 'noop' : 'openOrder') : k === 'thread' ? (S.role === 'pro' ? 'openPChat' : 'openChat') : k === 'provider' ? 'openPro' : k === 'boosts' ? 'openBoost' : k === 'search' ? 'openSearch' : 'noop'; return { id: n.id, icon: NICON[n.kind] || 'bell', t: n.title, d: n.body, at: relTime(n.at), read: n.read, act, a: v || '' }; }
+function mapJob(b) { const g = GEOFIT.toGrid(b.lat, b.lng); return { id: b.id, day: dayOffset(b.startsAt), time: b.startsAt.slice(11, 16), end: b.endsAt.slice(11, 16), client: b.client ? b.client.name : 'Klient', service: b.service, area: districtAt(g.x, g.y), pay: b.totalZl, tone: b.status === 'confirmed' ? '' : 'y', x: g.x, y: g.y, thread: b.client ? b.client.id : '', noshow: b.status === 'noshow' }; }
+function mapRequest(b) { const g = GEOFIT.toGrid(b.lat, b.lng); return { id: b.id, client: b.client.name, crating: { wysoka: 5, 'średnia': 4, niska: 3 }[b.client.reliability] || 5, service: b.service, m2: b.m2, rooms: b.rooms, baths: b.baths, day: dayOffset(b.startsAt), time: b.startsAt.slice(11, 16), h: b.hours, pay: b.totalZl, area: `${districtAt(g.x, g.y)}, ${b.address}`, note: b.note || 'Bez uwag.', freq: b.freq, expires: 60, x: g.x, y: g.y, payHow: (PAYL[b.payMethod] || 'gotówka').toLowerCase() }; }
+
+// ---------- pobieranie danych ----------
+async function refreshProviders() {
+  const res = await API.call('GET', `/api/providers?${pointQuery()}`);
+  const seen = new Set(res.results.map(v => mapProvider(v).id));
+  PROS.forEach(p => { if (!seen.has(p.id)) p.reach = 'out'; });
+  const where = districtAt(curAddr().x, curAddr().y);
+  res.results.forEach(v => { const p = PROS.find(x => x.id === v.id); p.promo = v.promoted ? [where] : []; });
+}
+async function refreshOrders() { const list = await API.call('GET', '/api/bookings'); S.orders = list.map(mapOrder); }
+async function refreshNotifs() { const list = await API.call('GET', '/api/notifications'); S.notifs = list.map(mapNotif); }
+async function refreshThreads() {
+  const list = await API.call('GET', '/api/threads');
+  if (S.role === 'pro') list.forEach(t => { const cur = S.pro.threads[t.peerId]; S.pro.threads[t.peerId] = { name: t.name, ini: t.ini, tone: t.tone, unread: t.unread, msgs: cur && cur.loaded ? cur.msgs : [{ me: t.mine, t: t.last, at: relTime(t.at) }], loaded: cur && cur.loaded }; });
+  else list.forEach(t => { ensureProvider({ id: t.peerId, name: t.name, ini: t.ini, tone: t.tone }); const cur = S.threads[t.peerId]; S.threads[t.peerId] = { unread: t.unread, msgs: cur && cur.loaded ? cur.msgs : [{ me: t.mine, t: t.last, at: relTime(t.at) }], loaded: cur && cur.loaded }; });
+}
+async function loadThread(id, pro) {
+  const r = await API.call('GET', `/api/threads/${encodeURIComponent(id)}/messages`);
+  const msgs = r.messages.map(m => ({ me: m.me, t: m.body, at: relTime(m.at) }));
+  if (pro) S.pro.threads[id] = Object.assign(S.pro.threads[id] || { name: r.peerName, ini: r.peerName.slice(0, 2).toUpperCase(), tone: 't-blue' }, { msgs, unread: 0, loaded: true });
+  else S.threads[id] = { msgs, unread: 0, loaded: true };
+}
+async function loadSlots(id) {
+  const days = await API.call('GET', `/api/providers/${encodeURIComponent(id)}/slots`);
+  SLOTCACHE[id] = Object.fromEntries(days.map(d => [d.date, d.slots]));
+}
+async function refreshPro() {
+  const [me, dash, jobs, boosts, invite] = await Promise.all([API.call('GET', '/api/pro/me'), API.call('GET', '/api/pro/dashboard'), API.call('GET', '/api/bookings?as=provider&scope=upcoming'), API.call('GET', '/api/pro/boosts'), API.call('GET', '/api/pro/invite')]);
+  const L = S.pro.listing; const g = GEOFIT.toGrid(me.base.lat, me.base.lng);
+  Object.assign(L, { name: me.name, tagline: me.tagline, services: me.services, rate: me.rate, minH: me.minH, base: { x: g.x, y: g.y }, radius: me.radiusKm, fee: me.fee || 15, feeOn: me.fee > 0, supplies: me.supplies, eco: me.eco, pets: me.pets, invoice: me.invoice, bio: me.bio || '', idVerified: me.idStatus === 'verified', insured: me.insured, published: me.published });
+  S.pro.online = me.online;
+  S.pro.requests = dash.requests.map(mapRequest);
+  S.pro.jobs = jobs.filter(b => b.status !== 'pending').map(mapJob);
+  S.pro.week = dash.week.map((d, i) => ({ d: ['pn', 'wt', 'śr', 'cz', 'pt', 'sb', 'nd'][i], v: d.zl }));
+  const now = Date.now();
+  Object.assign(S.pro.boost, { credit: boosts.creditZl, history: boosts.ledger.slice().reverse().map(l => ({ t: l.reason, v: l.amountZl })),
+    active: boosts.active.map(b => ({ id: b.id, d: b.district, days: b.days, left: Math.max(1, Math.ceil((new Date(b.endsAt + ':00') - now) / 864e5)), views: b.views, opens: b.opens, req: b.requests })),
+    invite: { link: `${location.host}${invite.path}`, joined: invite.joined, earned: invite.earnedZl } });
+}
+async function hydrate() {
+  const me = await API.call('GET', '/api/me'); S.me = me;
+  S.role = me.role === 'pro' ? 'pro' : 'client'; S.tab = S.role === 'pro' ? 'dash' : 'home'; S.stacks = {}; S.sheet = null;
+  S.addresses = me.addresses.map(mapAddress);
+  if (!S.addresses.length) { const c = REAL_CENTERS['Mokotów']; S.addresses = [mapAddress({ id: '_default', label: 'Mokotów (dodaj swój adres)', street: 'Centrum Mokotowa', lat: c[0], lng: c[1] })]; }
+  if (!S.addresses.some(a => a.id === S.addrId)) S.addrId = S.addresses[0].id;
+  S.orders = []; S.threads = {}; S.notifs = []; S.pro.threads = {}; S.pro.requests = []; S.pro.jobs = []; S.favs = S.favs.filter(id => PROS.some(p => p.id === id));
+  await refreshProviders();
+  await Promise.all([refreshOrders(), refreshNotifs(), refreshThreads(), S.role === 'pro' ? refreshPro() : null]);
+  S.introSeen = true; S.wiped = S.wiped || false; S.loggedIn = true;
+}
+
+// ---------- logowanie ----------
+screens.login = () => {
+  const L = S.login || (S.login = { step: 1, phone: '' });
+  return `<div class="scroll"><div class="pad login">
+    <div class="login-logo">lśni<span class="dot"></span></div>
+    <h1 class="pagetitle">${L.step === 1 ? 'Zaloguj się numerem telefonu' : 'Wpisz kod z SMS-a'}</h1>
+    <p class="muted small" style="margin:0 0 18px">${L.step === 1 ? 'Wyślemy Ci jednorazowy kod. Bez haseł.' : `Wysłaliśmy kod na ${esc(L.phone)}. Ważny 5 minut.`}</p>
+    ${S.inviteFrom ? `<div class="note mint mb12">${ic('user-plus', 's')}<span>Zaproszenie od: <b>${esc(S.inviteFrom.name)}</b>. Po zalogowaniu od razu zarezerwujesz u niej termin.</span></div>` : ''}
+    <form data-form="login" class="stack">
+      ${L.step === 1 ? `<label class="lbl" for="lphone">Numer telefonu</label><input class="input" id="lphone" name="phone" inputmode="tel" autocomplete="tel" placeholder="500 100 200" value="${esc(L.phone)}">
+        <label class="lbl" for="lname">Imię <span class="faint" style="font-weight:500">(tylko przy zakładaniu konta)</span></label><input class="input" id="lname" name="name" autocomplete="given-name" placeholder="np. Kasia" value="${esc(L.name || '')}">`
+      : `<label class="lbl" for="lcode">Kod</label><input class="input otp" id="lcode" name="code" inputmode="numeric" autocomplete="one-time-code" maxlength="6" value="${esc(L.devCode || '')}">
+        ${L.devCode ? `<div class="hint">Tryb deweloperski: serwer podał kod, więc wpisaliśmy go za Ciebie.</div>` : ''}`}
+      <button class="btn primary block mt8" type="submit" ${S.login.busy ? 'disabled' : ''}>${L.step === 1 ? 'Wyślij kod' : 'Zaloguj'}</button>
+      ${L.step === 2 ? `<button class="btn line block" type="button" data-act="loginBack">Zmień numer</button>` : ''}
+      ${L.error ? `<div class="note yellow">${ic('triangle-alert', 's')}<span>${esc(L.error)}</span></div>` : ''}
+    </form>
+    <div class="card mt24 small"><b>Konta testowe</b><div class="muted mt8">Klientka: 500 100 200<br>Wykonawczyni: 500 100 300<br>Zespół Lśni: 500 100 999</div></div>
+    <p class="tiny faint mt16">Logując się, akceptujesz <a href="/legal/regulamin" target="_blank" rel="noopener">regulamin</a> i <a href="/legal/prywatnosc" target="_blank" rel="noopener">politykę prywatności</a>.</p>
+  </div></div>`;
+};
+async function loginSubmit(f) {
+  const L = S.login; const vals = { phone: f.phone ? f.phone.value : '', name: f.name ? f.name.value.trim() : '', code: f.code ? f.code.value.trim() : '' };
+  L.error = ''; L.busy = true; render();
+  try {
+    if (L.step === 1) {
+      L.phone = vals.phone; L.name = vals.name; const r = await API.call('POST', '/api/auth/code', { phone: L.phone });
+      L.step = 2; L.devCode = r.devCode || '';
+    } else {
+      const r = await API.call('POST', '/api/auth/verify', { phone: L.phone, code: vals.code, name: L.name || undefined, ref: S.inviteRef || undefined });
+      API.setToken(r.token); S.login = null; await hydrate(); toast(r.created ? 'Konto utworzone. Witaj w Lśni!' : 'Zalogowano', 'check');
+      if (S.inviteRef && S.inviteFrom) { mapProvider(S.inviteFrom); S.stacks[stackKey()] = [{ name: S.tab }, { name: 'invited', p: { id: S.inviteFrom.id } }]; }
+      anim = 'fade'; render(); return;
+    }
+  } catch (e) { L.error = e.message; }
+  L.busy = false; render();
+  setTimeout(() => { const i = document.getElementById(L.step === 1 ? 'lphone' : 'lcode'); if (i) i.focus(); }, 30);
+}
+
+// ---------- akcje: w trybie online idą do API ----------
+const DEMO = Object.assign({}, A);
+const failToast = e => { toast(e.message || 'Coś poszło nie tak', 'triangle-alert'); };
+const ON = {
+  async loginBack() { S.login = { step: 1, phone: S.login.phone }; render(); },
+  async logout() { try { await API.call('POST', '/api/auth/logout', {}); } catch (e) { } API.setToken(''); S.loggedIn = false; S.me = null; S.login = { step: 1, phone: '' }; render(); },
+  async openPro(id) {
+    const p = proById(id);
+    try { mapProvider(await API.call('GET', `/api/providers/${encodeURIComponent(id)}?${pointQuery()}${p && p._promoted ? '&src=promo' : ''}`)); } catch (e) { return failToast(e); }
+    DEMO.openPro(id);
+  },
+  async startBooking(id, preset) {
+    try { await loadSlots(id); } catch (e) { return failToast(e); }
+    DEMO.startBooking(id, preset);
+    const b = S.booking; if (b && b.time && b.time.length === 4) b.time = '0' + b.time;
+    if (b && b.time && slotTaken(b.pro, b.day, b.time)) b.time = null;
+    if (b && curAddr().id) b.addr = curAddr().id;
+  },
+  async pay() {
+    const sl = document.getElementById('slide-pay'); if (sl) { sl.classList.add('busy'); sl.querySelector('.slide-label').textContent = 'Wysyłamy rezerwację…'; }
+    const b = S.booking; const ad = addrById(b.addr) || curAddr();
+    const body = { provider: b.pro, service: b.service, m2: b.m2, rooms: b.rooms, baths: b.baths, extras: b.extras, freq: b.freq, date: ymd(addDays(b.day)), time: b.time, payMethod: b.pay,
+      onsiteName: b.who === 'other' ? b.onName : '', onsitePhone: b.who === 'other' ? b.onPhone : '', entry: b.entry, doorCode: b.code, pets: b.pets, note: b.note };
+    if (ad.id && !ad.id.startsWith('_')) body.addressId = ad.id; else Object.assign(body, { lat: ad.lat, lng: ad.lng, street: ad.street });
+    try {
+      const o = mapOrder(await API.call('POST', '/api/bookings', body)); S.orders.push(o); S.booking = null;
+      S.stacks[stackKey()] = [{ name: S.tab }, { name: 'booked', p: { id: o.id } }]; anim = 'enter'; render();
+    } catch (e) { failToast(e); if (e.code === 'slot_taken') { await loadSlots(b.pro); b.time = null; b.step = 2; } render(); }
+  },
+  async cancelOrder(id) { try { mapOrder(await API.call('POST', `/api/bookings/${id}/cancel`, { reason: 'Odwołane w aplikacji' })); S.sheet = null; stack().pop(); toast('Wizyta odwołana. Wykonawca dostał powiadomienie', 'undo-2'); anim = 'fade'; render(); } catch (e) { failToast(e); } },
+  async openResched(id) { const o = S.orders.find(x => x.id === id); try { await loadSlots(o.pro); } catch (e) { return failToast(e); } DEMO.openResched(id); },
+  async doResched(id) {
+    const R = S.resched;
+    try { mapOrder(await API.call('POST', `/api/bookings/${id}/reschedule`, { date: ymd(addDays(R.day)), time: R.time })); S.sheet = null; toast('Prośba o zmianę wysłana do wykonawcy', 'calendar-clock'); render(); } catch (e) { failToast(e); }
+  },
+  async skipVisit(id) { try { const o = mapOrder(await API.call('POST', `/api/bookings/${id}/skip`, {})); S.sheet = null; toast(`Pominięto. Następna wizyta: ${dayLabel(addDays(o.date))}, ${o.time}`, 'calendar-x'); render(); } catch (e) { failToast(e); } },
+  async sendProblem(id) {
+    const P = S.problem;
+    try { await API.call('POST', '/api/reports', { bookingId: id, category: P.cat, description: P.desc, want: P.want, photos: P.photos }); await refreshOrders(); back(); toast('Zgłoszenie wysłane do wykonawcy', 'flag'); } catch (e) { failToast(e); }
+  },
+  async resolveIssue(id) {
+    const o = S.orders.find(x => x.id === id); const b = await API.call('GET', `/api/bookings/${id}`).catch(failToast); if (!b || !b.report) return;
+    try { await API.call('POST', `/api/reports/${b.report.id}/resolve`, {}); await refreshOrders(); toast('Dziękujemy, zgłoszenie zamknięte', 'check'); render(); } catch (e) { failToast(e); }
+  },
+  async submitRate(id) {
+    const r = S.rate;
+    try { const res = await API.call('POST', '/api/reviews', { bookingId: id, stars: r.stars, tags: r.tags, body: r.comment }); const o = S.orders.find(x => x.id === id); if (o) o.rated = r.stars; S.stacks[stackKey()] = stack().slice(0, 1); S.ordersSeg = 'past'; toast(res.message, 'heart-handshake'); anim = 'fade'; render(); } catch (e) { failToast(e); }
+  },
+  async openChat(id) { if (S.role !== 'client') return; try { await loadThread(id, false); } catch (e) { return failToast(e); } go('chat', { id }); },
+  async readAll() { try { await API.call('POST', '/api/notifications/read', { all: true }); } catch (e) { } S.notifs.forEach(n => { n.read = true; }); render(); },
+  async openNotif(id) { API.call('POST', '/api/notifications/read', { ids: [id] }).catch(() => { }); DEMO.openNotif(id); },
+  async notifPref(k) { try { const me = await API.call('PATCH', '/api/me', { prefs: { [k]: !S.notifPrefs[k] } }); S.notifPrefs = me.prefs; render(); } catch (e) { failToast(e); } },
+  async pickAddr(id) { S.addrId = id; try { await refreshProviders(); } catch (e) { failToast(e); } const ad = curAddr(); toast(`Szukamy dla: ${ad.label}, ${districtAt(ad.x, ad.y)}`, 'map-pin'); afterAddrChange(id); },
+  async saveAddr() {
+    const v = S.maps.loc; if (!v) return; const real = GEOFIT.toReal(v.x, v.y);
+    try {
+      const a = await API.call('POST', '/api/addresses', { label: S.newAddrLabel || 'Adres', lat: real.lat, lng: real.lng, note: S.newAddrNote || '' });
+      S.addresses = S.addresses.filter(x => !x.id.startsWith('_')).concat(mapAddress(a)); S.addrId = a.id; await refreshProviders();
+      toast(`Zapisano: ${a.street}, ${a.district}`, 'map-pin-plus'); afterAddrChange(a.id);
+    } catch (e) { failToast(e); }
+  },
+  async joinWaitlist(key) {
+    let pt; if (key.startsWith('addr-')) pt = curAddr(); else { const v = S.maps.loc; pt = GEOFIT.toReal(v.x, v.y); }
+    try { await API.call('POST', '/api/waitlist', { lat: pt.lat, lng: pt.lng }); DEMO.joinWaitlist(key); } catch (e) { failToast(e); }
+  },
+  async acceptReq(id) { try { await API.call('POST', `/api/bookings/${id}/accept`, {}); await refreshPro(); toast('Przyjęte. Dodano do grafiku', 'calendar-check'); render(); } catch (e) { failToast(e); } },
+  async declineReq(id) { try { await API.call('POST', `/api/bookings/${id}/decline`, { reason: 'Odrzucone w aplikacji' }); S.sheet = null; await refreshPro(); toast('Zapytanie odrzucone', 'x'); render(); } catch (e) { failToast(e); } },
+  async buyBoost() {
+    const D = S.pro.boost.draft;
+    try { await API.call('POST', '/api/pro/boosts', { districts: D.ds, days: D.days }); D.ds = []; await refreshPro(); toast('Wyróżnienie aktywne', 'rocket'); back(); }
+    catch (e) { failToast(e.code === 'payment_required' ? { message: `Brakuje ${zl(e.data.missingZl)} kredytu. Zaproś klientów albo wybierz mniej dzielnic.` } : e); render(); }
+  },
+  async reportNoShow(i) {
+    const j = S.pro.jobs[Number(i)];
+    try { await API.call('POST', `/api/bookings/${j.id}/noshow`, { distanceM: 40 }); j.noshow = true; S.sheet = null; toast('Zgłoszenie zapisane. Klient dostał powiadomienie', 'door-closed'); render(); } catch (e) { S.sheet = null; failToast(e); render(); }
+  },
+  async openPChat(id, name) { if (!id) return toast('Ten klient nie ma jeszcze rozmowy', 'info'); try { await loadThread(id, true); } catch (e) { return failToast(e); } go('pchat', { id }); },
+  async toggleOnline() { try { const me = await API.call('POST', '/api/pro/online', { online: !S.pro.online }); S.pro.online = me.online; toast(me.online ? 'Znów przyjmujesz zlecenia' : 'Nie pokazujemy Cię w wynikach do odwołania', me.online ? 'zap' : 'moon'); render(); } catch (e) { failToast(e); } },
+  async publish() {
+    const L = S.pro.listing; const real = GEOFIT.toReal(L.base.x, L.base.y);
+    try { await API.call('POST', '/api/pro/profile', { displayName: L.name, tagline: L.tagline, bio: L.bio, services: L.services, rate: L.rate, minHours: L.minH, baseLat: real.lat, baseLng: real.lng, radiusKm: L.radius, fee: L.feeOn ? L.fee : 0, supplies: L.supplies, eco: L.eco, pets: L.pets, invoice: L.invoice }); await refreshPro(); toast('Ogłoszenie zapisane i widoczne dla klientów', 'megaphone'); render(); }
+    catch (e) { failToast(e); }
+  },
+  async saveArea() { await ON.publish(); back(); },
+  async uploadOC() { toast('Wgraj polisę jako PDF lub zdjęcie w pełnej wersji aplikacji (endpoint /api/pro/verification jest gotowy)', 'info'); }
+};
+Object.keys(ON).forEach(k => { A[k] = function (...args) { return S.online ? ON[k].apply(this, args) : (DEMO[k] ? DEMO[k].apply(this, args) : undefined); }; });
+// Czat i wolne terminy też przełączamy na API.
+const demoSendMsg = sendMsg, demoSendPMsg = sendPMsg, demoSlotTaken = slotTaken, demoUpdateGeo = updateGeo;
+sendMsg = function (id, text) {
+  if (!S.online) return demoSendMsg(id, text); if (!text.trim()) return;
+  const t = S.threads[id] || (S.threads[id] = { msgs: [], unread: 0, loaded: true }); t.msgs.push({ me: true, t: text.trim(), at: nowTime() }); render(); scrollChat();
+  API.call('POST', `/api/threads/${encodeURIComponent(id)}/messages`, { body: text.trim() }).then(() => { [3500, 7000].forEach(ms => setTimeout(() => { if (top().name === 'chat' && top().p.id === id) loadThread(id, false).then(() => { render(); scrollChat(); }).catch(() => { }); }, ms)); }).catch(failToast);
+};
+sendPMsg = function (id, text) {
+  if (!S.online) return demoSendPMsg(id, text); if (!text.trim()) return;
+  const t = S.pro.threads[id]; t.msgs.push({ me: true, t: text.trim(), at: nowTime() }); render(); scrollChat();
+  API.call('POST', `/api/threads/${encodeURIComponent(id)}/messages`, { body: text.trim() }).catch(failToast);
+};
+slotTaken = function (proId, dayIdx, slot) {
+  if (S.online && SLOTCACHE[proId]) return !(SLOTCACHE[proId][ymd(addDays(dayIdx))] || []).includes(slot);
+  return demoSlotTaken(proId, dayIdx, slot);
+};
+updateGeo = function () { if (!S.online) demoUpdateGeo(); };
+
+// Odświeżanie co kilka sekund: powiadomienia, rezerwacje, rozmowy. Renderujemy tylko, gdy coś się zmieniło.
+let lastSnap = '';
+async function poll() {
+  if (!S.online || !S.loggedIn || document.visibilityState === 'hidden') return;
+  try {
+    await Promise.all([refreshNotifs(), refreshThreads(), S.role === 'pro' ? refreshPro() : refreshOrders()]);
+    const t = top();
+    if (t.name === 'chat') await loadThread(t.p.id, false); if (t.name === 'pchat') await loadThread(t.p.id, true);
+    const snap = JSON.stringify([S.notifs, S.orders.map(o => [o.id, o.status, o.date, o.time, o.issue && o.issue.status, o.rated]), S.pro.requests, S.pro.jobs, t.name === 'chat' ? S.threads[t.p.id] : 0, t.name === 'pchat' ? S.pro.threads[t.p.id] : 0]);
+    if (snap !== lastSnap) { const first = !lastSnap; lastSnap = snap; if (!first && !S.sheet && !document.activeElement.matches('input,textarea')) { render(); if (t.name === 'chat' || t.name === 'pchat') scrollChat(); } }
+  } catch (e) { if (e.status === 401) { S.loggedIn = false; render(); } }
+}
+
+async function bootOnline() {
+  if (!API) return false;
+  const ok = await API.detect(); if (!ok) return false;
+  S.online = true; S.loggedIn = false; S.introSeen = true; PROS.length = 0;
+  const ref = new URLSearchParams(location.search).get('invite');
+  if (ref) { S.inviteRef = ref; try { const inv = await API.call('GET', `/api/invite/${encodeURIComponent(ref)}`); S.inviteFrom = inv.provider; } catch (e) { S.inviteRef = null; } }
+  if (API.token) { try { await hydrate(); } catch (e) { S.loggedIn = false; } }
+  setInterval(poll, 6000);
+  return true;
+}
+
 /* ================= boot ================= */
 const theme = store.get('theme', null);
 if (theme) { document.documentElement.setAttribute('data-theme', theme); const tb = document.getElementById('themeBtn'); if (tb) tb.textContent = 'Motyw: ' + (theme === 'light' ? 'jasny' : 'ciemny'); }
@@ -2381,5 +2664,7 @@ const clock = document.getElementById('clock'); const tick = () => { if (clock) 
 if (!S.tab || !TABS[S.role].some(t => t.id === S.tab)) S.tab = S.role === 'pro' ? 'dash' : 'home';
 icons(document.querySelector('.pitch'));
 icons(document.querySelector('.sbar'));
-render();
+// Najpierw sprawdzamy, czy działa serwer; do tego czasu ekran aplikacji jest ukryty, żeby nie mignęło demo.
+$app.style.visibility = 'hidden';
+bootOnline().catch(() => false).then(on => { if (on) { document.body.classList.add('online'); const pb = document.querySelector('.pitch p'); if (pb) pb.textContent = 'Tryb online: aplikacja działa na serwerze Lśni. Zaloguj się kodem SMS (konta testowe są na ekranie logowania).'; } $app.style.visibility = ''; render(); });
 })();

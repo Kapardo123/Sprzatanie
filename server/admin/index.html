@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lśni · panel zespołu</title>
+<meta name="robots" content="noindex">
+<style>
+:root{--paper:#F1F3F6;--surface:#fff;--surface-2:#E7EBF0;--line:#DCE1E8;--ink:#0E1828;--ink-2:#465265;--ink-3:#8590A0;--glove:#FFC72C;--cloth:#2D55F5;--mint:#12936A;--mint-soft:#DAF3E8;--rose:#D93D42;--rose-soft:#FCE3E3;--yellow-soft:#FFF2C2;--f:"Onest","Segoe UI",system-ui,sans-serif}
+@media (prefers-color-scheme:dark){:root{--paper:#0A101C;--surface:#121A29;--surface-2:#1A2436;--line:#243046;--ink:#EDF1F7;--ink-2:#A6B1C2;--ink-3:#6B778B;--cloth:#7290FF;--mint:#3CCB97;--mint-soft:#11302A;--rose:#FF6B6F;--rose-soft:#3A1D22;--yellow-soft:#3A3115;color-scheme:dark}}
+*{box-sizing:border-box}body{margin:0;background:var(--paper);color:var(--ink);font:14px/1.45 var(--f)}
+button,input,select,textarea{font:inherit;color:inherit}
+header{display:flex;align-items:center;gap:16px;padding:14px max(16px,env(safe-area-inset-left));background:var(--surface);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:5}
+.logo{font-weight:800;font-size:22px;letter-spacing:-.04em}.logo i{display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--glove);margin-left:1px}
+nav{display:flex;gap:4px;overflow-x:auto;flex:1}
+nav button{border:0;background:none;padding:8px 12px;border-radius:10px;font-weight:600;color:var(--ink-2);white-space:nowrap;cursor:pointer}
+nav button.on{background:var(--ink);color:var(--paper)}
+nav .n{display:inline-block;min-width:18px;padding:0 5px;margin-left:5px;border-radius:9px;background:var(--rose);color:#fff;font-size:11px}
+main{max-width:1100px;margin:0 auto;padding:20px max(16px,env(safe-area-inset-left))}
+h1{font-size:22px;margin:0 0 14px}
+.kpis{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px;margin-bottom:20px}
+.kpi{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:14px}.kpi b{display:block;font-size:26px}.kpi span{color:var(--ink-3);font-size:12px}
+.kpi.alert{border-color:var(--rose)}
+.table{background:var(--surface);border:1px solid var(--line);border-radius:14px;overflow-x:auto}
+table{width:100%;border-collapse:collapse;min-width:640px}th,td{text-align:left;padding:10px 12px;border-bottom:1px solid var(--line);vertical-align:top}th{font-size:12px;color:var(--ink-3);font-weight:600;text-transform:uppercase;letter-spacing:.04em}
+tr:last-child td{border-bottom:0}
+.tag{display:inline-block;padding:2px 8px;border-radius:7px;font-size:12px;font-weight:600;background:var(--surface-2)}
+.tag.open,.tag.pending,.tag.reported,.tag.escalated{background:var(--yellow-soft)}.tag.escalated{background:var(--rose-soft);color:var(--rose)}
+.tag.resolved,.tag.verified,.tag.published,.tag.accepted{background:var(--mint-soft);color:var(--mint)}.tag.rejected,.tag.hidden{background:var(--rose-soft);color:var(--rose)}
+.btn{border:1px solid var(--line);background:var(--surface);border-radius:9px;padding:6px 10px;font-weight:600;cursor:pointer;margin:2px 4px 2px 0}
+.btn.ok{background:var(--mint);border-color:var(--mint);color:#fff}.btn.no{background:var(--rose-soft);color:var(--rose);border-color:transparent}.btn.dark{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+.muted{color:var(--ink-3)}.small{font-size:12px}
+.login{max-width:360px;margin:12vh auto;background:var(--surface);border:1px solid var(--line);border-radius:18px;padding:24px}
+.login input{width:100%;height:44px;border:1px solid var(--line);border-radius:10px;padding:0 12px;margin:8px 0 12px;background:var(--paper)}
+.toolbar{display:flex;gap:8px;align-items:center;margin-bottom:12px;flex-wrap:wrap}.toolbar input,.toolbar select{height:36px;border:1px solid var(--line);border-radius:9px;padding:0 10px;background:var(--surface)}
+.err{color:var(--rose);min-height:20px}
+:focus-visible{outline:2px solid var(--cloth);outline-offset:2px}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script>
+'use strict';
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const PL = { open: 'otwarte', answered: 'odpowiedziano', resolved: 'rozwiązane', escalated: 'eskalowane', pending: 'czeka', verified: 'potwierdzone', rejected: 'odrzucone', published: 'opublikowane', hidden: 'ukryte', reported: 'zgłoszone', accepted: 'przyjęte', client: 'klient', pro: 'wykonawca', admin: 'zespół' };
+const lbl = s => PL[s] || s;
+const fmt = iso => iso ? new Date(iso.length === 16 ? iso + ':00' : iso).toLocaleString('pl-PL', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '';
+let token = ''; try { token = localStorage.getItem('lsni-admin') || ''; } catch (e) {}
+let tab = 'overview', overview = null;
+
+async function api(method, path, body) {
+  const r = await fetch(path, { method, headers: Object.assign({ 'Content-Type': 'application/json' }, token ? { Authorization: 'Bearer ' + token } : {}), body: body ? JSON.stringify(body) : undefined });
+  const d = await r.json().catch(() => ({}));
+  if (r.status === 401) { logout(); throw new Error('Sesja wygasła'); }
+  if (!r.ok) throw new Error(d.error ? d.error.message : 'Błąd ' + r.status);
+  return d;
+}
+function logout() { token = ''; try { localStorage.removeItem('lsni-admin'); } catch (e) {} renderLogin(); }
+
+function renderLogin() {
+  $('#root').innerHTML = `<div class="login"><div class="logo">lśni<i></i></div><h1 style="margin-top:12px">Panel zespołu</h1>
+    <label for="ph">Numer telefonu</label><input id="ph" inputmode="tel" placeholder="500 100 999" autocomplete="tel">
+    <div id="codeBox" hidden><label for="cd">Kod z SMS</label><input id="cd" inputmode="numeric" maxlength="6" autocomplete="one-time-code"></div>
+    <div class="err" id="err"></div><button class="btn dark" id="go">Wyślij kod</button></div>`;
+  let step = 1;
+  $('#go').onclick = async () => {
+    $('#err').textContent = '';
+    try {
+      if (step === 1) { const r = await api('POST', '/api/auth/code', { phone: $('#ph').value }); step = 2; $('#codeBox').hidden = false; $('#go').textContent = 'Zaloguj'; if (r.devCode) $('#cd').value = r.devCode; $('#cd').focus(); }
+      else {
+        const r = await api('POST', '/api/auth/verify', { phone: $('#ph').value, code: $('#cd').value });
+        if (r.user.role !== 'admin') { $('#err').textContent = 'To konto nie ma dostępu do panelu zespołu.'; return; }
+        token = r.token; try { localStorage.setItem('lsni-admin', token); } catch (e) {} start();
+      }
+    } catch (e) { $('#err').textContent = e.message; }
+  };
+}
+
+const TABS = [['overview', 'Przegląd'], ['reports', 'Zgłoszenia'], ['noshows', 'Nieobecności'], ['verifications', 'Weryfikacje'], ['reviews', 'Opinie'], ['users', 'Użytkownicy'], ['waitlist', 'Lista oczekujących'], ['audit', 'Dziennik'], ['sms', 'SMS']];
+async function start() {
+  try { overview = await api('GET', '/api/admin/overview'); } catch (e) { return; }
+  const badge = { reports: overview.openReports, noshows: overview.noshows, verifications: overview.pendingVerifications, reviews: overview.pendingReviews };
+  $('#root').innerHTML = `<header><div class="logo">lśni<i></i></div><nav>${TABS.map(([k, l]) => `<button data-tab="${k}" class="${tab === k ? 'on' : ''}">${l}${badge[k] ? `<span class="n">${badge[k]}</span>` : ''}</button>`).join('')}</nav><button class="btn" id="out">Wyloguj</button></header><main id="main"></main>`;
+  document.querySelectorAll('[data-tab]').forEach(b => b.onclick = () => { tab = b.dataset.tab; start(); });
+  $('#out').onclick = async () => { try { await api('POST', '/api/auth/logout', {}); } catch (e) {} logout(); };
+  try { await VIEWS[tab](); } catch (e) { $('#main').innerHTML = `<p class="err">${esc(e.message)}</p>`; }
+}
+const table = (cols, rows, empty = 'Brak pozycji') => rows.length ? `<div class="table"><table><thead><tr>${cols.map(c => `<th>${c}</th>`).join('')}</tr></thead><tbody>${rows.join('')}</tbody></table></div>` : `<p class="muted">${empty}</p>`;
+const act = (fn) => async e => { const b = e.target.closest('[data-id]'); if (!b) return; b.disabled = true; try { await fn(b.dataset); start(); } catch (err) { alertBox(err.message); b.disabled = false; } };
+function alertBox(msg) { const p = document.createElement('p'); p.className = 'err'; p.textContent = msg; $('#main').prepend(p); }
+
+const VIEWS = {
+  async overview() {
+    const o = overview; const st = o.bookingsByStatus;
+    $('#main').innerHTML = `<h1>Przegląd</h1><div class="kpis">
+      ${[['Użytkownicy', o.users], ['Opublikowani wykonawcy', o.providers], ['Zaplanowane wizyty', (st.pending || 0) + (st.confirmed || 0)], ['Zakończone wizyty', st.done || 0], ['Aktywne wyróżnienia', o.activeBoosts]].map(([l, v]) => `<div class="kpi"><b>${v}</b><span>${l}</span></div>`).join('')}
+      ${[['Otwarte zgłoszenia', o.openReports, o.escalatedReports], ['Weryfikacje do sprawdzenia', o.pendingVerifications], ['Opinie do moderacji', o.pendingReviews], ['Zgłoszone nieobecności', o.noshows]].map(([l, v, a]) => `<div class="kpi ${v ? 'alert' : ''}"><b>${v}</b><span>${l}${a ? ` · ${a} bez odpowiedzi 24 h` : ''}</span></div>`).join('')}
+    </div><h1>Gdzie czekają klienci</h1>${table(['Obszar', 'Osób'], o.waitlist.map(w => `<tr><td>${esc(w.area)}</td><td>${w.count}</td></tr>`), 'Lista oczekujących jest pusta')}`;
+  },
+  async reports() {
+    const list = await api('GET', '/api/admin/reports');
+    $('#main').innerHTML = `<h1>Zgłoszenia problemów</h1>` + table(['Kiedy', 'Klient → wykonawca', 'Problem', 'Status', 'Akcje'], list.map(r => `<tr><td class="small">${fmt(r.createdAt)}</td><td>${esc(r.reporter)}<br><span class="muted">→ ${esc(r.provider)}</span></td>
+      <td><b>${esc(r.category)}</b><br>${esc(r.description)}<br><span class="muted small">Oczekuje: ${esc(r.want)}${r.photos ? ` · zdjęcia: ${Array.from({ length: r.photos }, (_, i) => `<a href="#" data-photo="${esc(r.id)}/${i}">${i + 1}</a>`).join(' ')}` : ''}</span>${r.adminNote ? `<br><span class="small">Notatka: ${esc(r.adminNote)}</span>` : ''}</td>
+      <td><span class="tag ${r.status}">${lbl(r.status)}</span></td><td>${r.status !== 'resolved' ? `<button class="btn ok" data-id="${esc(r.id)}" data-s="resolved">Rozwiązane</button><button class="btn" data-id="${esc(r.id)}" data-s="escalated">Eskaluj</button>` : ''}</td></tr>`));
+    $('#main').onclick = async e => {
+      const ph = e.target.closest('[data-photo]'); if (ph) { e.preventDefault(); return openFile(`/api/admin/reports/${ph.dataset.photo.replace('/', '/photos/')}`); }
+      await act(async d => { const note = d.s === 'resolved' ? (window.prompt ? window.prompt('Notatka dla klienta (opcjonalnie)') || '' : '') : ''; await api('POST', `/api/admin/reports/${d.id}`, { status: d.s, note }); })(e);
+    };
+  },
+  async noshows() {
+    const list = await api('GET', '/api/admin/noshows');
+    $('#main').innerHTML = `<h1>Nieobecności klientów</h1><p class="muted">Odrzucenie zgłoszenia cofa klientowi nieobecność. Po dwóch przyjętych klient nie może rezerwować.</p>` + table(['Wizyta', 'Klient', 'Wykonawca', 'Odległość', 'Status', 'Akcje'], list.map(n => `<tr><td class="small">${fmt(n.starts_at)}<br>${esc(n.address_text)}</td><td>${esc(n.client)}<br><span class="muted small">nieobecności: ${n.noshow_count}</span></td><td>${esc(n.provider)}</td><td>${n.distance_m ?? '?'} m</td>
+      <td><span class="tag ${n.status}">${lbl(n.status)}</span></td><td>${n.status === 'reported' ? `<button class="btn ok" data-id="${esc(n.id)}" data-s="accepted">Przyjmij</button><button class="btn no" data-id="${esc(n.id)}" data-s="rejected">Odrzuć</button>` : ''}</td></tr>`));
+    $('#main').onclick = act(d => api('POST', `/api/admin/noshows/${d.id}`, { status: d.s }));
+  },
+  async verifications() {
+    const list = await api('GET', '/api/admin/verifications');
+    $('#main').innerHTML = `<h1>Weryfikacje wykonawców</h1>` + table(['Kiedy', 'Wykonawca', 'Dokument', 'Pliki', 'Status', 'Decyzja'], list.map(v => `<tr><td class="small">${fmt(v.createdAt)}</td><td>${esc(v.provider)}</td><td>${v.kind === 'id' ? 'Dowód + selfie' : 'Polisa OC'}</td>
+      <td>${v.files.map(f => `<a href="#" data-file="${esc(v.id)}/${f.n}">${f.type.split('/')[1]}</a>`).join(' ')}</td><td><span class="tag ${v.status}">${lbl(v.status)}</span>${v.note ? `<br><span class="small">${esc(v.note)}</span>` : ''}</td>
+      <td>${v.status === 'pending' ? `<button class="btn ok" data-id="${esc(v.id)}" data-s="verified">Potwierdź</button><button class="btn no" data-id="${esc(v.id)}" data-s="rejected">Odrzuć</button>` : ''}</td></tr>`));
+    $('#main').onclick = async e => {
+      const f = e.target.closest('[data-file]'); if (f) { e.preventDefault(); return openFile(`/api/admin/verifications/${f.dataset.file.replace('/', '/files/')}`); }
+      await act(async d => api('POST', `/api/admin/verifications/${d.id}`, { status: d.s, note: d.s === 'rejected' ? 'Zdjęcie dokumentu jest nieczytelne. Prześlij je ponownie.' : '' }))(e);
+    };
+  },
+  async reviews() {
+    const list = await api('GET', '/api/admin/reviews?status=pending');
+    $('#main').innerHTML = `<h1>Opinie do moderacji</h1><p class="muted">Tu trafiają opinie i odpowiedzi z danymi kontaktowymi, linkami albo wulgaryzmami.</p>` + table(['Kiedy', 'Klient → wykonawca', 'Treść', 'Powód', 'Akcje'], list.map(r => `<tr><td class="small">${fmt(r.createdAt)}</td><td>${esc(r.client)}<br><span class="muted">→ ${esc(r.provider)}</span></td>
+      <td>${'★'.repeat(r.stars)} ${esc(r.body)}${r.reply ? `<br><span class="small">Odpowiedź (${lbl(r.replyStatus)}): ${esc(r.reply)}</span>` : ''}</td><td>${esc(r.flagReason)}</td>
+      <td>${r.status === 'pending' ? `<button class="btn ok" data-id="${esc(r.id)}" data-s="published">Opublikuj</button><button class="btn no" data-id="${esc(r.id)}" data-s="hidden">Ukryj</button>` : ''}${r.replyStatus === 'pending' ? `<button class="btn" data-id="${esc(r.id)}" data-r="published">Opublikuj odpowiedź</button><button class="btn no" data-id="${esc(r.id)}" data-r="hidden">Ukryj odpowiedź</button>` : ''}</td></tr>`), 'Nic nie czeka na moderację');
+    $('#main').onclick = act(d => api('POST', `/api/admin/reviews/${d.id}`, d.s ? { status: d.s } : { replyStatus: d.r }));
+  },
+  async users() {
+    const q = (window.__q || '');
+    const list = await api('GET', '/api/admin/users?q=' + encodeURIComponent(q));
+    $('#main').innerHTML = `<h1>Użytkownicy</h1><div class="toolbar"><input id="q" placeholder="Imię lub telefon" value="${esc(q)}"><button class="btn" id="qs">Szukaj</button></div>` + table(['Imię', 'Telefon', 'Rola', 'Nieobecności', 'Późne odwołania', 'Konto'], list.map(u => `<tr><td>${esc(u.name)}</td><td>${esc(u.phone)}</td><td>${esc(lbl(u.role))}</td><td>${u.noshow_count}${u.noshow_count ? ` <button class="btn" data-id="${esc(u.id)}" data-reset="1">Wyzeruj</button>` : ''}</td><td>${u.late_cancel_count}</td>
+      <td>${u.blocked ? `<span class="tag rejected">zablokowane</span> <button class="btn" data-id="${esc(u.id)}" data-b="0">Odblokuj</button>` : `<button class="btn no" data-id="${esc(u.id)}" data-b="1">Zablokuj</button>`}</td></tr>`));
+    $('#qs').onclick = () => { window.__q = $('#q').value; start(); };
+    $('#main').onclick = act(d => api('POST', `/api/admin/users/${d.id}`, d.reset ? { resetNoshows: true } : { blocked: d.b === '1' }));
+  },
+  async waitlist() { const list = await api('GET', '/api/admin/waitlist'); $('#main').innerHTML = `<h1>Lista oczekujących</h1><p class="muted">Tu widać, gdzie warto wejść w następnej kolejności.</p>` + table(['Obszar', 'Osób', 'Powiadomieni'], list.map(w => `<tr><td>${esc(w.area)}</td><td>${w.count}</td><td>${w.notified}</td></tr>`)); },
+  async audit() { const list = await api('GET', '/api/admin/audit'); $('#main').innerHTML = `<h1>Dziennik działań zespołu</h1>` + table(['Kiedy', 'Kto', 'Akcja', 'Obiekt', 'Szczegóły'], list.map(a => `<tr><td class="small">${fmt(a.created_at)}</td><td>${esc(a.actor || 'system')}</td><td>${esc(a.action)}</td><td class="small">${esc(a.target)}</td><td class="small">${esc(a.data)}</td></tr>`)); },
+  async sms() { const list = await api('GET', '/api/admin/sms'); $('#main').innerHTML = `<h1>Wysłane SMS-y</h1>` + table(['Kiedy', 'Do', 'Treść', 'Status'], list.map(s => `<tr><td class="small">${fmt(s.created_at)}</td><td>${esc(s.phone)}</td><td>${esc(s.body.replace(/\b\d{6}\b/, '••••••'))}</td><td class="small">${esc(s.provider)}: ${esc(s.status)}</td></tr>`)); }
+};
+async function openFile(url) {
+  const r = await fetch(url, { headers: { Authorization: 'Bearer ' + token } }); if (!r.ok) return alertBox('Nie udało się otworzyć pliku');
+  const u = URL.createObjectURL(await r.blob()); const a = document.createElement('a'); a.href = u; a.target = '_blank'; a.rel = 'noopener'; a.click(); setTimeout(() => URL.revokeObjectURL(u), 60000);
+}
+token ? start() : renderLogin();
+</script>
+</body>
+</html>

@@ -163,15 +163,19 @@ Przy przechodzeniu scenariuszy wyszły teksty, które zostały z czasów płatno
 
 Oba są poprawione.
 
-## Czego makieta nie zrobi (potrzebny backend)
+## Backend: co zostało zrobione
 
-| Obszar | Co trzeba zbudować |
+Pozycje, które makieta potrzebowała od serwera. Szczegóły są w [server/README.md](server/README.md).
+
+| Obszar | Stan |
 |---|---|
-| Konta | Rejestracja i logowanie numerem telefonu (kod SMS) |
-| Powiadomienia | Prawdziwe powiadomienia push i SMS, przypomnienia dla osoby na miejscu |
-| Weryfikacja | Sprawdzenie dowodu i selfie przez zewnętrznego dostawcę, ewentualnie mObywatel |
-| Telefon | Numery maskowane, żeby klient i wykonawca nie musieli podawać prywatnych numerów |
-| Zgłoszenia | Panel dla zespołu Lśni do obsługi zgłoszeń i nieobecności |
-| Opinie | Moderacja i odpowiedzi wykonawców na opinie |
-| Mapa | Prawdziwe mapy i trasy (Mapbox lub Google) zamiast schematu |
-| Prawo | Regulamin, polityka prywatności (RODO), informacja o zasadach rankingu, sprawdzenie DAC7 z księgową |
+| Konta | **Zrobione.** Logowanie kodem SMS, limity prób, sesje, eksport danych i usunięcie konta (RODO). |
+| Powiadomienia | **Zrobione:** w aplikacji i SMS, w tym przypomnienie dla osoby na miejscu. **Do podpięcia:** push i e-mail (wymagają aplikacji natywnej i dostawcy poczty). |
+| Weryfikacja | **Zrobione:** przesyłanie dokumentów, decyzja w panelu zespołu, webhook dostawcy z podpisem HMAC. **Do podpięcia:** konto u dostawcy (np. Veriff, Onfido). |
+| Telefon | **Zrobione:** sesje z PIN-em i endpoint dla bramki telefonicznej. **Do podpięcia:** numer u operatora z IVR. |
+| Zgłoszenia | **Zrobione:** zgłoszenia ze zdjęciami, odpowiedź wykonawcy, eskalacja po 24 h, nieobecności i panel zespołu do ich obsługi. |
+| Opinie | **Zrobione:** automatyczna moderacja, moderacja w panelu, publiczne odpowiedzi wykonawców. |
+| Mapa | **Częściowo:** prawdziwe współrzędne, odległości, zasięgi i dzielnice na serwerze. **Do zrobienia:** geokodowanie adresów i kafelki map (Mapbox lub Google). |
+| Prawo | **Projekty gotowe:** regulamin, polityka prywatności i zasady rankingu w `server/legal/`. **Wymagają sprawdzenia przez prawnika.** DAC7 do potwierdzenia z księgową. |
+| Płatności za wyróżnienia | **Do podpięcia:** zakup z kredytu działa. Dopłata ponad kredyt zwraca kwotę do zapłaty i czeka na operatora (Przelewy24 lub Stripe). |
+| Giełda zleceń z ofertami | **Na później:** w trybie online działa jeszcze lokalnie (dane demo). |
