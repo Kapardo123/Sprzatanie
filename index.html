@@ -733,6 +733,43 @@ div.gm-m{pointer-events:none}
 @keyframes vtInR{from{transform:translateX(18%);opacity:0}}
 @keyframes vtOutR{to{transform:translateX(14%);opacity:0}}
 @keyframes vtInL{from{transform:translateX(-12%);opacity:0}}
+/* ===== wyróżnienia ===== */
+.promo-tag{display:inline-flex;align-items:center;gap:4px;margin-top:6px;font-size:11px;font-weight:700;letter-spacing:.02em;color:var(--sand);background:var(--glove-soft);border-radius:6px;padding:2px 7px}
+.gpin.promo{box-shadow:0 0 0 3px var(--glove),0 4px 10px rgba(14,24,40,.18)}
+.boostcta,.boostlive,.invitecta{display:flex;align-items:center;gap:12px;width:100%;text-align:left;border-radius:var(--r-l);padding:14px;background:var(--surface);border:1px solid var(--line)}
+.boostcta{background:var(--glove-soft);border-color:transparent}
+.boostcta b,.boostlive b{display:block;font-size:15px}
+.boostcta span{font-size:12px;color:var(--ink-2)}
+.bc-ill{width:46px;height:46px;flex:none}
+.boostlive{display:block;border:1.5px solid var(--cloth)}
+.invitecta{font-size:13px;color:var(--ink-2);padding:12px 14px}
+.invitecta .ic:first-child{color:var(--cloth)}
+.invitecta b{color:var(--ink)}
+.credit{display:flex;align-items:center;justify-content:space-between;background:var(--ink);color:var(--paper);border-radius:var(--r-l);padding:16px;margin-bottom:12px}
+.credit b{display:block;font-family:var(--f-display);font-size:30px;font-weight:800;letter-spacing:-.03em;line-height:1.05}
+.credit .eyebrow{color:inherit;opacity:.6}
+.credit .btn{background:var(--surface);color:var(--ink);border:0}
+.gm-d.off{opacity:.55}
+.invite-hero{display:flex;gap:14px;align-items:center;background:var(--cloth);color:var(--cloth-ink);border-radius:var(--r-l);padding:16px}
+.invite-hero b{display:block;font-family:var(--f-mono);font-size:13px;margin-top:4px;overflow-wrap:anywhere}
+.invite-hero>.grow{min-width:0}
+.invite-hero .qr{width:84px;height:84px}
+.invite-hero .eyebrow{color:inherit;opacity:.75}
+.invite-hero .btn{background:var(--cloth-ink);color:var(--cloth)}
+.qr{width:96px;height:96px;flex:none;border-radius:10px;background:var(--surface);padding:4px}
+.steps-list{list-style:none;counter-reset:st;padding:0;margin:0;display:grid;gap:12px}
+.steps-list li{counter-increment:st;display:grid;grid-template-columns:30px 1fr;column-gap:12px}
+.steps-list li::before{content:counter(st);grid-row:span 2;width:30px;height:30px;border-radius:50%;background:var(--glove);color:var(--glove-ink);font-weight:800;display:grid;place-items:center}
+.steps-list b{font-size:14px}
+.steps-list span{font-size:13px;color:var(--ink-2)}
+.bizcard{display:flex;justify-content:space-between;gap:12px;align-items:center;aspect-ratio:85/55;max-width:100%;background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:16px;box-shadow:var(--shadow)}
+.bizcard>div{display:flex;flex-direction:column;gap:2px;min-width:0}
+.bizcard b{font-family:var(--f-display);font-size:17px;margin-top:8px}
+.bizcard span{font-size:11px;color:var(--ink-2)}
+.bizcard .bz-link{font-family:var(--f-mono);color:var(--cloth);margin-top:6px}
+.bz-logo{font-family:var(--f-display);font-weight:800;font-size:22px;letter-spacing:-.04em;display:flex;align-items:baseline}
+.bz-logo .dot{width:.2em;height:.2em;border-radius:50%;background:var(--glove);display:inline-block}
+.bizcard .qr{width:78px;height:78px}
 @media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
 </style>
 </head>
@@ -741,14 +778,14 @@ div.gm-m{pointer-events:none}
   <aside class="pitch">
     <div class="logo">lśni<span class="dot"></span></div>
     <h1>Marketplace usług sprzątania. Klienci rezerwują w minutę, wykonawcy dostają zlecenia z okolicy.</h1>
-    <p>Klikalna makieta aplikacji mobilnej. Wszystko po prawej działa: wyszukiwanie z filtrami, kalkulator ceny, rezerwacja z BLIK-iem, czat, ocena po usłudze, a w trybie wykonawcy panel zleceń, grafik i edytor ogłoszenia.</p>
+    <p>Klikalna makieta aplikacji mobilnej. Wszystko po prawej działa: wyszukiwanie z filtrami, kalkulator ceny, rezerwacja bez płatności w aplikacji, czat, ocena po wizycie, a w trybie wykonawcy panel zleceń, grafik i edytor ogłoszenia.</p>
     <div class="modes">
       <button class="btn sm dark" data-act="setRole" data-a="client">Tryb klienta</button>
       <button class="btn sm line" data-act="setRole" data-a="pro">Tryb wykonawcy</button>
     </div>
     <ul>
       <li><i data-lucide="calculator" class="ic s"></i><span>Cena liczona od metrażu, łazienek i dodatków, z rabatem za stałe sprzątanie</span></li>
-      <li><i data-lucide="shield-check" class="ic s"></i><span>Weryfikacja tożsamości i polisy OC, płatność zwalniana dopiero po usłudze</span></li>
+      <li><i data-lucide="shield-check" class="ic s"></i><span>Klient nic nie płaci w aplikacji. Wykonawcy płacą tylko za wyróżnienia, a kredyt zdobywają, zapraszając swoich klientów</span></li>
       <li><i data-lucide="key-round" class="ic s"></i><span>Instrukcje wejścia, zwierzęta i priorytety przekazywane wykonawcy</span></li>
       <li><i data-lucide="trending-up" class="ic s"></i><span>Wykonawca widzi średnią stawkę w dzielnicy i co podniesie liczbę zapytań</span></li>
     </ul>

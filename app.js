@@ -140,6 +140,9 @@ PROS.push(
 const PRO_GEO = { marta: [13.5, 15.2, 6, 15], czysto: [8.6, 9.8, 14, 0], olena: [13.9, 16.6, 4, 10], pawel: [10.6, 5.2, 10, 20], babel: [19.8, 13, 16, 0], agnieszka: [12.4, 10.8, 6, 20], kinga: [11.4, 22, 7, 15], tomasz: [16.2, 8.2, 8, 15], eko: [16.4, 21, 10, 20], iryna: [3.6, 9.2, 7, 15], kasia: [6.2, 3.2, 6, 15], blysk: [19.6, 5, 13, 25] };
 PROS.forEach(p => { const g = PRO_GEO[p.id]; Object.assign(p, { x: g[0], y: g[1], r: g[2], fee: g[3] }); });
 
+// wyróżnienia innych wykonawców (dzielnice, w których płacą za pozycję)
+const PROMO = { eko: ['Mokotów', 'Wilanów', 'Ursynów'], kinga: ['Ursynów', 'Mokotów'], tomasz: ['Praga-Płn.', 'Śródmieście'], iryna: ['Wola', 'Bemowo'], kasia: ['Bielany', 'Żoliborz'] };
+PROS.forEach(p => { p.promo = PROMO[p.id] || []; });
 const U = 10; // jednostek SVG na kilometr
 const SITES = { 'Bielany': [6, 3], 'Żoliborz': [10.6, 5.6], 'Bemowo': [3, 9.5], 'Wola': [8.4, 10], 'Śródmieście': [12.4, 10.4], 'Ochota': [8.8, 14.4], 'Mokotów': [13, 16.2], 'Ursynów': [11.6, 22.6], 'Wilanów': [16, 21.6], 'Praga-Płn.': [16.2, 8.4], 'Targówek': [19.6, 4.8], 'Praga-Płd.': [19.8, 13] };
 const DPOP = { 'Bielany': 131, 'Żoliborz': 54, 'Bemowo': 126, 'Wola': 140, 'Śródmieście': 103, 'Ochota': 84, 'Mokotów': 217, 'Ursynów': 150, 'Wilanów': 47, 'Praga-Płn.': 62, 'Targówek': 123, 'Praga-Płd.': 180 };
@@ -190,6 +193,10 @@ function dstats(n) {
   const free = sv.reduce((a, p) => a + SLOTS.filter(t => !slotTaken(p.id, 0, t)).length, 0);
   return { sv, avg, free, demand: DEMAND[n], pop: DPOP[n], pressure: DEMAND[n] / (sv.length + 1) };
 }
+const boostBase = n => Math.round(8 + DEMAND[n] * .6);
+const boostPrice = (n, days) => days === 3 ? Math.round(boostBase(n) * .5) : days === 14 ? Math.round(boostBase(n) * 1.8) : boostBase(n);
+const boostViews = (n, days) => Math.round(DEMAND[n] * 3 * days / 7);
+const searchers = n => DEMAND[n] * 7;
 const mixFill = (tok, pct) => `color-mix(in srgb, var(--${tok}) ${Math.round(pct)}%, var(--surface-2))`;
 
 /* ---------- komponent mapy: przesuwanie, pinch/kółko, markery HTML w stałym rozmiarze ---------- */
@@ -261,7 +268,7 @@ const mapInst = id => { const el = document.getElementById('gm-' + id); return e
 const fitView = (pts, w = 340, h = 240) => { const xs = pts.map(q => q[0]), ys = pts.map(q => q[1]); const sx = Math.max(...xs) - Math.min(...xs) + 2.4, sy = Math.max(...ys) - Math.min(...ys) + 2.4; return { center: [(Math.max(...xs) + Math.min(...xs)) / 2, (Math.max(...ys) + Math.min(...ys)) / 2], zoom: Math.min(60, Math.min(w / sx, h / sy)) }; };
 const meMark = a => ({ x: a.x, y: a.y, cls: 'gme-w', html: `<span class="gme"><i></i></span>` });
 const homeMark = (a, label) => ({ x: a.x, y: a.y, bottom: true, cls: 'ghome-w', html: `<span class="ghome">${ic('house', 'xs')}${label ? `<b>${esc(label)}</b>` : ''}</span>` });
-const proPin = (p, on, i = 0, act = 'mapSel') => ({ x: p.x, y: p.y, bottom: true, act, a: p.id, label: p.name, html: `<span class="gpin ${on ? 'on' : ''} ${p.reach === 'out' ? 'far' : ''}" style="animation-delay:${i * 60}ms"><span class="avatar ${p.tone}">${esc(p.ini)}</span><b>${p.fixed || p.perWindow ? 'od ' + (p.perWindow || p.rate) : p.rate} zł</b></span>` });
+const proPin = (p, on, i = 0, act = 'mapSel') => ({ x: p.x, y: p.y, bottom: true, act, a: p.id, label: p.name, html: `<span class="gpin ${on ? 'on' : ''} ${p.reach === 'out' ? 'far' : ''} ${p._promoted ? 'promo' : ''}" style="animation-delay:${i * 60}ms"><span class="avatar ${p.tone}">${esc(p.ini)}</span><b>${p.fixed || p.perWindow ? 'od ' + (p.perWindow || p.rate) : p.rate} zł</b></span>` });
 const circleSVG = (x, y, r, cls = '', id = '') => `<circle ${id ? `id="${id}"` : ''} class="${cls}" cx="${x * U}" cy="${y * U}" r="${r * U}"/>`;
 
 
@@ -280,7 +287,7 @@ const FREQ = [
   { id: 'month', name: 'Co miesiąc', sub: 'odwołasz kiedy chcesz', disc: 0.05 }
 ];
 const SLOTS = ['08:00', '10:00', '12:00', '14:00', '16:00', '18:00'];
-const SERVICE_FEE = 4.99;
+const SERVICE_FEE = 0; // klient nic nie płaci w aplikacji, rozlicza się z wykonawcą na miejscu
 const DISTRICTS = ['Mokotów', 'Ursynów', 'Wilanów', 'Śródmieście', 'Wola', 'Ochota', 'Żoliborz', 'Bielany', 'Praga-Płd.', 'Praga-Płn.', 'Bemowo', 'Targówek'];
 
 function slotTaken(proId, dayIdx, slot) {
@@ -317,9 +324,9 @@ function seed() {
     addrId: 'home', maps: {}, exploreLayer: 'pros',
     ordersSeg: 'up',
     orders: [
-      { id: 'o1', pro: 'marta', service: 'dom', date: 1, time: '10:00', h: 3.5, m2: 54, total: 138.88, freq: 'biweek', status: 'confirmed', extras: ['lodowka'], addr: 'ul. Puławska 112/14', pay: 'BLIK' },
-      { id: 'o2', pro: 'czysto', service: 'remont', date: -20, time: '08:00', h: 5, m2: 54, total: 299.99, freq: 'once', status: 'done', rated: false, extras: ['szafki'], addr: 'ul. Puławska 112/14', pay: 'Karta' },
-      { id: 'o3', pro: 'olena', service: 'prasowanie', date: -34, time: '16:00', h: 2, m2: 0, total: 88.99, freq: 'once', status: 'done', rated: 5, extras: [], addr: 'ul. Puławska 112/14', pay: 'BLIK' }
+      { id: 'o1', pro: 'marta', service: 'dom', date: 1, time: '10:00', h: 3.5, m2: 54, total: 138.88, freq: 'biweek', status: 'confirmed', extras: ['lodowka'], addr: 'ul. Puławska 112/14', pay: 'Gotówka' },
+      { id: 'o2', pro: 'czysto', service: 'remont', date: -20, time: '08:00', h: 5, m2: 54, total: 299.99, freq: 'once', status: 'done', rated: false, extras: ['szafki'], addr: 'ul. Puławska 112/14', pay: 'Przelew' },
+      { id: 'o3', pro: 'olena', service: 'prasowanie', date: -34, time: '16:00', h: 2, m2: 0, total: 88.99, freq: 'once', status: 'done', rated: 5, extras: [], addr: 'ul. Puławska 112/14', pay: 'BLIK na telefon' }
     ],
     threads: {
       marta: { unread: 1, msgs: [
@@ -356,6 +363,9 @@ function seed() {
         { id: 'm2', x: 9.2, y: 13.6, client: 'Marek', crating: 5.0, cat: 'okna', desc: '8 okien dwuskrzydłowych i drzwi balkonowe. 3 piętro, bez windy. Rolety do umycia.', m2: 0, when: 'sobota, od 9:00', dist: 4.1, area: 'Ochota, Szczęśliwice', offers: 2, budget: 0, photos: 1, sent: 0 }
       ],
       offerDraft: null,
+      boost: { credit: 110, history: [{ t: 'Kredyt na start', v: 50 }, { t: '3 klientów z Twojego linku', v: 60 }],
+        active: [{ d: 'Mokotów', days: 7, left: 5, views: 61, opens: 9, req: 2 }], draft: { ds: [], days: 7 },
+        invite: { link: 'lsni.pl/ola-zielinska', joined: 3, earned: 60 } },
       avail: { 1: true, 2: true, 3: true, 4: true, 5: true, 6: false, 0: false },
       calDay: 0,
       listing: {
@@ -376,6 +386,7 @@ S.stacks = {}; S.sheet = null;
 (() => {
   const d = seed(); S.posts ||= []; S.pro = Object.assign(d.pro, S.pro); S.pro.market ||= d.pro.market; S.offerSort ||= 'rec';
   S.filters = Object.assign(d.filters, S.filters); S.addresses ||= d.addresses; S.addrId ||= 'home'; S.maps ||= {}; S.exploreLayer ||= 'pros';
+  S.pro.boost ||= d.pro.boost;
   S.pro.listing = Object.assign(d.pro.listing, S.pro.listing, S.pro.listing.base ? {} : { base: d.pro.listing.base, radius: 8, fee: 15, feeOn: true });
   if (!S.pro.jobs.every(j => 'x' in j)) S.pro.jobs = d.pro.jobs; if (!S.pro.requests.every(r => 'x' in r)) S.pro.requests = d.pro.requests; if (!S.pro.market.every(m => 'x' in m)) S.pro.market = d.pro.market;
 })();
@@ -454,6 +465,7 @@ function proCard(p) {
         ${heart(p.id)}
       </div>
       <div class="small muted mt8" style="line-height:1.35">${esc(p.tagline)}</div>
+      ${p._promoted ? `<button class="promo-tag" data-act="sheet" data-a="ranking">Promowane ${ic('info', 'xs')}</button>` : ''}
       <div class="meta">${p.reach === 'fee' ? `<span class="tag yellow">${ic('car', 'xs')}Dojazd +${p.fee} zł</span>` : p.reach === 'out' ? `<span class="tag rose">${ic('map-pin-off', 'xs')}Poza zasięgiem</span>` : ''}${feats.slice(0, p.reach && p.reach !== 'in' ? 2 : 3).join('')}</div>
       <div class="row between mt12">
         <span class="price">${priceLabel(p)}</span>
@@ -593,8 +605,8 @@ screens.home = () => {
       </div>
       <div class="glass ${S.wiped ? 'clean' : ''} dp-${daypart()}" id="glass">
         <div class="behind">${skyline()}
-          <div class="coupon"><span class="eyebrow">Szyba czysta</span><b>−20% na mycie okien</b>
-            <button class="code" data-act="copyCode">SZYBA20 ${ic('copy', 'xs')}</button></div></div>
+          <div class="coupon"><span class="eyebrow">Szyba czysta</span><b>−20% na pierwsze mycie okien</b>
+            <button class="code" data-act="openCat" data-a="okna">3 oferty ${ic('arrow-right', 'xs')}</button></div></div>
         ${S.wiped ? '' : `<canvas id="grime" aria-label="Brudna szyba. Przeciągnij palcem, żeby ją przetrzeć"></canvas><div class="glass-hint">${ic('hand', 'xs')}przetrzyj szybę palcem</div>`}
       </div>
       <div class="postcta">
@@ -643,8 +655,8 @@ screens.home = () => {
       <div class="section-h"><h3>Dlaczego bez obaw</h3></div>
       <div class="trust">
         <div>${ic('shield-check', 's')}<b>Sprawdzeni</b>Dowód osobisty i opinie z prawdziwych zleceń</div>
-        <div>${ic('lock', 's')}<b>Płacisz po</b>Kwota jest blokowana, pobieramy ją po usłudze</div>
-        <div>${ic('rotate-ccw', 's')}<b>Poprawka</b>Coś nie tak? Wykonawca wraca w 24 h za darmo</div>
+        <div>${ic('hand-coins', 's')}<b>Płacisz na miejscu</b>Zero opłat w aplikacji</div>
+        <div>${ic('message-square-quote', 's')}<b>Prawdziwe opinie</b>Tylko po odbytej wizycie</div>
       </div>
       <div class="sp"></div>
     </div>
@@ -666,7 +678,16 @@ function filteredPros() {
     return true;
   });
   const sorters = { rec: (a, b) => (b.rating * Math.log(b.reviews)) - (a.rating * Math.log(a.reviews)), price: (a, b) => a.rate - b.rate, dist: (a, b) => a.dist - b.dist, rating: (a, b) => b.rating - a.rating };
-  return list.sort(sorters[f.sort]);
+  list.sort(sorters[f.sort]);
+  // najwyżej 2 profile „Promowane” na górze, tylko przy domyślnym sortowaniu
+  PROS.forEach(p => { p._promoted = false; });
+  const where = f.district || (f.bounds ? null : districtAt(curAddr().x, curAddr().y));
+  if (f.sort === 'rec' && where) {
+    const promo = list.filter(p => p.promo.includes(where) && p.reach !== 'out').slice(0, 2);
+    promo.forEach(p => { p._promoted = true; });
+    list = promo.concat(list.filter(p => !promo.includes(p)));
+  }
+  return list;
 }
 function activeFilterCount() {
   const f = S.filters; let n = 0;
@@ -855,15 +876,14 @@ function newBooking(proId, preset) {
   const svc = S.filters.cat && p.services.includes(S.filters.cat) ? S.filters.cat : p.services[0];
   let day = 1, time = null;
   if (preset === 'today') { day = 0; time = p.nextSlot.split(' ')[1]; }
-  return { pro: proId, step: 1, service: svc, m2: 54, rooms: 2, baths: 1, extras: [], supplies: p.supplies ? 'pro' : 'mine', freq: 'once', day, time, addr: S.addrId, entry: 'home', code: '', pets: 'none', note: '', focus: [], pay: 'blik', blik: '' };
+  return { pro: proId, step: 1, service: svc, m2: 54, rooms: 2, baths: 1, extras: [], supplies: p.supplies ? 'pro' : 'mine', freq: 'once', day, time, addr: S.addrId, entry: 'home', code: '', pets: 'none', note: '', focus: [], pay: 'cash', blik: '' };
 }
-const STEP_TITLES = ['Zakres sprzątania', 'Termin', 'Adres i wejście', 'Płatność'];
+const STEP_TITLES = ['Zakres sprzątania', 'Termin', 'Adres i wejście', 'Podsumowanie'];
 
 screens.book = () => {
   const b = S.booking; const p = proById(b.pro); const e = estimate(b, p);
   const body = [null, bookStep1, bookStep2, bookStep3, bookStep4][b.step](b, p, e);
   const canNext = b.step !== 2 || b.time;
-  const blikOk = b.step !== 4 || b.pay !== 'blik' || /^\d{6}$/.test(b.blik);
   return `<div class="topbar">${b.step === 1 ? backBtn() : `<button class="iconbtn" data-act="bookPrev" aria-label="Wstecz">${ic('chevron-left')}</button>`}
       <h2>${STEP_TITLES[b.step - 1]}</h2><span class="tiny faint">${b.step} z 4</span></div>
     <div class="steps">${[1, 2, 3, 4].map(i => `<i class="${i <= b.step ? 'on' : ''}"></i>`).join('')}</div>
@@ -873,7 +893,7 @@ screens.book = () => {
       ${b.step < 4 ? `<button class="btn primary" data-act="bookNext" ${canNext ? '' : 'disabled'}>${b.step === 2 && !b.time ? 'Wybierz godzinę' : 'Dalej'}</button>`
       : ''}
     </div>
-    ${b.step === 4 ? `<div class="footer slidefoot">${swipeBtn('pay', '', `Przesuń, aby zapłacić ${zl(e.total)}`, !blikOk)}</div>` : ''}`;
+    ${b.step === 4 ? `<div class="footer slidefoot">${swipeBtn('pay', '', 'Przesuń, aby zarezerwować')}</div>` : ''}`;
 };
 
 function bookStep1(b, p, e) {
@@ -943,19 +963,14 @@ function bookStep4(b, p, e) {
     <div class="ln"><span>Praca (${hrs(e.baseH)} × ${p.rate} zł)</span><b>${zl(e.baseH * p.rate)}</b></div>
     ${b.extras.map(id => { const x = EXTRAS.find(y => y.id === id); return `<div class="ln"><span>${x.name}</span><b>${zl(x.h * p.rate)}</b></div>`; }).join('')}
     ${e.disc ? `<div class="ln disc"><span>Rabat: ${f.name.toLowerCase()}</span><b>−${zl(e.discount)}</b></div>` : ''}
-    <div class="ln"><span>Opłata serwisowa i ubezpieczenie</span><b>${zl(SERVICE_FEE)}</b></div>
     ${e.travel ? `<div class="ln"><span>Dojazd spoza strefy (${kmf(e.km)} km)</span><b>${zl(e.travel)}</b></div>` : ''}
-    <div class="tot"><span class="muted small">Razem${b.freq !== 'once' ? ' za wizytę' : ''}</span><b class="num">${zl(e.total)}</b></div>
+    <div class="ln"><span>Opłata za Lśni</span><b style="color:var(--mint)">0 zł</b></div>
+    <div class="tot"><span class="muted small">Do zapłaty na miejscu${b.freq !== 'once' ? ' za wizytę' : ''}</span><b class="num">${zl(e.total)}</b></div>
   </div>
-  <div class="field"><span class="lbl">Metoda płatności</span>
-    <div class="options">
-      <button class="opt ${b.pay === 'blik' ? 'on' : ''}" data-act="bset" data-a="pay" data-b="blik"><span class="radio"></span><span class="paylogo blik">BLIK</span><b class="small grow">Kod BLIK</b></button>
-      <button class="opt ${b.pay === 'card' ? 'on' : ''}" data-act="bset" data-a="pay" data-b="card"><span class="radio"></span><span class="paylogo card">VISA</span><div class="grow"><b class="small">Karta •••• 4242</b><div class="tiny faint">wygasa 08/28</div></div></button>
-      <button class="opt ${b.pay === 'invoice' ? 'on' : ''}" data-act="bset" data-a="pay" data-b="invoice" ${p.invoice ? '' : 'disabled style="opacity:.45"'}><span class="radio"></span><span class="paylogo inv">FV</span><div class="grow"><b class="small">Przelew na fakturę</b><div class="tiny faint">${p.invoice ? '14 dni, dla firm' : 'Ten wykonawca nie wystawia faktur'}</div></div></button>
-    </div>
-    ${b.pay === 'blik' ? `<div class="blik"><input id="blik" inputmode="numeric" maxlength="6" placeholder="••••••" value="${esc(b.blik)}" data-model="booking.blik" data-live="blik" aria-label="Kod BLIK"></div><div class="hint">Wpisz dowolne 6 cyfr. To makieta, nic nie zostanie pobrane.</div>` : ''}
-  </div>
-  <div class="note mint mt16">${ic('lock', 's')}<span>Zablokujemy <b>${zl(e.total)}</b> na Twoim koncie. Pieniądze trafią do wykonawcy dopiero, gdy potwierdzisz wykonanie usługi. Bezpłatne odwołanie do 24 h przed.</span></div>`;
+  <div class="field"><span class="lbl">Jak zapłacisz wykonawcy po sprzątaniu?</span>
+    <div class="chips">${[['cash', 'Gotówka'], ['blikphone', 'BLIK na telefon'], ['transfer', 'Przelew']].concat(p.invoice ? [['invoice', 'Faktura VAT']] : []).map(([v, l]) => `<button class="chip ${b.pay === v ? 'on' : ''}" data-act="bset" data-a="pay" data-b="${v}">${l}</button>`).join('')}</div>
+    <div class="hint">Przekażemy to wykonawcy, żeby wiedział, czego się spodziewać.</div></div>
+  <div class="note mint mt16">${ic('hand-coins', 's')}<span>W Lśni nic nie płacisz. Rozliczasz się bezpośrednio z wykonawcą, gdy sprzątanie jest skończone. Bezpłatne odwołanie do 24 h przed.</span></div>`;
 }
 
 screens.booked = ({ id }) => {
@@ -968,7 +983,7 @@ screens.booked = ({ id }) => {
       <div class="ln"><span>Kiedy</span><b>${dayLabel(d)}, ${o.time}</b></div>
       <div class="ln"><span>Usługa</span><b>${catById(o.service).name}</b></div>
       <div class="ln"><span>Adres</span><b>${o.addr}</b></div>
-      <div class="ln"><span>Zablokowano</span><b>${zl(o.total)}</b></div>
+      <div class="ln"><span>Na miejscu</span><b>${zl(o.total)} · ${o.pay || 'gotówka'}</b></div>
     </div>
     <div class="tiny faint mt16">Przekłuj kilka baniek, jeśli masz ochotę.</div>
   </div></div>
@@ -1014,11 +1029,11 @@ screens.order = ({ id }) => {
   const flow = ['confirmed', 'enroute', 'progress', 'done'];
   const idx = o.status === 'pending' ? -1 : flow.indexOf(o.status);
   const tl = [
-    ['Zarezerwowane', 'Płatność zablokowana', 'calendar-check'],
+    ['Zarezerwowane', 'Wysłane do wykonawcy', 'calendar-check'],
     ['Potwierdzone', 'Wykonawca przyjął zlecenie', 'check'],
     ['W drodze', 'Zobaczysz, gdy wyruszy', 'car'],
     ['W trakcie', `${o.time}–${endTime(o.time, o.h)}`, 'sparkles'],
-    ['Zakończone', 'Zatwierdzasz i zwalniasz płatność', 'flag']
+    ['Zakończone', 'Płacisz na miejscu i oceniasz', 'flag']
   ];
   const cur = o.status === 'cancel' ? -2 : o.status === 'done' ? 5 : idx + 1;
   const active = !['done', 'cancel'].includes(o.status);
@@ -1029,7 +1044,7 @@ screens.order = ({ id }) => {
     <div class="row" style="gap:6px">${statusPill(o.status)}${o.freq !== 'once' ? `<span class="tag">${ic('repeat', 'xs')}${FREQ.find(f => f.id === o.freq).name}</span>` : ''}</div>
 
     ${o.status === 'enroute' ? trackBlock(o, p) : ''}
-    ${o.status === 'done' && !o.rated ? `<div class="note yellow mt16">${ic('hand-coins', 's')}<span>Usługa zakończona. Sprawdź mieszkanie i zatwierdź, wtedy zwolnimy płatność. Masz na to 24 h.</span></div>` : ''}
+    ${o.status === 'done' && !o.rated ? `<div class="note yellow mt16">${ic('hand-coins', 's')}<span>Sprzątanie zakończone. Rozlicz się z wykonawcą na miejscu i oceń wizytę. Twoja opinia pomoże innym wybrać.</span></div>` : ''}
 
     ${o.status === 'progress' ? liveBlock(o) : ''}
     ${o.status === 'done' && o.report ? reportBlock(o, p) : ''}
@@ -1045,14 +1060,13 @@ screens.order = ({ id }) => {
       ${o.m2 ? `<div class="ln"><span>Metraż</span><b>${o.m2} m²</b></div>` : ''}
       <div class="ln"><span>Czas</span><b>ok. ${hrs(o.h)}</b></div>
       ${o.extras.length ? `<div class="ln"><span>Dodatki</span><b>${o.extras.map(id => EXTRAS.find(x => x.id === id).name).join(', ')}</b></div>` : ''}
-      <div class="ln"><span>Płatność</span><b>${o.pay} · ${o.status === 'done' && o.rated ? 'opłacone' : 'zablokowano'}</b></div>
-      <div class="tot"><span class="muted small">Razem</span><b class="num">${zl(o.total)}</b></div>
+      <div class="ln"><span>Płatność</span><b>${o.pay} · na miejscu</b></div>
+      <div class="tot"><span class="muted small">Do zapłaty wykonawcy</span><b class="num">${zl(o.total)}</b></div>
     </div>
-    ${o.status === 'done' ? `<button class="btn line block mt12" data-act="toast" data-a="Rachunek wysłany na e-mail">${ic('download', 's')}Pobierz rachunek</button>` : ''}
     <div class="sp"></div>
   </div></div>
   ${active ? `<div class="footer"><button class="btn line" data-act="toast" data-a="Przełożenie terminu w pełnej wersji">Przełóż</button><button class="btn danger" style="flex:1" data-act="sheet" data-a="cancel" data-b="${o.id}">Odwołaj</button></div>`
-    : o.status === 'done' && !o.rated ? `<div class="footer"><button class="btn line" data-act="toast" data-a="Zgłoszenie wysłane. ${p.name.split(' ')[0]} wróci na poprawkę w 24 h" >Zgłoś problem</button><button class="btn primary" style="flex:1" data-act="openRate" data-a="${o.id}">Zatwierdź i oceń</button></div>`
+    : o.status === 'done' && !o.rated ? `<div class="footer"><button class="btn line" data-act="toast" data-a="Zgłoszenie wysłane. ${p.name.split(' ')[0]} wróci na poprawkę w 24 h" >Zgłoś problem</button><button class="btn primary" style="flex:1" data-act="openRate" data-a="${o.id}">Oceń wizytę</button></div>`
     : o.status === 'done' ? `<div class="footer"><button class="btn primary block" data-act="rebook" data-a="${o.id}">${ic('repeat', 's')}Zamów ponownie</button></div>` : ''}`;
 };
 
@@ -1070,11 +1084,9 @@ screens.rate = ({ id }) => {
       <div class="chips">${tags.map(t => `<button class="chip ${r.tags.includes(t) ? 'on' : ''}" data-act="rtag" data-a="${t}">${t}</button>`).join('')}</div></div>
     <div class="field" style="text-align:left"><label for="rc">Opinia (opcjonalnie)</label>
       <textarea class="input" id="rc" placeholder="Pomóż innym wybrać" data-model="rate.comment">${esc(r.comment)}</textarea></div>
-    <div class="field" style="text-align:left"><span class="lbl">Napiwek — w całości dla wykonawcy</span>
-      <div class="chips">${[0, 10, 20, 30].map(t => `<button class="chip ${r.tip === t ? 'on' : ''}" data-act="rtip" data-a="${t}">${t ? t + ' zł' : 'Bez napiwku'}</button>`).join('')}</div></div>
     <div class="sp"></div>
   </div></div>
-  <div class="footer slidefoot">${swipeBtn('submitRate', o.id, `Przesuń, aby zwolnić ${zl(o.total + r.tip)}`)}</div>`;
+  <div class="footer"><button class="btn primary block" data-act="submitRate" data-a="${o.id}">${ic('send', 's')}Opublikuj opinię</button></div>`;
 };
 
 /* ---------- inbox & chat ---------- */
@@ -1144,7 +1156,6 @@ screens.profile = () => {
     <div class="stack">${S.favs.map(id => proById(id)).filter(Boolean).map(p => `<div class="pcard" style="padding:12px;align-items:center" role="button" tabindex="0" data-act="openPro" data-a="${p.id}">${avatar(p, 'sm')}<div class="grow"><div class="name">${esc(p.name)}</div><div class="tiny faint">${stars(p.rating)} · ${p.nextSlot}</div></div><button class="btn sm primary" data-act="startBooking" data-a="${p.id}">Rezerwuj</button></div>`).join('') || '<div class="small muted">Dotknij serca przy wykonawcy, żeby dodać go tutaj.</div>'}</div>
     <div class="menu mt24">
       <button class="mi" data-act="toast" data-a="Edycja adresów w pełnej wersji">${ic('map-pin', 's')}Adresy<span class="r">2 ${ic('chevron-right', 's')}</span></button>
-      <button class="mi" data-act="toast" data-a="Metody płatności w pełnej wersji">${ic('wallet', 's')}Płatności<span class="r">BLIK, Visa ${ic('chevron-right', 's')}</span></button>
       <button class="mi" data-act="toast" data-a="Dane do faktury w pełnej wersji">${ic('receipt', 's')}Dane do faktury<span class="r">${ic('chevron-right', 's')}</span></button>
       <button class="mi" data-act="toast" data-a="Ustawienia powiadomień w pełnej wersji">${ic('bell', 's')}Powiadomienia<span class="r">${ic('chevron-right', 's')}</span></button>
       <button class="mi" data-act="toast" data-a="Centrum pomocy w pełnej wersji">${ic('life-buoy', 's')}Pomoc i gwarancja<span class="r">${ic('chevron-right', 's')}</span></button>
@@ -1152,7 +1163,7 @@ screens.profile = () => {
     <div class="becomepro mt24">
       <svg viewBox="0 0 120 120" aria-hidden="true"><rect x="38" y="44" width="44" height="64" rx="12" fill="currentColor" opacity=".9"/><rect x="48" y="22" width="24" height="26" rx="6" fill="currentColor" opacity=".9"/><path d="M72 30 h22 v8 h-22z" fill="currentColor" opacity=".9"/><circle cx="104" cy="22" r="4" fill="currentColor" opacity=".5"/><circle cx="110" cy="36" r="3" fill="currentColor" opacity=".4"/><circle cx="100" cy="44" r="2.5" fill="currentColor" opacity=".3"/></svg>
       <h4>Sprzątasz zawodowo?</h4>
-      <p>Publikacja ogłoszenia jest darmowa. Prowizja 12% tylko od zrealizowanych zleceń, wypłaty co piątek.</p>
+      <p>Bez prowizji i bez abonamentu. Klienci płacą Ci bezpośrednio. Na start dostajesz 50 zł na wyróżnienia.</p>
       <button class="btn sm" data-act="becomePro">Dodaj ogłoszenie ${ic('arrow-right', 's')}</button>
     </div>
     <div class="sp"></div></div></div>`;
@@ -1174,11 +1185,14 @@ screens.dash = () => {
         <button class="row" style="gap:8px" data-act="toggleOnline"><span class="small ${P.online ? '' : 'faint'}" style="font-weight:600">${P.online ? 'Przyjmuję zlecenia' : 'Niedostępna'}</span><span class="switch ${P.online ? 'on' : ''}"></span></button></div>
 
       <div class="earn mt16">
-        <div class="row between"><span class="eyebrow" style="color:inherit;opacity:.6">Ten tydzień</span><span class="tiny" style="opacity:.7">wypłata w piątek</span></div>
+        <div class="row between"><span class="eyebrow" style="color:inherit;opacity:.6">Ten tydzień</span><span class="tiny" style="opacity:.7">płatności na miejscu</span></div>
         <div class="amt num">${zl(sum)}</div>
-        <div class="sub">${P.jobs.length + 4} zlecenia · śr. ${Math.round(sum / 26)} zł/h po prowizji</div>
+        <div class="sub">${P.jobs.length + 4} zlecenia · śr. ${Math.round(sum / 26)} zł/h · 0 zł prowizji</div>
         <div class="bars">${week.map((w, i) => `<div class="bar ${i === todayIdx ? 'today' : ''}">${w.v === max ? `<em>${w.v}</em>` : ''}<i style="height:${w.v ? Math.max(8, w.v / max * 78) : 4}%"></i>${w.d}</div>`).join('')}</div>
       </div>
+
+      <div class="mt12">${boostCard()}</div>
+      <button class="invitecta mt8" data-act="openInvite">${ic('user-plus', 's')}<span class="grow">Zaproś swoich klientów i zdobądź <b>20 zł kredytu</b> za każdego</span>${ic('chevron-right', 's')}</button>
 
       <div class="section-h"><h3>Nowe zapytania</h3><span class="tag ${P.requests.length ? 'rose' : ''}">${P.requests.length}</span></div>
       <div class="stack">${P.requests.length ? P.requests.map(reqCard).join('') : `<div class="card empty" style="padding:24px">${ic('inbox')}<div style="font-weight:650;color:var(--ink)">Wszystko obsłużone</div><div class="small mt8">Nowe zapytania pojawią się tutaj i w powiadomieniach.</div></div>`}</div>
@@ -1213,6 +1227,7 @@ function profileTodos() {
     { label: 'Dodaj co najmniej 3 zdjęcia z realizacji', ok: L.photos.length >= 3, boost: '+23% zapytań', act: 'setTab', arg: 'listing' },
     { label: 'Wgraj polisę OC', ok: L.insured, boost: '+ odznaka OC', act: 'uploadOC' },
     { label: 'Opisz siebie w min. 80 znakach', ok: L.bio.length >= 80, boost: '+11% zapytań', act: 'setTab', arg: 'listing' },
+    { label: 'Zaproś pierwszych 3 stałych klientów', ok: S.pro.boost.invite.joined >= 3, boost: '+60 zł kredytu', act: 'openInvite' },
     { label: 'Ustaw dostępność na 2 tygodnie', ok: true, boost: '', act: 'setTab', arg: 'calendar' }
   ];
 }
@@ -1228,7 +1243,7 @@ function reqCard(r) {
       <div>${ic('navigation', 's')}${kmf(roadKm(S.pro.listing.base, r))} km · ${driveMin(roadKm(S.pro.listing.base, r))} min</div>
     </div>
     <div class="quote">„${esc(r.note)}”</div>
-    <div class="row between" style="margin-bottom:10px;gap:8px"><span class="timer">${ic('timer', 'xs')}Wygasa za ${r.expires} min</span><span class="tiny faint" style="text-align:right">Dla Ciebie <b style="color:var(--ink)">${zl(r.pay * 0.88)}</b></span></div>
+    <div class="row between" style="margin-bottom:10px;gap:8px"><span class="timer">${ic('timer', 'xs')}Wygasa za ${r.expires} min</span><span class="tiny faint" style="text-align:right">Płatność: ${r.payHow || 'gotówka'}, na miejscu</span></div>
     <div class="acts"><button class="btn line sm" data-act="sheet" data-a="decline" data-b="${r.id}">Odrzuć</button><button class="btn primary sm" data-act="acceptReq" data-a="${r.id}">${ic('check', 's')}Przyjmij zlecenie</button></div>
   </div>`;
 }
@@ -1254,8 +1269,8 @@ screens.calendar = () => {
 
 screens.listing = () => {
   const L = S.pro.listing;
-  const fake = { id: 'me', name: L.name, ini: L.name.split(' ').map(w => w[0]).join('').slice(0, 2), tone: 't-mint', kind: 'Osoba prywatna', area: L.areas[0] || 'Mokotów', dist: 0, rating: 4.92, reviews: 38, verified: L.idVerified, insured: L.insured, invoice: L.invoice, supplies: L.supplies, eco: L.eco, pets: L.pets, rate: L.rate, tagline: L.tagline || 'Dodaj krótki opis', nextSlot: 'Jutro 9:00', todayFree: false };
-  const month = Math.round(L.rate * 80 * 0.88);
+  const fake = { _promoted: S.pro.boost.active.length > 0, id: 'me', name: L.name, ini: L.name.split(' ').map(w => w[0]).join('').slice(0, 2), tone: 't-mint', kind: 'Osoba prywatna', area: L.areas[0] || 'Mokotów', dist: 0, rating: 4.92, reviews: 38, verified: L.idVerified, insured: L.insured, invoice: L.invoice, supplies: L.supplies, eco: L.eco, pets: L.pets, rate: L.rate, tagline: L.tagline || 'Dodaj krótki opis', nextSlot: 'Jutro 9:00', todayFree: false };
+  const month = Math.round(L.rate * 80);
   return `<div class="scroll"><div class="pad">
     <div class="row between mt12"><h1 class="pagetitle" style="margin:0">Ogłoszenie</h1><span class="tag ${L.published ? 'mint' : ''}">${L.published ? 'Opublikowane' : 'Szkic'}</span></div>
     <div class="small muted" style="margin:6px 0 14px">Tak widzą Cię klienci w wynikach wyszukiwania:</div>
@@ -1269,7 +1284,7 @@ screens.listing = () => {
     <div class="field"><div class="row between"><span class="lbl" style="margin:0">Stawka godzinowa</span><span class="big-val num" id="rateVal">${L.rate}<small>zł/h</small></span></div>
       <input type="range" id="lrate" min="30" max="90" step="1" value="${L.rate}" data-model="pro.listing.rate" data-type="num" data-live="rate" aria-label="Stawka">
       <div class="market"><span>30 zł</span><span>średnia na Mokotowie: <b style="color:var(--ink)">46 zł/h</b></span><span>90 zł</span></div>
-      <div class="note mint mt12">${ic('trending-up', 's')}<span id="rateHint">Przy 20 h tygodniowo zarobisz ok. <b>${zl(month)}</b> miesięcznie po prowizji.</span></div></div>
+      <div class="note mint mt12">${ic('trending-up', 's')}<span id="rateHint">Przy 20 h tygodniowo zarobisz ok. <b>${zl(month)}</b> miesięcznie. Lśni nie bierze prowizji.</span></div></div>
 
     <div class="field"><span class="lbl">Minimalny czas wizyty</span>
       <div class="stepper"><span>${hrs(L.minH)}</span><div class="ctl"><button data-act="lmin" data-a="-0.5" aria-label="Mniej">${ic('minus', 's')}</button><button data-act="lmin" data-a="0.5" aria-label="Więcej">${ic('plus', 's')}</button></div></div></div>
@@ -1361,6 +1376,76 @@ function dayRoute(jobs) {
       markers: [homeMark(L.base, 'Baza')].concat(jobs.map((j, i) => ({ x: j.x, y: j.y, html: `<span class="gstop">${i + 1}</span>` }))) })}
     <div class="legs">${jobs.map((j, i) => `<div><span class="gstop sm">${i + 1}</span><span class="grow small">${j.time} · ${esc(j.client)}, ${j.area}</span><span class="tiny faint">${driveMin(legs[i])} min dojazdu</span></div>`).join('')}</div>`;
 }
+function boostCard() {
+  const B = S.pro.boost; const a = B.active[0];
+  if (!a) return `<button class="boostcta" data-act="openBoost"><span class="bc-ill">${illo('dom')}</span><div class="grow"><b>Wyróżnij się w swojej okolicy</b><span>Masz ${zl(B.credit)} kredytu. Wyróżnienie na Mokotowie: ${boostPrice('Mokotów', 7)} zł/tydz.</span></div>${ic('chevron-right', 's')}</button>`;
+  const goal = boostViews(a.d, a.days);
+  return `<button class="boostlive" data-act="openBoost">
+    <div class="row between"><span class="livebadge"><i></i>Wyróżnienie: ${a.d}${S.pro.boost.active.length > 1 ? ` +${S.pro.boost.active.length - 1}` : ''}</span><span class="tiny faint">zostało ${a.left} dni</span></div>
+    <div class="minis mt12"><div><b class="num" id="bst-v">${a.views}</b><span>wyświetleń</span></div><div><b class="num" id="bst-o">${a.opens}</b><span>wejść w profil</span></div><div><b class="num" id="bst-r">${a.req}</b><span>zapytań</span></div></div>
+    <div class="meter"><i id="bst-m" style="width:${Math.min(100, a.views / goal * 100)}%;background:var(--cloth)"></i></div>
+    <div class="tiny faint" id="bst-g">${a.views >= goal ? 'Gwarancja spełniona' : `Gwarancja: ${goal} wyświetleń, inaczej zwrot kredytu`}</div>
+  </button>`;
+}
+screens.boost = () => {
+  const L = S.pro.listing; const B = S.pro.boost; const D = B.draft; const cov = coveredDistricts();
+  const activeD = B.active.map(a => a.d);
+  const total = D.ds.reduce((x, n) => x + boostPrice(n, D.days), 0);
+  const fromCredit = Math.min(total, B.credit); const extra = total - fromCredit;
+  const fill = n => cov.includes(n) ? (D.ds.includes(n) ? { fill: mixFill('cloth', 70), cls: 'sel' } : activeD.includes(n) ? { fill: mixFill('mint', 55) } : { fill: mixFill('glove', 15 + DEMAND[n] * 1.3) }) : { fill: 'var(--surface-2)', cls: 'off' };
+  return `${topbar('Wyróżnienie')}
+  <div class="scroll"><div class="pad">
+    <div class="credit"><div><span class="eyebrow">Twój kredyt</span><b class="num">${zl(B.credit)}</b></div><button class="btn sm line" data-act="openInvite">${ic('user-plus', 's')}Zdobądź więcej</button></div>
+    <p class="small muted">Klienci z wybranych dzielnic zobaczą Cię na górze wyników z oznaczeniem „Promowane”. Wyróżnione mogą być najwyżej 2 profile naraz, a opinie i odznaki zostają bez zmian.</p>
+    ${geoMap('boost', { h: 300, center: [L.base.x, L.base.y], zoom: 13, fill, labelExtra: n => cov.includes(n) ? (activeD.includes(n) ? 'aktywne' : boostPrice(n, D.days) + ' zł') : '',
+      layer: circleSVG(L.base.x, L.base.y, L.radius, 'gm-reach'), markers: [homeMark(L.base, 'Baza')],
+      onTap: (x, y) => { if (!inCity(x, y)) return; const n = districtAt(x, y); A.boostToggle(n); } })}
+    <div class="legend-row"><span><i style="background:${mixFill('glove', 60)}"></i>im ciemniej, tym większy popyt</span><span><i style="background:${mixFill('mint', 55)}"></i>trwa wyróżnienie</span></div>
+    <div class="field"><span class="lbl">Dzielnice w Twoim zasięgu</span>
+      <div class="options">${cov.map(n => { const on = D.ds.includes(n), act = activeD.includes(n); return `<button class="opt ${on ? 'on' : ''}" data-act="boostToggle" data-a="${n}" ${act ? 'disabled style="opacity:.6"' : ''}><span class="radio"></span><div class="grow"><b class="small">${n}</b><div class="tiny faint">${searchers(n)} osób szukało sprzątania w zeszłym tygodniu · ${dstats(n).sv.length} wykonawców</div></div><b class="num small">${act ? 'aktywne' : boostPrice(n, D.days) + ' zł'}</b></button>`; }).join('')}</div>
+      <div class="hint">Dzielnic poza zasięgiem nie da się wyróżnić. Zasięg zmienisz w Obszarze pracy.</div></div>
+    <div class="field"><span class="lbl">Na jak długo?</span><div class="seg">${[3, 7, 14].map(d => `<button class="${D.days === d ? 'on' : ''}" data-act="boostDays" data-a="${d}">${d} dni${d === 14 ? ' · −10%' : ''}</button>`).join('')}</div></div>
+    ${D.ds.length ? `<div class="receipt mt16">${D.ds.map(n => `<div class="ln"><span>${n} · gwarancja ${boostViews(n, D.days)} wyświetleń</span><b>${zl(boostPrice(n, D.days))}</b></div>`).join('')}
+      <div class="ln"><span>Z kredytu</span><b style="color:var(--mint)">−${zl(fromCredit)}</b></div>
+      <div class="tot"><span class="muted small">${extra ? 'Dopłata BLIK-iem' : 'Do zapłaty'}</span><b class="num">${zl(extra)}</b></div></div>
+      <div class="note mt12">${ic('shield-check', 's')}<span>Jeśli w tym czasie zobaczy Cię mniej klientów, niż gwarantujemy, oddamy kredyt proporcjonalnie.</span></div>` : ''}
+    ${B.history.length ? `<div class="section-h"><h3>Historia kredytu</h3></div><div class="card" style="padding:4px 16px">${B.history.slice().reverse().map(h => `<div class="toggle-row"><span class="grow small">${esc(h.t)}</span><b class="num small" style="color:var(--${h.v > 0 ? 'mint' : 'ink'})">${h.v > 0 ? '+' : ''}${zl(h.v)}</b></div>`).join('')}</div>` : ''}
+    <div class="sp"></div>
+  </div></div>
+  <div class="footer slidefoot">${swipeBtn('buyBoost', '', D.ds.length ? `Przesuń, aby wyróżnić za ${zl(total)}` : 'Wybierz dzielnicę', !D.ds.length)}</div>`;
+};
+function fakeQR(seed) {
+  let h = 0; for (const ch of seed) h = (h * 31 + ch.charCodeAt(0)) >>> 0; const rnd = () => (h = (h * 1103515245 + 12345) >>> 0) / 4294967296;
+  const N = 25; let r = ''; const finder = (x, y) => (x < 7 && y < 7) || (x >= N - 7 && y < 7) || (x < 7 && y >= N - 7);
+  for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) { if (finder(x, y)) continue; if (rnd() < .48) r += `<rect x="${x}" y="${y}" width="1" height="1"/>`; }
+  const f = (x, y) => `<rect x="${x}" y="${y}" width="7" height="7"/><rect x="${x + 1}" y="${y + 1}" width="5" height="5" fill="var(--surface)"/><rect x="${x + 2}" y="${y + 2}" width="3" height="3"/>`;
+  return `<svg viewBox="-1 -1 27 27" class="qr" aria-label="Kod QR z linkiem do rezerwacji (podgląd)"><rect x="-1" y="-1" width="27" height="27" fill="var(--surface)"/><g fill="var(--ink)">${r}${f(0, 0)}${f(N - 7, 0)}${f(0, N - 7)}</g></svg>`;
+}
+screens.invite = () => {
+  const L = S.pro.listing; const I = S.pro.boost.invite;
+  const msg = `Dzień dobry! Od teraz umawiamy sprzątanie przez aplikację Lśni: ${I.link}. Widzi Pani/Pan mój kalendarz i dostaje przypomnienie dzień wcześniej. Płatność bez zmian, na miejscu. Pozdrawiam, ${L.name.split(' ')[0]}`;
+  return `${topbar('Zaproś swoich klientów')}
+  <div class="scroll"><div class="pad">
+    <div class="invite-hero">
+      <div class="grow"><span class="eyebrow">Twój link do rezerwacji</span><b>${I.link}</b><button class="btn sm dark mt12" data-act="copyText" data-a="https://${I.link}">${ic('copy', 's')}Kopiuj link</button></div>
+      ${fakeQR(I.link)}
+    </div>
+    <div class="minis mt12"><div><b class="num">${I.joined}</b><span>klientów dołączyło</span></div><div><b class="num">${zl(I.earned)}</b><span>zdobyty kredyt</span></div><div><b class="num">${I.joined}</b><span>rezerwacji z linku</span></div></div>
+    <div class="section-h"><h3>Jak to działa</h3></div>
+    <ol class="steps-list">
+      <li><b>Wyślij link stałym klientom</b><span>SMS-em, na WhatsAppie albo pokaż kod QR na wizycie.</span></li>
+      <li><b>Klient rezerwuje w aplikacji</b><span>Dla niego za darmo. Widzi Twój kalendarz, płaci Ci jak dotąd.</span></li>
+      <li><b>Dostajesz 20 zł kredytu</b><span>Po pierwszej wizycie każdego nowego klienta. Wydasz go na wyróżnienia.</span></li>
+    </ol>
+    <div class="note mint mt12">${ic('lock', 's')}<span>Klienci z Twojego linku trafiają prosto do Ciebie. Na Twoim profilu nie pokazujemy im innych wykonawców.</span></div>
+    <div class="field"><label for="invmsg">Gotowa wiadomość</label><textarea class="input" id="invmsg" rows="5">${esc(msg)}</textarea>
+      <button class="btn line block mt8" data-act="copyMsg">${ic('message-square', 's')}Kopiuj wiadomość</button></div>
+    <div class="section-h"><h3>Wizytówka do zostawienia</h3><span class="tiny faint">podgląd</span></div>
+    <div class="bizcard"><div><div class="bz-logo">lśni<span class="dot"></span></div><b>${esc(L.name)}</b><span>${esc(L.tagline)}</span><span class="bz-link">${I.link}</span></div>${fakeQR(I.link + 'card')}</div>
+    <button class="btn line block mt12" data-act="toast" data-a="PDF wizytówki zostanie wysłany na Twój e-mail">${ic('printer', 's')}Pobierz wizytówki do druku</button>
+    <div class="sp"></div>
+  </div></div>`;
+};
 function proProfile() {
   const L = S.pro.listing;
   return `<div class="scroll"><div class="pad">
@@ -1368,11 +1453,11 @@ function proProfile() {
     <div class="row mt16" style="gap:14px"><div class="avatar lg t-mint" style="width:72px;height:72px;font-size:26px;border-radius:24px">${L.name.split(' ').map(w => w[0]).join('').slice(0, 2)}</div>
       <div><h1 class="pagetitle" style="margin:0;font-size:26px">${esc(L.name)}</h1><div class="small muted">${ic('star', 'xs star')} 4,92 · 38 opinii · 112 zleceń</div></div></div>
     <div class="menu mt24">
-      <button class="mi" data-act="toast" data-a="Wypłaty co piątek na konto •••• 0921">${ic('landmark', 's')}Wypłaty<span class="r">•••• 0921 ${ic('chevron-right', 's')}</span></button>
+      <button class="mi" data-act="openBoost">${ic('rocket', 's')}Wyróżnienia<span class="r">kredyt ${zl(S.pro.boost.credit)} ${ic('chevron-right', 's')}</span></button>
+      <button class="mi" data-act="openInvite">${ic('user-plus', 's')}Zaproś swoich klientów<span class="r">+20 zł ${ic('chevron-right', 's')}</span></button>
       <button class="mi" data-act="toast" data-a="Zestawienie miesięczne wysłane na e-mail">${ic('file-text', 's')}Rozliczenia i PIT<span class="r">${ic('chevron-right', 's')}</span></button>
       <button class="mi" data-act="previewPro">${ic('eye', 's')}Podgląd mojego profilu<span class="r">${ic('chevron-right', 's')}</span></button>
       <button class="mi" data-act="toast" data-a="Poradnik: jak zdobyć pierwszych klientów">${ic('graduation-cap', 's')}Akademia wykonawcy<span class="r">${ic('chevron-right', 's')}</span></button>
-      <button class="mi" data-act="toast" data-a="Ubezpieczenie zleceń: do 100 000 zł szkód w cenie prowizji">${ic('shield', 's')}Ochrona zleceń<span class="r">${ic('chevron-right', 's')}</span></button>
     </div>
     <button class="btn dark block mt24" data-act="setRole" data-a="client">${ic('repeat', 's')}Przełącz na tryb klienta</button>
     <div class="sp"></div></div></div>`;
@@ -1575,9 +1660,14 @@ const sheets = {
   },
   cancel(id) {
     const o = S.orders.find(x => x.id === id); const free = o.date >= 2;
-    return { title: 'Odwołać wizytę?', body: `<p class="muted" style="margin-top:0">${free ? 'Do wizyty zostało ponad 24 h, więc odwołanie jest bezpłatne. Zablokowane pieniądze wrócą od razu.' : 'Do wizyty zostało mniej niż 24 h. Wykonawca otrzyma 50% kwoty jako rekompensatę za zarezerwowany czas.'}</p>
+    return { title: 'Odwołać wizytę?', body: `<p class="muted" style="margin-top:0">${free ? 'Do wizyty zostało ponad 24 h, więc odwołanie niczego nie zmienia. Wykonawca dostanie powiadomienie.' : 'Do wizyty zostało mniej niż 24 h. Wykonawca zarezerwował ten czas dla Ciebie, więc późne odwołanie obniży Twoją ocenę rzetelności, którą widzą wykonawcy.'}</p>
       <div class="field"><span class="lbl">Powód</span><div class="chips">${['Zmiana planów', 'Znalazłem kogoś innego', 'Termin nie pasuje', 'Inny'].map((t, i) => `<button class="chip ${i === 0 ? 'on' : ''}" data-act="pickChip">${t}</button>`).join('')}</div></div>`,
-      foot: `<button class="btn line" data-act="closeSheet">Zostaw</button><button class="btn danger" style="flex:1" data-act="cancelOrder" data-a="${id}">Odwołaj ${free ? 'bezpłatnie' : 'za ' + zl(o.total / 2)}</button>` };
+      foot: `<button class="btn line" data-act="closeSheet">Zostaw</button><button class="btn danger" style="flex:1" data-act="cancelOrder" data-a="${id}">Odwołaj wizytę</button>` };
+  },
+  ranking() {
+    return { title: 'Jak ustalamy kolejność', body: `<p class="muted" style="margin-top:0">Wyniki układamy według tego, co najbardziej pomaga Ci wybrać:</p>
+      <div class="checklist">${['Ocena i liczba opinii z potwierdzonych wizyt', 'Odległość i czas dojazdu do Twojego adresu', 'Wolne terminy w najbliższych dniach', 'Czas odpowiedzi na zapytania', 'Dopasowanie usług do tego, czego szukasz'].map(t => `<div>${ic('check', 's')}<span>${t}</span></div>`).join('')}</div>
+      <div class="note yellow mt16">${ic('megaphone', 's')}<span><b>Promowane</b> oznacza, że wykonawca zapłacił za wyższą pozycję w Twojej dzielnicy. Pokazujemy najwyżej 2 takie profile. Płatne wyróżnienie nie wpływa na opinie, oceny ani odznaki weryfikacji.</span></div>` };
   },
   district(n) {
     const st = dstats(n); const names = Object.keys(SITES); const cityAvg = Math.round(names.reduce((x, k) => x + dstats(k).avg, 0) / names.length);
@@ -1595,9 +1685,9 @@ const sheets = {
   pickOffer(arg) {
     const [pid, oid] = arg.split('|'); const x = S.posts.find(y => y.id === pid); const o = x.offers.find(y => y.id === oid); const p = proById(o.pro);
     return { title: 'Wybrać tę ofertę?', body: `<div class="row">${avatar(p, 'sm')}<div class="grow"><div class="name">${esc(p.name)}</div><div class="tiny faint">${dayLabel(addDays(o.day))}, ${o.time} · ok. ${hrs(o.h)}</div></div><b class="num">${zl(o.price)}</b></div>
-      <div class="note mint mt16">${ic('lock', 's')}<span>Zablokujemy ${zl(o.price + SERVICE_FEE)} (z opłatą serwisową) na BLIK-u. Pieniądze trafią do wykonawcy po zatwierdzeniu usługi.</span></div>
+      <div class="note mint mt16">${ic('hand-coins', 's')}<span>W aplikacji nic nie płacisz. ${zl(o.price)} zapłacisz wykonawcy na miejscu, po sprzątaniu.</span></div>
       <div class="note mt8">${ic('mail', 's')}<span>${x.offers.length - 1 === 1 ? 'Drugiemu wykonawcy' : `Pozostałym ${x.offers.length - 1} wykonawcom`} podziękujemy automatycznie.</span></div>`,
-      foot: `<button class="btn line" data-act="closeSheet">Wróć</button><button class="btn primary" style="flex:1" data-act="acceptOffer" data-a="${arg}">Potwierdź za ${zl(o.price + SERVICE_FEE)}</button>` };
+      foot: `<button class="btn line" data-act="closeSheet">Wróć</button><button class="btn primary" style="flex:1" data-act="acceptOffer" data-a="${arg}">Wybierz za ${zl(o.price)}</button>` };
   },
   sendOffer(id) {
     const m = S.pro.market.find(y => y.id === id); const L = S.pro.listing;
@@ -1605,7 +1695,7 @@ const sheets = {
     return { title: 'Twoja oferta', body: `<p class="small muted" style="margin-top:0">${esc(m.client)}: ${esc(m.desc)}</p>
       <div class="field" style="margin-top:12px"><div class="row between"><span class="lbl" style="margin:0">Cena całkowita</span><span class="big-val num" id="ofPrice">${d.price}<small>zł</small></span></div>
         <input type="range" id="ofp" min="100" max="900" step="10" value="${d.price}" data-model="pro.offerDraft.price" data-type="num" data-live="ofp" aria-label="Cena">
-        <div class="market"><span id="ofNet">Dla Ciebie po prowizji: ${zl(d.price * 0.88)}</span><span>${m.budget ? 'budżet klienta: ' + zl(m.budget) : ''}</span></div></div>
+        <div class="market"><span id="ofNet">Bez prowizji: całe ${zl(d.price)} dla Ciebie</span><span>${m.budget ? 'budżet klienta: ' + zl(m.budget) : ''}</span></div></div>
       <div class="field"><span class="lbl">Proponowany termin</span><div class="chips">${[1, 2, 3, 5].map(i => `<button class="chip ${d.day === i ? 'on' : ''}" data-act="ofDay" data-a="${i}">${dayLabel(addDays(i))}</button>`).join('')}</div></div>
       <div class="field"><label for="ofmsg">Wiadomość do klienta</label><textarea class="input" id="ofmsg" data-model="pro.offerDraft.msg">${esc(d.msg)}</textarea></div>
       <div class="note">${ic('info', 's')}<span>Oferty z wiadomością i terminem wygrywają 2× częściej. Cenę możesz zmienić do momentu wyboru.</span></div>`,
@@ -1658,8 +1748,8 @@ function introHTML() {
     </div>
     <p class="intro-tag">Sprawdzeni ludzie od sprzątania w Twojej okolicy. Płacisz dopiero, gdy jest czysto.</p>
     <div class="intro-roles">
-      <button class="role" data-act="introRole" data-a="client"><span class="role-illo">${illo('dom')}</span><b>Szukam sprzątania</b><span>Rezerwacja w 2 minuty, płatność BLIK-iem</span></button>
-      <button class="role" data-act="introRole" data-a="pro"><span class="role-illo">${illo('generalne')}</span><b>Sprzątam zawodowo</b><span>Zlecenia z okolicy, wypłata co piątek</span></button>
+      <button class="role" data-act="introRole" data-a="client"><span class="role-illo">${illo('dom')}</span><b>Szukam sprzątania</b><span>Rezerwacja w 2 minuty, płacisz na miejscu</span></button>
+      <button class="role" data-act="introRole" data-a="pro"><span class="role-illo">${illo('generalne')}</span><b>Sprzątam zawodowo</b><span>Zlecenia z okolicy, bez prowizji</span></button>
     </div>
     <button class="intro-skip" data-act="introRole" data-a="client">Pomiń</button>
   </div>`;
@@ -1699,7 +1789,7 @@ function initGrime() {
     for (let i = 3; i < d.length; i += 4 * 24) { n++; if (d[i] < 90) clear++; }
     if (clear / n > .52 && !done) {
       done = true; buzz([10, 40, 18]); c.classList.add('gone'); document.getElementById('glass').classList.add('clean', 'shine');
-      setTimeout(() => { S.wiped = true; persist(); toast('Lśni! Kod SZYBA20 jest Twój', 'sparkles'); render(); }, 700);
+      setTimeout(() => { S.wiped = true; persist(); toast('Lśni! Odkryłaś promocję na mycie okien', 'sparkles'); render(); }, 700);
     }
   };
   c.addEventListener('pointerdown', e => { last = pt(e); c.setPointerCapture(e.pointerId); c.parentElement.classList.add('wiping'); wipe(last, [last[0] + .1, last[1]]); });
@@ -1810,14 +1900,14 @@ const A = {
   bookPrev() { S.booking.step--; anim = 'fade'; render(); },
   pay() {
     const sl = document.getElementById('slide-pay'); if (!sl) return;
-    sl.classList.add('busy'); sl.querySelector('.slide-label').textContent = 'Potwierdź w aplikacji banku…';
+    sl.classList.add('busy'); sl.querySelector('.slide-label').textContent = 'Wysyłamy rezerwację…';
     setTimeout(() => {
       const b = S.booking; const p = proById(b.pro); const e = estimate(b, p);
-      const o = { id: 'o' + Date.now(), pro: b.pro, service: b.service, date: b.day, time: b.time, h: e.h, m2: b.m2, total: Math.round(e.total * 100) / 100, freq: b.freq, status: 'pending', extras: b.extras.slice(), addr: (addrById(b.addr) || curAddr()).street, addrId: b.addr, pay: b.pay === 'blik' ? 'BLIK' : b.pay === 'card' ? 'Karta' : 'Faktura' };
+      const o = { id: 'o' + Date.now(), pro: b.pro, service: b.service, date: b.day, time: b.time, h: e.h, m2: b.m2, total: Math.round(e.total * 100) / 100, freq: b.freq, status: 'pending', extras: b.extras.slice(), addr: (addrById(b.addr) || curAddr()).street, addrId: b.addr, pay: { cash: 'Gotówka', blikphone: 'BLIK na telefon', transfer: 'Przelew', invoice: 'Faktura VAT' }[b.pay] || 'Gotówka' };
       S.orders.push(o); S.booking = null;
       S.stacks[stackKey()] = [{ name: S.tab }, { name: 'booked', p: { id: o.id } }]; anim = 'enter'; render();
       setTimeout(() => { if (o.status === 'pending') { o.status = 'confirmed'; toast(`${p.name.split(' ')[0]} potwierdza rezerwację`, 'badge-check'); render(); } }, 4000);
-    }, 1300);
+    }, 700);
   },
   openOrder: id => go('order', { id }),
   openOrderFromDone(id) { S.tab = 'orders'; S.ordersSeg = 'up'; S.stacks[stackKey()] = [{ name: 'orders' }, { name: 'order', p: { id } }]; anim = 'enter'; render(); },
@@ -1836,7 +1926,7 @@ const A = {
   rstar(i) { S.rate.stars = Number(i); render(); },
   rtag(t) { const x = S.rate.tags; const i = x.indexOf(t); i >= 0 ? x.splice(i, 1) : x.push(t); render(); },
   rtip(t) { S.rate.tip = Number(t); render(); },
-  submitRate(id) { const o = S.orders.find(x => x.id === id); o.rated = S.rate.stars; o.total += S.rate.tip; S.stacks[stackKey()] = stack().slice(0, 1); S.ordersSeg = 'past'; toast('Dziękujemy! Płatność zwolniona', 'heart-handshake'); anim = 'fade'; render(); },
+  submitRate(id) { const o = S.orders.find(x => x.id === id); o.rated = S.rate.stars; o.total += S.rate.tip; S.stacks[stackKey()] = stack().slice(0, 1); S.ordersSeg = 'past'; toast('Dziękujemy! Opinia opublikowana', 'heart-handshake'); anim = 'fade'; render(); },
   rebook(id) { const o = S.orders.find(x => x.id === id); S.booking = Object.assign(newBooking(o.pro), { service: proById(o.pro).services.includes(o.service) ? o.service : proById(o.pro).services[0], m2: o.m2 || 54, extras: o.extras.slice() }); go('book'); },
 
   openChat(id) { if (S.role !== 'client') return; go('chat', { id }); },
@@ -1884,15 +1974,29 @@ const A = {
     const ad = { id: 'a' + Date.now(), label: S.newAddrLabel || 'Nowy adres', street: rg.street, x: Math.round(v.x * 100) / 100, y: Math.round(v.y * 100) / 100, note: S.newAddrNote || '' };
     S.addresses.push(ad); S.addrId = ad.id; updateGeo(); buzz([8, 30, 8]); toast(`Zapisano: ${ad.street}, ${rg.district}`, 'map-pin-plus'); afterAddrChange(ad.id);
   },
+  openBoost() { const D = S.pro.boost.draft; D.ds = D.ds.filter(n => coveredDistricts().includes(n)); go('boost'); },
+  openInvite() { go('invite'); },
+  boostToggle(n) {
+    if (!coveredDistricts().includes(n)) { toast(`${n} jest poza Twoim zasięgiem`, 'map-pin-off'); return; }
+    if (S.pro.boost.active.some(a => a.d === n)) { toast(`W dzielnicy ${n} wyróżnienie już trwa`, 'rocket'); return; }
+    const D = S.pro.boost.draft; const i = D.ds.indexOf(n); i >= 0 ? D.ds.splice(i, 1) : D.ds.push(n); buzz(8); render();
+  },
+  boostDays(d) { S.pro.boost.draft.days = Number(d); render(); },
+  buyBoost() {
+    const B = S.pro.boost; const D = B.draft; if (!D.ds.length) return;
+    const total = D.ds.reduce((x, n) => x + boostPrice(n, D.days), 0); const fromCredit = Math.min(total, B.credit);
+    B.credit -= fromCredit; B.history.push({ t: `Wyróżnienie: ${D.ds.join(', ')} (${D.days} dni)`, v: -fromCredit });
+    D.ds.forEach(n => B.active.push({ d: n, days: D.days, left: D.days, views: 0, opens: 0, req: 0 }));
+    const n = D.ds.length; D.ds = [];
+    setTimeout(() => { toast(total > fromCredit ? `Wyróżnienie aktywne. Dopłata ${zl(total - fromCredit)} (w makiecie bez płatności)` : `Wyróżnienie aktywne w ${n} ${n === 1 ? 'dzielnicy' : 'dzielnicach'}`, 'rocket'); back(); }, 250);
+  },
+  copyText(t) { const done = () => toast('Skopiowano link', 'copy'); try { navigator.clipboard.writeText(t).then(done, done); } catch (e) { done(); } },
+  copyMsg() { const el = document.getElementById('invmsg'); const done = () => toast('Wiadomość skopiowana, wklej ją w SMS-ie', 'copy'); try { navigator.clipboard.writeText(el.value).then(done, () => { el.select(); done(); }); } catch (e) { el.select(); done(); } },
   setRadius(r) { S.pro.listing.radius = Number(r); buzz(8); render(); },
   setFee(f) { S.pro.listing.fee = Number(f); render(); },
   openArea() { delete S.maps.area; go('area'); },
   saveArea() { const L = S.pro.listing; L.areas = coveredDistricts(); toast(`Zasięg zapisany: ${L.radius} km, ${L.areas.length} ${dzielnic(L.areas.length)}`, 'map'); back(); },
   mapSel(id) { S.mapSel = id; buzz(8); render(); },
-  copyCode() {
-    const done = () => toast('Skopiowano kod SZYBA20', 'copy');
-    try { navigator.clipboard.writeText('SZYBA20').then(done, done); } catch (e) { done(); }
-  },
   newPost() { S.draft = newDraft(S.filters.cat); go('post'); },
   dset(k, v) { S.draft[k] = k === 'day' ? Number(v) : v; render(); },
   dphotoDel(i) { S.draft.photos.splice(Number(i), 1); render(); },
@@ -1908,7 +2012,7 @@ const A = {
   acceptOffer(arg) {
     const [pid, oid] = arg.split('|'); const x = S.posts.find(y => y.id === pid); const of = x.offers.find(y => y.id === oid);
     x.status = 'chosen'; x.chosen = oid; x.pool = x.offers.slice();
-    const ord = { id: 'o' + Date.now(), pro: of.pro, service: x.cat, date: of.day, time: of.time, h: of.h, m2: ['okna', 'tapicerka'].includes(x.cat) ? 0 : x.m2, total: of.price + SERVICE_FEE, freq: 'once', status: 'confirmed', extras: [], addr: 'ul. Puławska 112/14', pay: 'BLIK', fromOffer: true };
+    const ord = { id: 'o' + Date.now(), pro: of.pro, service: x.cat, date: of.day, time: of.time, h: of.h, m2: ['okna', 'tapicerka'].includes(x.cat) ? 0 : x.m2, total: of.price, freq: 'once', status: 'confirmed', extras: [], addr: curAddr().street, addrId: S.addrId, pay: 'Gotówka', fromOffer: true };
     S.orders.push(ord); S.sheet = null; S.posts = S.posts.filter(y => y.id !== pid).concat(x);
     S.stacks[stackKey()] = [{ name: S.tab }, { name: 'booked', p: { id: ord.id } }]; anim = 'enter'; render();
   },
@@ -1988,7 +2092,7 @@ function liveUpdate(kind) {
   }
   if (kind === 'pm2') { const v = document.getElementById('pm2val'); if (v) v.innerHTML = `${S.draft.m2}<small>m²</small>`; }
   if (kind === 'pbud') { const v = document.getElementById('pbudget'); if (v) v.textContent = S.draft.budget ? 'do ' + zl(S.draft.budget) : 'nie podaję'; }
-  if (kind === 'ofp') { const d = S.pro.offerDraft; document.getElementById('ofPrice').innerHTML = `${d.price}<small>zł</small>`; document.getElementById('ofNet').textContent = 'Dla Ciebie po prowizji: ' + zl(d.price * 0.88); }
+  if (kind === 'ofp') { const d = S.pro.offerDraft; document.getElementById('ofPrice').innerHTML = `${d.price}<small>zł</small>`; document.getElementById('ofNet').textContent = 'Bez prowizji: całe ' + zl(d.price) + ' dla Ciebie'; }
   if (kind === 'maxDist') { const v = document.getElementById('maxDistVal'); if (v) v.textContent = S.filters.maxDist >= 15 ? 'dowolna' : 'do ' + S.filters.maxDist + ' km'; }
   if (kind === 'arad') {
     const L = S.pro.listing; document.getElementById('aradVal').innerHTML = `${L.radius}<small>km</small>`;
@@ -2005,7 +2109,7 @@ function liveUpdate(kind) {
   if (kind === 'maxPrice') { const v = document.getElementById('maxPriceVal'); if (v) v.textContent = S.filters.maxPrice >= 100 ? 'bez limitu' : S.filters.maxPrice + ' zł/h'; }
   if (kind === 'rate') {
     const L = S.pro.listing; document.getElementById('rateVal').innerHTML = `${L.rate}<small>zł/h</small>`;
-    document.getElementById('rateHint').innerHTML = `Przy 20 h tygodniowo zarobisz ok. <b>${zl(Math.round(L.rate * 80 * 0.88))}</b> miesięcznie po prowizji.`;
+    document.getElementById('rateHint').innerHTML = `Przy 20 h tygodniowo zarobisz ok. <b>${zl(Math.round(L.rate * 80))}</b> miesięcznie. Lśni nie bierze prowizji.`;
     refreshPreview();
   }
   if (kind === 'preview') refreshPreview();
@@ -2064,6 +2168,14 @@ setInterval(() => {
     if (o.prog >= total) { o.status = 'done'; finishOrder(o); }
     if (t.name === 'order' && t.p.id === o.id) dirty = true;
   });
+  const bA = S.pro.boost.active[0];
+  if (bA) {
+    bA.views += Math.random() < .7 ? 1 + Math.floor(Math.random() * 2) : 0; if (Math.random() < .12) bA.opens++;
+    if (Math.random() < .015) { bA.req++; if (S.role === 'pro') toast(`Nowe zapytanie dzięki wyróżnieniu: ${bA.d}`, 'rocket'); }
+    const g = boostViews(bA.d, bA.days); const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+    set('bst-v', bA.views); set('bst-o', bA.opens); set('bst-r', bA.req); const m = document.getElementById('bst-m'); if (m) m.style.width = Math.min(100, bA.views / g * 100) + '%';
+    if (bA.views >= g) set('bst-g', 'Gwarancja spełniona');
+  }
   if (dirty && !S.sheet && !document.activeElement.matches('input,textarea')) render();
   S.posts.forEach(x => { x.justAdded = null; });
 }, 1300);

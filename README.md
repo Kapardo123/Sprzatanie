@@ -19,7 +19,7 @@ Na komputerze aplikacja wyświetla się w ramce telefonu, a na telefonie na peł
 - Odkrywanie: kategorie usług, wolne terminy jeszcze dziś, polecani w okolicy, najbliższa wizyta
 - Wyszukiwanie z filtrami (stawka, ocena, OC, własne środki, eco, zwierzęta, faktura VAT, wolne dziś) i sortowaniem
 - Profil wykonawcy: statystyki, weryfikacja, cennik, dostępność na 7 dni, zakres standardu, opinie
-- Rezerwacja w 4 krokach: zakres (metraż, pokoje, łazienki, dodatki) z wyceną na żywo, termin i cykliczność z rabatem, adres i sposób wejścia, płatność BLIK lub kartą
+- Rezerwacja w 4 krokach: zakres (metraż, pokoje, łazienki, dodatki) z wyceną na żywo, termin i cykliczność z rabatem, adres i sposób wejścia, podsumowanie z kwotą do zapłaty na miejscu
 - Zlecenia: status na osi czasu (z symulacją „w drodze”), odwołanie z zasadami 24 h, zatwierdzenie usługi, ocena z napiwkiem, ponowne zamówienie
 - Dodanie zlecenia (opis, zdjęcia, termin, budżet), na które wykonawcy przysyłają oferty na żywo; porównanie ofert (najtańsza, najwyżej oceniana, najszybciej) i wybór jednej
 - Sprzątanie na żywo: checklista pokój po pokoju odhaczana w trakcie wizyty, a po zakończeniu raport z czasem pracy i uwagami wykonawcy
@@ -33,6 +33,14 @@ Na komputerze aplikacja wyświetla się w ramce telefonu, a na telefonie na peł
 - Edytor ogłoszenia z podglądem na żywo: usługi, stawka na tle średniej w dzielnicy, prognoza zarobków, obszar dojazdu, udogodnienia, zdjęcia, weryfikacja
 
 Dane są przykładowe i zapisują się w `localStorage` przeglądarki. Link „Zresetuj dane demo” przywraca stan początkowy.
+
+## Model biznesowy (na start)
+
+- **Klient nic nie płaci w aplikacji.** Rezerwuje termin, a z wykonawcą rozlicza się na miejscu: gotówką, BLIK-iem na telefon lub przelewem.
+- **Wykonawca nie płaci prowizji ani abonamentu.** Płaci tylko za **wyróżnienie**: wyższą pozycję w wybranych dzielnicach z oznaczeniem „Promowane”, najwyżej 2 profile naraz.
+- **Cena wyróżnienia zależy od popytu w dzielnicy**, np. Mokotów około 37 zł/tydz., Targówek około 13 zł/tydz. Każde wyróżnienie ma gwarancję liczby wyświetleń, a jeśli nie zostanie spełniona, kredyt wraca.
+- **Kredyt na wyróżnienia:** 50 zł na start oraz 20 zł za każdego własnego klienta, którego wykonawca przyprowadzi do aplikacji swoim linkiem lub kodem QR. W ten sposób wykonawcy ściągają klientów.
+- Ekran „Jak ustalamy kolejność” wyjaśnia ranking i oznaczenie „Promowane” (wymóg przejrzystości wobec konsumentów).
 
 ## Lokalizacja
 
@@ -60,7 +68,7 @@ Aplikacja ma uproszczony model Warszawy w kilometrach: 12 dzielnic (komórki Wor
 - Pociągnij w dół na ekranie głównym, żeby odświeżyć
 - Bańki mydlane do przekłuwania po rezerwacji
 - Suwak „przed i po” na profilu wykonawcy
-- Płatność i zwolnienie płatności przeciągnięciem ściągaczki
+- Rezerwacja i zakup wyróżnienia przeciągnięciem ściągaczki
 - Mapa wykonawców w wyszukiwarce (przełącznik Lista / Mapa)
 - Arkusze zamykane przeciągnięciem w dół, krótka wibracja na telefonie przy ważnych akcjach
 
