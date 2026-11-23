@@ -66,11 +66,18 @@ function reverse(lat, lng) {
   const pl = placeName(lat, lng);
   return { street: pl.name, city: pl.name, full: `${pl.name}, woj. ${pl.region}`, inArea: inPoland(lat, lng) };
 }
-function searchLocal(q) {
-  const s = String(q || '').trim().toLowerCase(); if (s.length < 2) return [];
-  const streets = STREETS.filter(x => x[0].toLowerCase().includes(s)).map(x => ({ street: x[0], lat: x[1], lng: x[2], kind: 'address' }));
-  const places = PLACES.filter(c => c.name.toLowerCase().startsWith(s)).map(c => ({ street: c.name, lat: c.lat, lng: c.lng, kind: 'place' }));
+// Porównanie bez wielkości liter i polskich znaków: „krakow” = „Kraków”, „lodz” = „Łódź”.
+const fold = t => String(t || '').toLowerCase().replace(/ł/g, 'l').normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+// Miejscowość z listy po nazwie (dokładnie, potem po początku nazwy), gdy nie ma Mapbox.
+function findPlace(q) {
+  const s = fold(q); if (s.length < 2) return null;
+  return PLACES.find(c => fold(c.name) === s) || PLACES.filter(c => fold(c.name).startsWith(s)).sort((a, b) => b.pop - a.pop)[0] || null;
+}
+function searchLocal(q, placesOnly = false) {
+  const s = fold(q); if (s.length < 2) return [];
+  const streets = placesOnly ? [] : STREETS.filter(x => fold(x[0]).includes(s)).map(x => ({ street: x[0], lat: x[1], lng: x[2], kind: 'address' }));
+  const places = PLACES.filter(c => fold(c.name).startsWith(s)).sort((a, b) => b.pop - a.pop).map(c => ({ street: c.name, lat: c.lat, lng: c.lng, kind: 'place' }));
   return streets.concat(places).slice(0, 8).map(x => { const pl = placeName(x.lat, x.lng); return Object.assign(x, { city: pl.name, full: `${pl.name}, woj. ${pl.region}`, inArea: true }); });
 }
 
-module.exports = { ROAD, haversineKm, roadKm, driveMin, inPoland, placeName, travelFeeGr, reachFrom, reach, baselineDemand, reverse, searchLocal };
+module.exports = { fold, findPlace, ROAD, haversineKm, roadKm, driveMin, inPoland, placeName, travelFeeGr, reachFrom, reach, baselineDemand, reverse, searchLocal };

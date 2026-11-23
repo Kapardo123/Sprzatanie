@@ -58,6 +58,7 @@ Dane są przykładowe i zapisują się w `localStorage` przeglądarki. Link „Z
 - Wybór adresu: wyszukiwarka ulic, zapisane adresy i wskazywanie miejsca pinezką na mapie. Przy każdym adresie widać, ilu wykonawców tam dojeżdża.
 - Odległość i czas dojazdu każdego wykonawcy liczone od wybranego adresu. Wykonawcy poza zasięgiem są ukryci, a ci, którzy liczą za kilometr, pokazują opłatę za dojazd, która trafia do wyceny.
 - Mapa okolicy: wykonawcy, którzy dojeżdżają pod adres, wolni dziś i mapa cieplna „gdzie szukają klienci” (wyszukiwania z 30 dni).
+- Wyszukiwanie po miejscowości: wpisz „Kraków”, „krakow”, „w Krakowie” albo „okna Kraków”, albo wybierz miejscowość z listy (podpowiedzi z całej Polski). Pokazujemy wykonawców, którzy dojeżdżają do tej miejscowości, z odległością od jej centrum, bez zmiany zapisanego adresu. Słowa usług („okna”, „po remoncie”, „kanapa”) włączają kategorię.
 - Wyszukiwarka z mapą: zasięg wybranego wykonawcy, „Szukaj w tym obszarze”, filtr odległości.
 - Śledzenie dojazdu wykonawcy na mapie z odliczaniem czasu. Po dojeździe zlecenie samo przechodzi w „W trakcie”.
 

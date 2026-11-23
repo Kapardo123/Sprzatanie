@@ -51,12 +51,14 @@ function createMapbox(db) {
       city, region: (ctx.region && ctx.region.name) || '', postcode: (ctx.postcode && ctx.postcode.name) || '', kind: p.feature_type || '',
       inArea: country ? country.toLowerCase() === 'pl' : geo.inPoland(lat, lng) };
   };
-  async function search(q, near = null) {
+  // places=true: tylko miejscowości (wyszukiwanie wykonawców „w Krakowie”)
+  async function search(q, near = null, places = false) {
     const text = String(q || '').trim(); if (text.length < 3) return null;
     // Punkt odniesienia zaokrąglony do ok. 10 km, żeby pamięć podręczna działała dla sąsiadów.
     const prox = near ? `${round(near.lng, 1)},${round(near.lat, 1)}` : 'ip';
-    return cached(`fwd:${prox}:${text.toLowerCase()}`, 30 * 86400, async () => {
-      const d = await call('/search/geocode/v6/forward', { q: text, country: 'pl', language: 'pl', limit: '6', types: 'address,street,place,locality,neighborhood', proximity: prox, autocomplete: 'true' });
+    const types = places ? 'place,locality' : 'address,street,place,locality,neighborhood';
+    return cached(`fwd:${places ? 'pl:' : ''}${prox}:${text.toLowerCase()}`, 30 * 86400, async () => {
+      const d = await call('/search/geocode/v6/forward', { q: text, country: 'pl', language: 'pl', limit: '6', types, proximity: prox, autocomplete: 'true' });
       return (d.features || []).map(toAddress);
     });
   }

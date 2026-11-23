@@ -329,6 +329,21 @@ test('cała Polska bez podziałów: punkt, zasięg i stawka za km; Kraków i Gda
   assert.ok(heat.data.points.length >= 1 && heat.data.points.every(p => p.n >= 1) && heat.data.demandPerDay >= 3);
 });
 
+test('wyszukiwanie po miejscowości: bez polskich znaków, odległość od centrum miejscowości', async () => {
+  const r = await api('GET', '/api/providers?city=krakow&lat=52.195&lng=21.024');
+  assert.equal(r.status, 200); assert.equal(r.data.place.name, 'Kraków');
+  assert.ok(r.data.results.length >= 2, 'krakowscy wykonawcy, mimo że adres klienta jest w Warszawie');
+  assert.ok(r.data.results.every(p => p.reach === 'in' && p.area === 'Kraków'));
+  assert.ok((await api('GET', '/api/providers?city=Gdansk')).data.results.some(p => p.id === 'baltyk'));
+  assert.equal((await api('GET', '/api/geo/place?q=lodz')).data.name, 'Łódź');
+  assert.equal((await api('GET', '/api/geo/place?q=Atlantyda')).status, 404);
+  assert.equal((await api('GET', '/api/providers?city=Atlantyda')).status, 404);
+  const sug = await api('GET', '/api/geo/search?q=wroc&types=place');
+  assert.deepEqual(sug.data.results.map(x => x.street), ['Wrocław']);
+  // wyszukiwanie tekstu też bez polskich znaków
+  assert.ok((await api('GET', '/api/providers?city=Lodz&q=lodz')).data.results.some(p => p.id === 'piotrkowska'));
+});
+
 test('RODO: eksport danych i usunięcie konta', async () => {
   const u = await login('577888999', { name: 'Do Usunięcia' });
   const ex = await api('GET', '/api/me/export', undefined, u);

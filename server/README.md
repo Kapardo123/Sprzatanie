@@ -115,10 +115,10 @@ Wszystkie odpowiedzi są w JSON. Błędy mają postać `{ "error": { "code", "me
 | `POST /api/auth/code` · `POST /api/auth/verify` · `POST /api/auth/logout` | wszyscy | Logowanie kodem SMS (`ref` = kod zaproszenia) |
 | `GET/PATCH/DELETE /api/me` · `GET /api/me/export` | zalogowany | Konto, ustawienia powiadomień, RODO |
 | `POST /api/addresses` · `DELETE /api/addresses/:id` | zalogowany | Adresy (w całej Polsce) |
-| `GET /api/providers` · `GET /api/providers/:id` · `GET /api/providers/:id/slots` | wszyscy | Wyszukiwanie, profil, wolne terminy |
+| `GET /api/providers` · `GET /api/providers/:id` · `GET /api/providers/:id/slots` | wszyscy | Wyszukiwanie (pod adresem albo `city=Kraków`: kto dojeżdża do miejscowości), profil, wolne terminy |
 | `POST /api/quote` | wszyscy | Wycena z opłatą za dojazd |
 | `GET /api/config` | wszyscy | Token publiczny Mapbox i style map |
-| `GET /api/geo/search` · `/reverse` · `/demand` | wszyscy | Wyszukiwanie adresów i miejscowości w Polsce, adres z punktu i kto tam dojeżdża, mapa cieplna wyszukiwań |
+| `GET /api/geo/search` · `/place` · `/reverse` · `/demand` | wszyscy | Wyszukiwanie adresów i miejscowości w Polsce (`types=place`: tylko miejscowości), miejscowość po nazwie (bez polskich znaków: „lodz” = Łódź), adres z punktu i kto tam dojeżdża, mapa cieplna wyszukiwań |
 | `GET /api/geo/route` · `GET /api/bookings/:id/route` | zalogowany | Trasa po drogach |
 | `POST /api/bookings` · `GET /api/bookings` · `GET /api/bookings/:id` | zalogowany | Rezerwacje (`?as=provider` dla wykonawcy) |
 | `POST /api/bookings/:id/cancel` · `/reschedule` · `/skip` · `/call` | klient | Odwołanie, zmiana terminu, pominięcie, numer maskowany |

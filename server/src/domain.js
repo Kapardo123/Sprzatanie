@@ -82,10 +82,10 @@ function createDomain(db) {
   // ---------- wyszukiwanie i ranking ----------
   function search(q, point, roads = null) {
     db.run("INSERT INTO search_log (district, lat, lng, created_at) VALUES ('', ?, ?, ?)", Math.round(point.lat * 1e3) / 1e3, Math.round(point.lng * 1e3) / 1e3, new Date().toISOString());
-    const text = String(q.q || '').trim().toLowerCase();
+    const text = geo.fold(q.q);
     let list = db.all('SELECT * FROM providers WHERE published = 1 AND online = 1').map(p => ({ p, v: providerView(p, point, { road: roads && roads.get(p.user_id) }) })).filter(({ p, v }) => {
       if (q.service && !v.services.includes(q.service)) return false;
-      if (text && !(v.name + ' ' + v.tagline + ' ' + v.area + ' ' + v.services.map(s => SERVICE_NAMES[s]).join(' ')).toLowerCase().includes(text)) return false;
+      if (text && !geo.fold(v.name + ' ' + v.tagline + ' ' + v.area + ' ' + v.services.map(s => SERVICE_NAMES[s]).join(' ')).includes(text)) return false;
       if (q.maxPrice && !v.fixed && v.rate > Number(q.maxPrice)) return false;
       if (q.minRating && v.rating < Number(q.minRating)) return false;
       for (const k of ['verified', 'insured', 'supplies', 'eco', 'pets', 'invoice']) if (q[k] === '1' && !v[k]) return false;

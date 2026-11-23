@@ -44,8 +44,20 @@ module.exports = function catalogRoutes(r, { db, domain, mapbox }) {
     const q = v.str(query.q, 'adres', { min: 2, max: 120 });
     const near = String(query.near || '').split(',').map(Number);
     const prox = near.length === 2 && near.every(Number.isFinite) && geo.inPoland(near[0], near[1]) ? { lat: near[0], lng: near[1] } : null;
-    const found = await mapbox.search(q, prox);
-    return { source: found ? 'mapbox' : 'local', results: (found || geo.searchLocal(q)).filter(x => x.street).map(withPoland) };
+    const places = query.types === 'place';
+    const found = await mapbox.search(q, prox, places);
+    return { source: found ? 'mapbox' : 'local', results: (found || geo.searchLocal(q, places)).filter(x => x.street).map(withPoland) };
+  });
+  // Miejscowość po nazwie: Mapbox (tylko miejscowości w Polsce), a bez niego lista miejscowości. Bez rozróżniania polskich znaków.
+  async function resolvePlace(name) {
+    const found = await mapbox.search(name, null, true);
+    const hit = found && found.filter(x => x.inArea !== false)[0];
+    if (hit) return { name: hit.street, lat: hit.lat, lng: hit.lng, full: hit.full };
+    const pl = geo.findPlace(name); return pl ? { name: pl.name, lat: pl.lat, lng: pl.lng, full: `${pl.name}, woj. ${pl.region}` } : null;
+  }
+  r.get('/api/geo/place', async ({ query }) => {
+    const name = v.str(query.q, 'miejscowość', { min: 2, max: 80 });
+    return (await resolvePlace(name)) || notFound('Nie znamy takiej miejscowości w Polsce');
   });
   // Adres pod punktem i to, co dzieje się wokół: ilu wykonawców tu dojeżdża, średnia stawka, wolne terminy dziś.
   r.get('/api/geo/reverse', async ({ query }) => {
@@ -80,12 +92,15 @@ module.exports = function catalogRoutes(r, { db, domain, mapbox }) {
     return rt ? Object.assign(rt, { source: 'mapbox' }) : { coordinates: [[a[1], a[0]], [b[1], b[0]]], km, min: geo.driveMin(km), source: 'estimate' };
   });
   // ---------- wykonawcy ----------
+  // city=Kraków: wykonawcy, którzy dojeżdżają do tej miejscowości (odległość od jej centrum), zamiast od adresu klienta.
   r.get('/api/providers', async ({ query, user }) => {
-    const point = pointFrom(query, user);
+    let place = null;
+    if (query.city) { place = await resolvePlace(v.str(query.city, 'miejscowość', { min: 2, max: 80 })); if (!place) notFound('Nie znamy takiej miejscowości w Polsce'); }
+    const point = place ? { lat: place.lat, lng: place.lng } : pointFrom(query, user);
     if (query.service && !SERVICES.includes(query.service)) v.oneOf(query.service, 'usługa', SERVICES);
     const roads = await roadsTo(point, db.all('SELECT * FROM providers WHERE published = 1 AND online = 1'));
     const res = domain.search(query, point, roads);
-    return Object.assign(res, { point, inArea: geo.inPoland(point.lat, point.lng) });
+    return Object.assign(res, { point, place, inArea: geo.inPoland(point.lat, point.lng) });
   });
   r.get('/api/providers/:id', async ({ params, query, user }) => {
     const p = domain.mustProvider(params.id); if (!p.published) notFound('Ten profil nie jest już dostępny');

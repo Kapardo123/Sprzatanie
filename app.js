@@ -166,7 +166,9 @@ const addrById = id => S.addresses.find(a => a.id === id);
 const curAddr = () => addrById(S.addrId) || S.addresses[0];
 // Dojeżdża albo nie: w promieniu od bazy. Opłata za dojazd: stawka za km powyżej darmowych km (jak na serwerze).
 function reachFor(p, a) { const d = p.lat != null && a.lat != null ? haversine(p.lat, p.lng, a.lat, a.lng) * 1.3 : roadKm(p, a); const reach = d <= p.r ? 'in' : 'out'; return { d, eta: driveMin(d), reach, fee: reach === 'in' ? travelFee(p, d) : 0 }; }
-function updateGeo() { const a = curAddr(); PROS.forEach(p => { const r = reachFor(p, a); p.dist = Math.round(r.d * 10) / 10; p.eta = r.eta; p.reach = r.reach; p.travelFee = r.fee; }); }
+// Szukamy pod adresem klienta albo w wybranej miejscowości (np. „Kraków”: odległość od centrum miejscowości).
+const searchPoint = () => S.filters.place || curAddr();
+function updateGeo() { const a = searchPoint(); PROS.forEach(p => { const r = reachFor(p, a); p.dist = Math.round(r.d * 10) / 10; p.eta = r.eta; p.reach = r.reach; p.travelFee = r.fee; }); }
 // Bez podziału na dzielnice i miasta: wykonawca ma bazę (punkt, zwykle centrum swojej miejscowości), promień dojazdu
 // i opcjonalną stawkę za kilometr. Klient widzi tych, którzy dojeżdżają pod jego adres. Kilka miejscowości służy tylko
 // do nazwania miejsca w demo i do oszacowania popytu w kole (tak samo jak serwer, server/src/geo.js).
@@ -177,6 +179,19 @@ const realPt = p => p.lat != null ? p : GEOFIT.toReal(p.x, p.y);
 const kmBetween = (a, b) => { const A = realPt(a), B = realPt(b); return haversine(A.lat, A.lng, B.lat, B.lng) * 1.3; };
 function placeNear(p) { const r = realPt(p); let best = DEMO_PLACES[0], d = 1e9; DEMO_PLACES.forEach(c => { const x = haversine(r.lat, r.lng, c[1], c[2]); if (x < d) { d = x; best = c; } }); return d <= 3 + 0.3 * Math.sqrt(best[3]) ? best[0] : 'okolice: ' + best[0]; }
 const placeOf = a => a.city || placeNear(a);
+// porównanie nazw bez wielkości liter i polskich znaków: „krakow” = „Kraków”, „lodz” = „Łódź”
+const fold = t => String(t || '').toLowerCase().replace(/ł/g, 'l').normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+// Czy wpisany tekst to miejscowość (demo: lista miejscowości). Rozpoznaje też „w Piasecznie” i „okna Piaseczno”.
+function placeInQuery(q) {
+  const words = String(q || '').trim().split(/\s+/).filter(Boolean); if (!words.length) return null;
+  const tries = []; for (let k = Math.min(3, words.length); k >= 1; k--) tries.push({ name: words.slice(-k).join(' '), rest: words.slice(0, -k) });
+  for (const t of tries) {
+    let rest = t.rest; let loc = false; if (rest.length && /^(w|we)$/i.test(rest[rest.length - 1])) { rest = rest.slice(0, -1); loc = true; }
+    const n = fold(t.name); const hit = DEMO_PLACES.find(c => fold(c[0]) === n || (loc && n.length >= 5 && fold(c[0]).slice(0, 5) === n.slice(0, 5)));
+    if (hit) return { place: { name: hit[0], lat: hit[1], lng: hit[2] }, rest: rest.join(' ') };
+  }
+  return null;
+}
 const zlKm = v => String(v).replace('.', ',') + ' zł';
 const travelFee = (p, km) => p.kmRate ? Math.round(p.kmRate * Math.max(0, km - (p.freeKm || 0))) : 0;
 const feeText = p => p.kmRate ? `${zlKm(p.kmRate)}/km${p.freeKm ? ` powyżej ${p.freeKm} km` : ''}` : 'dojazd w cenie';
@@ -453,7 +468,7 @@ function seed() {
   return {
     role: 'client', tab: 'home', stacks: {},
     favs: ['marta', 'olena'],
-    filters: { cat: null, q: '', maxPrice: 100, minRating: 0, verified: false, insured: false, supplies: false, eco: false, pets: false, invoice: false, today: false, sort: 'rec', maxDist: 15, far: false, district: null, bounds: null },
+    filters: { place: null, cat: null, q: '', maxPrice: 100, minRating: 0, verified: false, insured: false, supplies: false, eco: false, pets: false, invoice: false, today: false, sort: 'rec', maxDist: 15, far: false, district: null, bounds: null },
     addresses: [
       { id: 'home', label: 'Dom', street: 'ul. Puławska 112/14', x: 13.2, y: 15.8, note: '4 piętro, winda' },
       { id: 'mama', label: 'Mieszkanie mamy', street: 'ul. Odyńca 27/3', x: 12.6, y: 17.4, note: 'parter' },
@@ -528,7 +543,7 @@ function seed() {
   };
 }
 
-let baseQT = null;
+let baseQT = null, placeQT = null;
 let S = Object.assign(seed(), store.get('state3', {})); // state3: zasięg od bazy zamiast dzielnic i miast
 // zawsze zaczynaj od świeżych stosów nawigacji
 S.stacks = {}; S.sheet = null;
@@ -815,10 +830,10 @@ screens.home = () => {
 };
 
 function filteredPros() {
-  const f = S.filters; const q = f.q.trim().toLowerCase();
+  const f = S.filters; const q = fold(f.q);
   let list = PROS.filter(p => {
     if (f.cat && !p.services.includes(f.cat)) return false;
-    if (q && !(p.name + ' ' + p.tagline + ' ' + p.area + ' ' + p.services.map(s => catById(s).name).join(' ')).toLowerCase().includes(q)) return false;
+    if (q && !fold(p.name + ' ' + p.tagline + ' ' + p.area + ' ' + p.services.map(s => catById(s).name).join(' ')).includes(q)) return false;
     if (!p.fixed && p.rate > f.maxPrice) return false;
     if (p.rating < f.minRating) return false;
     for (const k of ['verified', 'insured', 'supplies', 'eco', 'pets', 'invoice']) if (f[k] && !p[k]) return false;
@@ -850,7 +865,7 @@ function activeFilterCount() {
 screens.search = () => {
   const f = S.filters; const list = filteredPros(); const n = activeFilterCount();
   return `<div class="searchrow">${backBtn()}
-      <form class="searchbox" data-form="search2">${ic('search', 's faint')}<input id="q2" name="q" value="${esc(f.q)}" placeholder="Szukaj usługi lub osoby" autocomplete="off"></form>
+      <form class="searchbox" data-form="search2">${ic('search', 's faint')}<input id="q2" name="q" value="${esc(f.q)}" placeholder="Usługa, osoba albo miejscowość" autocomplete="off"></form>
       <button class="iconbtn" data-act="sheet" data-a="filters" aria-label="Filtry">${ic('sliders-horizontal', 's')}${n ? `<span class="badge">${n}</span>` : ''}</button>
     </div>
     <div class="pad"><div class="hscroll" style="padding-bottom:8px">
@@ -859,7 +874,8 @@ screens.search = () => {
     </div></div>
     <div class="scroll"><div class="pad">
       <div class="hscroll" style="padding-bottom:4px">
-        <button class="chip geo" data-act="openLocation">${ic('map-pin', 'xs')}${esc(curAddr().label)}</button>
+        ${f.place ? `<button class="chip on geo" data-act="sheet" data-a="place">${ic('map-pin', 'xs')}${esc(f.place.name)}</button><button class="chip" data-act="clearPlace" aria-label="Wróć do mojego adresu">${ic('x', 'xs')}</button>`
+          : `<button class="chip geo" data-act="sheet" data-a="place">${ic('map-pin', 'xs')}${esc(curAddr().label)} ${ic('chevron-down', 'xs')}</button>`}
         ${f.bounds ? `<button class="chip on" data-act="clearGeo" data-a="bounds">Obszar z mapy ${ic('x', 'xs')}</button>` : ''}
         <button class="chip ${f.today ? 'on' : ''}" data-act="toggleF" data-a="today">${ic('zap', 'xs')}Wolne dziś</button>
         <button class="chip ${f.supplies ? 'on' : ''}" data-act="toggleF" data-a="supplies">Własne środki</button>
@@ -867,7 +883,7 @@ screens.search = () => {
         <button class="chip ${f.pets ? 'on' : ''}" data-act="toggleF" data-a="pets">Zwierzęta OK</button>
         <button class="chip ${f.eco ? 'on' : ''}" data-act="toggleF" data-a="eco">Eco</button>
       </div>
-      <div class="resultbar"><span>${list.length} ${list.length === 1 ? 'wykonawca' : list.length < 5 && list.length > 1 ? 'wykonawców' : 'wykonawców'} ${ f.bounds ? 'w zaznaczonym obszarze' : 'dojeżdża pod adres: ' + esc(curAddr().label)}</span>
+      <div class="resultbar"><span>${list.length} ${list.length === 1 ? 'wykonawca' : list.length < 5 && list.length > 1 ? 'wykonawców' : 'wykonawców'} ${f.bounds ? 'w zaznaczonym obszarze' : f.place ? 'dojeżdża do: ' + esc(f.place.name) : 'dojeżdża pod adres: ' + esc(curAddr().label)}</span>
         <label class="row" style="gap:4px">Sortuj:<select id="sort" data-model="filters.sort" data-rr="1">
           ${[['rec', 'polecane'], ['price', 'cena'], ['dist', 'odległość'], ['rating', 'ocena']].map(([v, l]) => `<option value="${v}" ${f.sort === v ? 'selected' : ''}>${l}</option>`).join('')}
         </select></label></div>
@@ -1976,6 +1992,16 @@ function reportBlock(o, p) {
 
 /* ================= sheets ================= */
 const sheets = {
+  // wybór miejscowości do wyszukiwania (bez zmiany zapisanego adresu)
+  place() {
+    const f = S.filters; const popular = S.online ? ['Warszawa', 'Kraków', 'Wrocław', 'Łódź', 'Poznań', 'Gdańsk', 'Szczecin', 'Lublin'] : DEMO_PLACES.slice(0, 8).map(c => c[0]);
+    return { title: 'Gdzie szukasz sprzątania?', body: `<div class="searchbox" style="height:48px;box-shadow:none">${ic('search', 's faint')}<input id="placeq" placeholder="Wpisz miejscowość, np. Kraków" data-live="placeq" autocomplete="off"></div>
+      <div id="placeSug" class="sugs"></div>
+      <div class="chips mt12">${popular.map(n => `<button class="chip ${f.place && f.place.name === n ? 'on' : ''}" data-act="placeByName" data-a="${esc(n)}">${esc(n)}</button>`).join('')}</div>
+      <div class="options mt12"><button class="opt ${!f.place ? 'on' : ''}" data-act="clearPlace"><span class="radio"></span><div class="grow"><b class="small">Pod moim adresem</b><div class="tiny faint">${esc(curAddr().label)}: ${esc(curAddr().street)}</div></div></button>
+        <button class="opt" data-act="openLocation">${ic('map-pin-plus', 's')}<b class="small">Zmień albo dodaj adres</b></button></div>
+      <div class="hint">Pokażemy wykonawców, którzy dojeżdżają do wybranej miejscowości. Odległość liczymy od jej centrum.</div>` };
+  },
   filters() {
     const f = S.filters;
     const tog = (k, t, s) => `<button class="toggle-row" data-act="toggleF" data-a="${k}"><div class="grow"><b>${t}</b>${s ? `<span>${s}</span>` : ''}</div><span class="switch ${f[k] ? 'on' : ''}"></span></button>`;
@@ -2303,7 +2329,15 @@ const A = {
     if (S.mbx) { const a = curAddr(); if (MBX.loc && a.lat != null) MBX.loc.map.jumpTo({ center: [a.lng, a.lat], zoom: 15.5 }); setTimeout(() => { if (a.lat != null) liveLocReal(a.lat, a.lng); }, 350); } S.newAddrLabel = 'Dom'; S.newAddrNote = ''; go('location'); },
   openExplore() { go('explore'); },
   exploreLayer(k) { S.exploreLayer = k; render(); },
-  pickAddr(id) { S.addrId = id; updateGeo(); const ad = curAddr(); toast(`Szukamy dla: ${ad.label}, ${placeOf(ad)}`, 'map-pin'); afterAddrChange(id); },
+  // miejscowość z listy albo podpowiedzi („lat,lng,nazwa”)
+  setPlace(arg) {
+    const [la, ln, ...rest] = String(arg).split(','); const lat = Number(la), lng = Number(ln); const g = GEOFIT.toGrid(lat, lng);
+    S.filters.place = { name: rest.join(','), lat, lng, x: g.x, y: g.y }; S.filters.bounds = null; S.filters.boundsReal = null; S.sheet = null;
+    updateGeo(); buzz(8); if (top().name !== 'search') go('search'); else render();
+  },
+  placeByName(name) { const c = DEMO_PLACES.find(x => x[0] === name); if (c) A.setPlace(`${c[1]},${c[2]},${c[0]}`); },
+  clearPlace() { S.filters.place = null; S.sheet = null; updateGeo(); render(); },
+  pickAddr(id) { S.addrId = id; S.filters.place = null; updateGeo(); const ad = curAddr(); toast(`Szukamy dla: ${ad.label}, ${placeOf(ad)}`, 'map-pin'); afterAddrChange(id); },
   newAddrLabel(l) { S.newAddrLabel = l; render(); },
   useGps() { S.maps.loc = { x: 12.7, y: 10.1, z: 40 }; toast('Lokalizacja symulowana: Centrum', 'locate-fixed'); render(); },
   locPickReal(ll) {
@@ -2458,12 +2492,38 @@ document.addEventListener('change', e => {
   if (el.id === 'probPhotoIn') { readPhotos(el.files, S.problem.photos, 4); return; }
   if (el.dataset.rr) { if (el.dataset.model) { let v = el.value; if (el.dataset.type === 'num') v = Number(v); setPath(el.dataset.model, v); } render(); }
 });
+// Wyszukiwanie z pola tekstowego: nazwa miejscowości (także „w Krakowie”, „okna Kraków”) przełącza wyszukiwanie na tę miejscowość,
+// reszta tekstu filtruje usługi i osoby.
+// Online: czy końcówka tekstu to miejscowość w Polsce (serwer: Mapbox albo lista miejscowości). Słowa usług pomijamy.
+const NOT_PLACES = new Set(['dom', 'okna', 'okno', 'biuro', 'remont', 'prasowanie', 'tapicerka', 'mieszkanie', 'sprzatanie', 'generalne', 'najem', 'eco', 'faktura']);
+async function placeOnline(q) {
+  const words = String(q || '').trim().split(/\s+/).filter(Boolean);
+  for (let k = Math.min(3, words.length); k >= 1; k--) {
+    const name = words.slice(-k).join(' '); let rest = words.slice(0, -k); let loc = false;
+    if (rest.length && /^(w|we)$/i.test(rest[rest.length - 1])) { rest = rest.slice(0, -1); loc = true; }
+    const n = fold(name); if (n.length < 3 || NOT_PLACES.has(n)) continue;
+    let p; try { p = await API.call('GET', `/api/geo/place?q=${encodeURIComponent(name)}`); } catch (e) { continue; }
+    if (fold(p.name) === n || (loc && n.length >= 5 && fold(p.name).slice(0, 5) === n.slice(0, 5))) return { place: p, rest: rest.join(' ') };
+  }
+  return null;
+}
+const SERVICE_WORDS = { okna: 'okna', okno: 'okna', okien: 'okna', 'mycie okien': 'okna', remont: 'remont', 'po remoncie': 'remont', biuro: 'biuro', biura: 'biuro', tapicerka: 'tapicerka', kanapa: 'tapicerka', dywan: 'tapicerka',
+  prasowanie: 'prasowanie', generalne: 'generalne', 'sprzatanie generalne': 'generalne', najem: 'najem', airbnb: 'najem', mieszkanie: 'dom', dom: 'dom' };
+async function submitSearch(text, fromHome) {
+  if (fromHome) S.filters.cat = null;
+  const hit = S.online ? await placeOnline(text) : placeInQuery(text);
+  S.filters.q = hit ? hit.rest : text;
+  // słowo usługi zamiast tekstu: „okna”, „po remoncie”, „kanapa” → kategoria
+  const cat = SERVICE_WORDS[fold(S.filters.q)]; if (cat) { S.filters.cat = cat; S.filters.q = ''; }
+  if (hit) { const p = hit.place; A.setPlace(`${p.lat},${p.lng},${p.name}`); if (fromHome && top().name !== 'search') go('search'); return; }
+  if (fromHome) go('search'); else render();
+}
 document.addEventListener('submit', e => {
   e.preventDefault();
   const f = e.target; const kind = f.dataset.form;
   if (kind === 'login') { loginSubmit(f); return; }
   if (kind === 'loc') { const first = document.querySelector('#locSug .sug'); if (first) first.click(); return; }
-  if (kind === 'search' || kind === 'search2') { S.filters.q = f.q.value; if (kind === 'search') { S.filters.cat = null; go('search'); } else render(); }
+  if (kind === 'search' || kind === 'search2') { submitSearch(f.q.value, kind === 'search'); }
   if (kind === 'pchat') { const v = f.m.value; f.m.value = ''; sendPMsg(f.dataset.id, v); setTimeout(() => { const i = document.getElementById('chatInput'); i && i.focus(); }, 0); }
   if (kind === 'chat') { const v = f.m.value; f.m.value = ''; sendMsg(f.dataset.id, v); setTimeout(() => { const i = document.getElementById('chatInput'); i && i.focus(); }, 0); }
 });
@@ -2499,6 +2559,16 @@ function liveUpdate(kind) {
       let r; try { r = await window.LsniAPI.call('GET', `/api/geo/search?q=${encodeURIComponent(q)}&near=${S.pro.listing.base.lat.toFixed(3)},${S.pro.listing.base.lng.toFixed(3)}`); } catch (e) { return; }
       show(r.results.filter(x => x.inArea).map(x => ({ name: x.kind === 'place' || x.kind === 'locality' ? x.street : (x.city || x.street), lat: x.lat, lng: x.lng, sub: x.full })));
     }, 250);
+  }
+  if (kind === 'placeq') {
+    const q = (document.getElementById('placeq').value || '').trim(); const box = document.getElementById('placeSug'); if (!box) return;
+    const show = list => { box.innerHTML = list.map(x => `<button class="sug" data-act="setPlace" data-a="${x.lat},${x.lng},${esc(x.name)}">${ic('map-pin', 's')}<span class="grow"><b class="small">${esc(x.name)}</b><span class="tiny faint" style="display:block">${esc(x.sub || '')}</span></span></button>`).join('') || (q.length >= 2 ? '<div class="tiny faint" style="padding:8px 4px">Nie znaleźliśmy takiej miejscowości.</div>' : ''); };
+    if (q.length < 2) return show([]);
+    if (!S.online) return show(DEMO_PLACES.filter(c => fold(c[0]).startsWith(fold(q))).map(c => ({ name: c[0], lat: c[1], lng: c[2], sub: 'województwo mazowieckie' })));
+    clearTimeout(placeQT); placeQT = setTimeout(async () => {
+      let r; try { r = await window.LsniAPI.call('GET', `/api/geo/search?q=${encodeURIComponent(q)}&types=place`); } catch (e) { return; }
+      if ((document.getElementById('placeq') || {}).value !== undefined) show(r.results.filter(x => x.inArea).map(x => ({ name: x.street, lat: x.lat, lng: x.lng, sub: x.full })));
+    }, 220);
   }
   if (kind === 'locq' && S.online) {
     const q = (document.getElementById('locq').value || '').trim(); const box = document.getElementById('locSug'); if (!box) return;
@@ -2658,8 +2728,9 @@ function mapJob(b) { const g = GEOFIT.toGrid(b.lat, b.lng); return { id: b.id, d
 function mapRequest(b) { const g = GEOFIT.toGrid(b.lat, b.lng); return { id: b.id, client: b.client.name, crating: { wysoka: 5, 'średnia': 4, niska: 3 }[b.client.reliability] || 5, service: b.service, m2: b.m2, rooms: b.rooms, baths: b.baths, day: dayOffset(b.startsAt), time: b.startsAt.slice(11, 16), h: b.hours, pay: b.totalZl, area: `${b.address}${b.area ? ', ' + b.area : ''}`, note: b.note || 'Bez uwag.', freq: b.freq, expires: 60, x: g.x, y: g.y, payHow: (PAYL[b.payMethod] || 'gotówka').toLowerCase() }; }
 
 // ---------- pobieranie danych ----------
-async function refreshProviders() {
-  const res = await API.call('GET', `/api/providers?${pointQuery()}`);
+async function refreshProviders() { return providersAt(pointQuery()); }
+async function providersAt(query) {
+  const res = await API.call('GET', `/api/providers?${query}`);
   const seen = new Set(res.results.map(v => mapProvider(v).id));
   PROS.forEach(p => { if (!seen.has(p.id)) p.reach = 'out'; });
   res.results.forEach(v => { PROS.find(x => x.id === v.id).boosted = !!v.promoted; });
@@ -2816,7 +2887,7 @@ const ON = {
   async readAll() { try { await API.call('POST', '/api/notifications/read', { all: true }); } catch (e) { } S.notifs.forEach(n => { n.read = true; }); render(); },
   async openNotif(id) { API.call('POST', '/api/notifications/read', { ids: [id] }).catch(() => { }); DEMO.openNotif(id); },
   async notifPref(k) { try { const me = await API.call('PATCH', '/api/me', { prefs: { [k]: !S.notifPrefs[k] } }); S.notifPrefs = me.prefs; render(); } catch (e) { failToast(e); } },
-  async pickAddr(id) { S.addrId = id; try { await refreshProviders(); } catch (e) { failToast(e); } const ad = curAddr(); toast(`Szukamy dla: ${ad.label}, ${placeOf(ad)}`, 'map-pin'); afterAddrChange(id); },
+  async pickAddr(id) { S.addrId = id; S.filters.place = null; try { await refreshProviders(); } catch (e) { failToast(e); } const ad = curAddr(); toast(`Szukamy dla: ${ad.label}, ${placeOf(ad)}`, 'map-pin'); afterAddrChange(id); },
   async saveAddr() {
     const v = S.maps.loc; if (!v && !S.locReal) return; const real = S.mbx && S.locReal ? S.locReal : GEOFIT.toReal(v.x, v.y);
     try {
@@ -2848,6 +2919,14 @@ const ON = {
     catch (e) { failToast(e); }
   },
   async saveArea() { await ON.publish(); back(); },
+  // wyszukiwanie w miejscowości: wykonawcy, którzy do niej dojeżdżają (z serwera, odległość od centrum miejscowości)
+  async setPlace(arg) {
+    const [lat, lng] = String(arg).split(',').map(Number);
+    try { await providersAt(`lat=${lat}&lng=${lng}`); } catch (e) { return failToast(e); }
+    DEMO.setPlace(arg);
+  },
+  async placeByName(name) { try { const p = await API.call('GET', `/api/geo/place?q=${encodeURIComponent(name)}`); A.setPlace(`${p.lat},${p.lng},${p.name}`); } catch (e) { failToast(e); } },
+  async clearPlace() { S.filters.place = null; try { await refreshProviders(); } catch (e) { failToast(e); } DEMO.clearPlace(); },
   async openArea() { DEMO.openArea(); baseChanged(); },
   async openBoost() { DEMO.openBoost(); baseChanged(); },
   async uploadOC() { toast('Wgraj polisę jako PDF lub zdjęcie w pełnej wersji aplikacji (endpoint /api/pro/verification jest gotowy)', 'info'); }
