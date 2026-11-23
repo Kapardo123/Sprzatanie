@@ -770,6 +770,23 @@ div.gm-m{pointer-events:none}
 .bz-logo{font-family:var(--f-display);font-weight:800;font-size:22px;letter-spacing:-.04em;display:flex;align-items:baseline}
 .bz-logo .dot{width:.2em;height:.2em;border-radius:50%;background:var(--glove);display:inline-block}
 .bizcard .qr{width:78px;height:78px}
+/* ===== scenariusze ===== */
+.notifs{display:grid;gap:6px}
+.notif{display:flex;gap:12px;align-items:flex-start;text-align:left;width:100%;padding:12px;border-radius:var(--r-m);background:var(--surface);border:1px solid var(--line)}
+.notif.new{border-color:var(--cloth);background:color-mix(in srgb,var(--cloth-soft) 50%,var(--surface))}
+.notif .ni{width:34px;height:34px;border-radius:11px;background:var(--surface-2);display:grid;place-items:center;flex:none;color:var(--ink-2)}
+.notif.new .ni{background:var(--cloth);color:var(--cloth-ink)}
+.linkrow{display:flex;align-items:center;gap:10px;width:100%;padding:12px 14px;border-radius:var(--r-m);background:var(--surface);border:1px solid var(--line);font-size:14px;color:var(--ink-2);text-align:left}
+.linkrow .ic:first-child{color:var(--rose)}
+.linkrow .ic:last-child{margin-left:auto}
+.issue{border:1.5px solid var(--glove)}
+.invited{text-align:center;display:flex;flex-direction:column;align-items:center;padding:12px 0 4px}
+.invited h1{font-family:var(--f-display);font-weight:800;font-size:28px;letter-spacing:-.03em;line-height:1.05;margin:6px 0 8px;text-wrap:balance}
+.invited p{margin:0 0 10px;max-width:32ch}
+.waitcard{display:flex;flex-direction:column;align-items:center;text-align:center;gap:8px;padding:22px 18px}
+.waitcard .illo{width:64px;height:64px}
+.waitcard b{font-family:var(--f-display);font-size:20px}
+.waitcard p{margin:0;max-width:34ch}
 @media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
 </style>
 </head>
@@ -793,6 +810,7 @@ div.gm-m{pointer-events:none}
       <button class="linkbtn" data-act="cycleTheme" id="themeBtn">Motyw: systemowy</button>
       <button class="linkbtn" data-act="cyclePart" id="partBtn">Pora dnia: jak zegar</button>
       <button class="linkbtn" data-act="showIntro">Pokaż intro</button>
+      <button class="linkbtn" data-act="demoInvite">Otwórz link od wykonawcy</button>
       <button class="linkbtn" data-act="resetDemo">Zresetuj dane demo</button>
     </div>
   </aside>

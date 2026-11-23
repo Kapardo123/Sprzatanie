@@ -74,6 +74,10 @@ Aplikacja ma uproszczony model Warszawy w kilometrach: 12 dzielnic (komórki Wor
 
 Ilustracje kategorii, okładek, kuchni i panoramy Warszawy są rysowane w SVG i biorą kolory z motywu, więc działają też w trybie ciemnym.
 
+## Scenariusze
+
+Plik [SCENARIUSZE.md](SCENARIUSZE.md) opisuje 10 sytuacji z życia klientów i wykonawców, co każda z nich wymaga i co zostało na ich podstawie dodane do makiety.
+
 ## Pliki
 
 - `index.html`: układ i style (tokeny kolorów dla jasnego i ciemnego motywu)

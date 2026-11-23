@@ -321,10 +321,16 @@ function seed() {
       { id: 'mama', label: 'Mieszkanie mamy', street: 'ul. Odyńca 27/3', x: 12.6, y: 17.4, note: 'parter' },
       { id: 'office', label: 'Biuro', street: 'Rondo Daszyńskiego 2', x: 9.4, y: 10.4, note: 'recepcja, 12 piętro' }
     ],
-    addrId: 'home', maps: {}, exploreLayer: 'pros',
+    addrId: 'home', maps: {}, exploreLayer: 'pros', waitlist: [],
+    notifs: [
+      { id: 'n1', icon: 'bell-ring', t: 'Przypomnienie: jutro 10:00', d: 'Marta Kowalczyk · Mieszkanie i dom. Przygotuj kod do domofonu.', at: '18:00', read: false, act: 'openOrder', a: 'o1' },
+      { id: 'n2', icon: 'badge-check', t: 'Rezerwacja potwierdzona', d: 'Marta Kowalczyk przyjęła wizytę na jutro, 10:00.', at: 'wczoraj', read: false, act: 'openOrder', a: 'o1' },
+      { id: 'n3', icon: 'star', t: 'Jak było po remoncie?', d: 'Oceń Czysto & Basta. Twoja opinia pomoże innym.', at: '3 lis', read: true, act: 'openOrder', a: 'o2' }
+    ],
+    notifPrefs: { push: true, sms: true, email: false },
     ordersSeg: 'up',
     orders: [
-      { id: 'o1', pro: 'marta', service: 'dom', date: 1, time: '10:00', h: 3.5, m2: 54, total: 138.88, freq: 'biweek', status: 'confirmed', extras: ['lodowka'], addr: 'ul. Puławska 112/14', pay: 'Gotówka' },
+      { id: 'o1', pro: 'marta', service: 'dom', date: 1, time: '10:00', h: 3.5, m2: 54, total: 133.88, freq: 'biweek', status: 'confirmed', extras: ['lodowka'], addr: 'ul. Puławska 112/14', pay: 'Gotówka' },
       { id: 'o2', pro: 'czysto', service: 'remont', date: -20, time: '08:00', h: 5, m2: 54, total: 299.99, freq: 'once', status: 'done', rated: false, extras: ['szafki'], addr: 'ul. Puławska 112/14', pay: 'Przelew' },
       { id: 'o3', pro: 'olena', service: 'prasowanie', date: -34, time: '16:00', h: 2, m2: 0, total: 88.99, freq: 'once', status: 'done', rated: 5, extras: [], addr: 'ul. Puławska 112/14', pay: 'BLIK na telefon' }
     ],
@@ -352,8 +358,8 @@ function seed() {
         { id: 'r3', x: 9.4, y: 10.4, client: 'Firma Kwadrat', crating: 4.7, service: 'biuro', m2: 120, rooms: 4, baths: 2, day: 4, time: '18:00', h: 5, pay: 225, dist: 5.6, area: 'Wola, Rondo Daszyńskiego', note: 'Po godzinach pracy. Potrzebna faktura.', freq: 'week', expires: 95 }
       ],
       jobs: [
-        { day: 0, time: '09:00', end: '11:30', client: 'Pan Marek', service: 'dom', area: 'Mokotów', pay: 112.5, tone: 'y', x: 12.2, y: 14.6 },
-        { day: 0, time: '14:00', end: '17:00', client: 'Ewa M.', service: 'dom', area: 'Ursynów', pay: 135, tone: '', x: 11.8, y: 21.6 },
+        { day: 0, time: '09:00', end: '11:30', thread: 'marek', client: 'Pan Marek', service: 'dom', area: 'Mokotów', pay: 112.5, tone: 'y', x: 12.2, y: 14.6 },
+        { day: 0, time: '14:00', end: '17:00', thread: 'ewa', client: 'Ewa M.', service: 'dom', area: 'Ursynów', pay: 135, tone: '', x: 11.8, y: 21.6 },
         { day: 1, time: '09:00', end: '12:00', client: 'Krzysztof', service: 'generalne', area: 'Mokotów', pay: 202.5, tone: 'y', x: 12.4, y: 15 },
         { day: 1, time: '13:30', end: '16:00', client: 'Basia', service: 'dom', area: 'Ochota', pay: 112.5, tone: 'm', x: 9.6, y: 14 },
         { day: 3, time: '10:00', end: '13:30', client: 'Ania K.', service: 'dom', area: 'Wilanów', pay: 157.5, tone: 'm', x: 15.6, y: 20.8 }
@@ -363,6 +369,11 @@ function seed() {
         { id: 'm2', x: 9.2, y: 13.6, client: 'Marek', crating: 5.0, cat: 'okna', desc: '8 okien dwuskrzydłowych i drzwi balkonowe. 3 piętro, bez windy. Rolety do umycia.', m2: 0, when: 'sobota, od 9:00', dist: 4.1, area: 'Ochota, Szczęśliwice', offers: 2, budget: 0, photos: 1, sent: 0 }
       ],
       offerDraft: null,
+      threads: {
+        tomasz: { name: 'Tomasz', ini: 'T', tone: 't-blue', unread: 1, msgs: [{ me: false, t: 'Dzień dobry, czy da się w sobotę o 10? Mam psa, ale jest przyjazny.', at: '12:40' }] },
+        ewa: { name: 'Ewa M.', ini: 'EM', tone: 't-mint', unread: 0, msgs: [{ me: true, t: 'Dzień dobry, będę dziś o 14:00.', at: '9:10' }, { me: false, t: 'Super, klucz zostawię u portiera.', at: '9:12' }] },
+        marek: { name: 'Pan Marek', ini: 'PM', tone: 't-sand', unread: 0, msgs: [{ me: false, t: 'Domofon nie działa, proszę zadzwonić na telefon w aplikacji.', at: 'wczoraj' }] }
+      },
       boost: { credit: 110, history: [{ t: 'Kredyt na start', v: 50 }, { t: '3 klientów z Twojego linku', v: 60 }],
         active: [{ d: 'Mokotów', days: 7, left: 5, views: 61, opens: 9, req: 2 }], draft: { ds: [], days: 7 },
         invite: { link: 'lsni.pl/ola-zielinska', joined: 3, earned: 60 } },
@@ -386,7 +397,7 @@ S.stacks = {}; S.sheet = null;
 (() => {
   const d = seed(); S.posts ||= []; S.pro = Object.assign(d.pro, S.pro); S.pro.market ||= d.pro.market; S.offerSort ||= 'rec';
   S.filters = Object.assign(d.filters, S.filters); S.addresses ||= d.addresses; S.addrId ||= 'home'; S.maps ||= {}; S.exploreLayer ||= 'pros';
-  S.pro.boost ||= d.pro.boost;
+  S.pro.boost ||= d.pro.boost; S.pro.threads ||= d.pro.threads; S.notifs ||= d.notifs; S.notifPrefs ||= d.notifPrefs; S.waitlist ||= [];
   S.pro.listing = Object.assign(d.pro.listing, S.pro.listing, S.pro.listing.base ? {} : { base: d.pro.listing.base, radius: 8, fee: 15, feeOn: true });
   if (!S.pro.jobs.every(j => 'x' in j)) S.pro.jobs = d.pro.jobs; if (!S.pro.requests.every(r => 'x' in r)) S.pro.requests = d.pro.requests; if (!S.pro.market.every(m => 'x' in m)) S.pro.market = d.pro.market;
 })();
@@ -590,7 +601,7 @@ screens.home = () => {
   <div class="scroll" id="homeScroll"><div class="ptr-inner">
     <div class="hello">
       <button class="loc" data-act="openLocation">${ic('map-pin', 's')}${esc(curAddr().street.split('/')[0])}, ${districtAt(curAddr().x, curAddr().y)} ${ic('chevron-down', 'xs')}</button>
-      <button class="iconbtn" data-act="toast" data-a="Brak nowych powiadomień" aria-label="Powiadomienia">${ic('bell', 's')}</button>
+      <button class="iconbtn" data-act="openNotifs" aria-label="Powiadomienia">${ic('bell', 's')}${S.notifs.some(n => !n.read) ? `<span class="badge">${S.notifs.filter(n => !n.read).length}</span>` : ''}</button>
     </div>
     <div class="pad">
       <div class="greet">${ic(DAYPARTS[daypart()].icon, 's')}${DAYPARTS[daypart()].hello}, Kasiu</div>
@@ -722,7 +733,7 @@ screens.search = () => {
           ${[['rec', 'polecane'], ['price', 'cena'], ['dist', 'odległość'], ['rating', 'ocena']].map(([v, l]) => `<option value="${v}" ${f.sort === v ? 'selected' : ''}>${l}</option>`).join('')}
         </select></label></div>
       <div class="seg mb12"><button class="${S.searchView !== 'map' ? 'on' : ''}" data-act="searchView" data-a="list">${ic('list', 's')} Lista</button><button class="${S.searchView === 'map' ? 'on' : ''}" data-act="searchView" data-a="map">${ic('map', 's')} Mapa</button></div>
-      ${S.searchView === 'map' ? mapView(list) : `<div class="stack">${list.length ? list.map(proCard).join('') : `<div class="empty">${ic('search-x')}<div style="font-weight:650;color:var(--ink)">Nikt nie pasuje do filtrów</div><div class="small mt8">Poluzuj limit ceny albo wyłącz część filtrów.</div><button class="btn sm line mt16" data-act="clearFilters">Wyczyść filtry</button></div>`}</div>`}
+      ${S.searchView === 'map' ? mapView(list) : `<div class="stack">${list.length ? list.map(proCard).join('') : `${PROS.every(p => p.reach === 'out') ? waitlistCard() : `<div class="empty">${ic('search-x')}<div style="font-weight:650;color:var(--ink)">Nikt nie pasuje do filtrów</div><div class="small mt8">Poluzuj limit ceny albo wyłącz część filtrów.</div><button class="btn sm line mt16" data-act="clearFilters">Wyczyść filtry</button></div>`}`}</div>`}
       <div class="sp"></div>
     </div></div>`;
 };
@@ -826,8 +837,15 @@ screens.location = () => {
   </div></div>
   <div class="footer"><button class="btn primary block" data-act="saveAddr" id="saveAddrBtn" ${inCity(c[0], c[1]) ? '' : 'disabled'}>${ic('map-pin-plus', 's')}Zapisz i szukaj tutaj</button></div>`;
 };
+function waitlistCard() {
+  const a = curAddr(); const key = 'addr-' + a.id; const on = S.waitlist.includes(key);
+  return `<div class="card waitcard">${illo('dom')}<b>Jeszcze tu nie dojeżdżamy</b><p class="small muted">Startujemy dzielnica po dzielnicy. Pod adres ${esc(a.street)} nie dojeżdża na razie nikt. Zapisz się, a damy znać, gdy pojawią się pierwsi wykonawcy.</p>
+    ${on ? `<span class="tag mint">${ic('check', 'xs')}Jesteś na liście oczekujących</span>` : `<button class="btn primary sm" data-act="joinWaitlist" data-a="${key}">${ic('bell-plus', 's')}Daj mi znać</button>`}
+    <button class="btn line sm" data-act="toast" data-a="Link skopiowany. Im więcej osób z okolicy, tym szybciej ruszymy">${ic('share', 's')}Poleć sąsiadom</button></div>`;
+}
 function locCardHTML(x, y) {
-  if (!inCity(x, y)) return `<div class="row">${ic('map-pin-off', 's')}<div class="grow"><b class="small">Poza Warszawą</b><div class="tiny faint">Na razie działamy w granicach miasta. Przesuń pinezkę bliżej.</div></div></div>`;
+  if (!inCity(x, y)) return `<div class="row">${ic('map-pin-off', 's')}<div class="grow"><b class="small">Poza Warszawą</b><div class="tiny faint">Na razie działamy w granicach Warszawy. Zostaw kontakt, a damy znać, gdy ruszymy w Twojej okolicy.</div>
+    ${S.waitlist.includes('out-' + Math.round(x) + '-' + Math.round(y)) ? `<span class="tag mint mt8">${ic('check', 'xs')}Jesteś na liście</span>` : `<button class="btn sm dark mt8" data-act="joinWaitlist" data-a="out-${Math.round(x)}-${Math.round(y)}">${ic('bell-plus', 's')}Daj znać, gdy ruszycie</button>`}</div></div>`;
   const rg = reverseGeo(x, y); const pt = { x, y };
   const near = PROS.map(p => Object.assign({ p }, reachFor(p, pt))).filter(r => r.reach !== 'out').sort((a, b) => a.d - b.d);
   const st = dstats(rg.district);
@@ -876,7 +894,7 @@ function newBooking(proId, preset) {
   const svc = S.filters.cat && p.services.includes(S.filters.cat) ? S.filters.cat : p.services[0];
   let day = 1, time = null;
   if (preset === 'today') { day = 0; time = p.nextSlot.split(' ')[1]; }
-  return { pro: proId, step: 1, service: svc, m2: 54, rooms: 2, baths: 1, extras: [], supplies: p.supplies ? 'pro' : 'mine', freq: 'once', day, time, addr: S.addrId, entry: 'home', code: '', pets: 'none', note: '', focus: [], pay: 'cash', blik: '' };
+  return { pro: proId, step: 1, service: svc, m2: 54, rooms: 2, baths: 1, extras: [], supplies: p.supplies ? 'pro' : 'mine', freq: 'once', day, time, addr: S.addrId, entry: 'home', code: '', pets: 'none', note: '', focus: [], pay: 'cash', blik: '', who: S.addrId === 'mama' ? 'other' : 'me', onName: S.addrId === 'mama' ? 'Halina (mama)' : '', onPhone: S.addrId === 'mama' ? '600 123 120' : '' };
 }
 const STEP_TITLES = ['Zakres sprzątania', 'Termin', 'Adres i wejście', 'Podsumowanie'];
 
@@ -946,6 +964,10 @@ function bookStep3(b, p) {
     <div class="chips">${[['home', 'Będę w domu'], ['concierge', 'Klucz u portiera'], ['lockbox', 'Skrytka na klucz']].map(([v, l]) => `<button class="chip ${b.entry === v ? 'on' : ''}" data-act="bset" data-a="entry" data-b="${v}">${l}</button>`).join('')}</div>
     <div class="two mt12"><input class="input" id="code" placeholder="Kod domofonu" value="${esc(b.code)}" data-model="booking.code"><input class="input" placeholder="Nr mieszkania" value="14"></div>
     <div class="hint">${ic('lock', 'xs')} Kod zobaczy tylko ${p.name.split(' ')[0]}, 2 godziny przed wizytą.</div></div>
+  <div class="field"><span class="lbl">Kto będzie na miejscu?</span>
+    <div class="seg"><button class="${b.who === 'me' ? 'on' : ''}" data-act="bset" data-a="who" data-b="me">Ja</button><button class="${b.who === 'other' ? 'on' : ''}" data-act="bset" data-a="who" data-b="other">Ktoś inny</button></div>
+    ${b.who === 'other' ? `<div class="two mt12"><input class="input" id="onName" placeholder="Imię, np. mama" value="${esc(b.onName)}" data-model="booking.onName"><input class="input" id="onPhone" inputmode="tel" placeholder="Telefon" value="${esc(b.onPhone)}" data-model="booking.onPhone"></div>
+    <div class="hint">${ic('message-square', 'xs')} Wyślemy tej osobie SMS dzień wcześniej z imieniem wykonawcy i godziną wizyty.</div>` : ''}</div>
   <div class="field"><span class="lbl">Zwierzęta w domu</span>
     <div class="chips">${[['none', 'Brak'], ['cat', 'Kot'], ['dog', 'Pies'], ['other', 'Inne']].map(([v, l]) => `<button class="chip ${b.pets === v ? 'on' : ''}" data-act="bset" data-a="pets" data-b="${v}">${l}</button>`).join('')}</div>
     ${b.pets !== 'none' && !p.pets ? `<div class="note yellow mt12">${ic('triangle-alert', 's')}<span>${p.name.split(' ')[0]} woli domy bez zwierząt. Napisz w uwagach, czy zwierzak będzie w osobnym pokoju.</span></div>` : ''}</div>
@@ -1048,6 +1070,7 @@ screens.order = ({ id }) => {
 
     ${o.status === 'progress' ? liveBlock(o) : ''}
     ${o.status === 'done' && o.report ? reportBlock(o, p) : ''}
+    ${o.issue ? issueBlock(o, p) : ''}
     <div class="card mt16"><div class="timeline">${tl.map((t, i) => `<div class="tl ${cur > i ? 'ok' : cur === i ? 'now' : ''}"><span class="dot">${ic(cur > i ? 'check' : t[2], 'xs')}</span><div><b>${t[0]}</b><span>${t[1]}</span></div></div>`).join('')}</div>
       ${active ? `<button class="btn sm line mt16" data-act="advanceOrder" data-a="${o.id}">${ic('fast-forward', 's')}Symuluj kolejny status</button>` : ''}</div>
 
@@ -1057,16 +1080,18 @@ screens.order = ({ id }) => {
     <div class="section-h"><h3>Szczegóły</h3></div>
     <div class="receipt">
       <div class="ln"><span>Adres</span><b>${o.addr}</b></div>
+      ${o.onsite ? `<div class="ln"><span>Na miejscu</span><b>${esc(o.onsite)}</b></div>` : ''}
       ${o.m2 ? `<div class="ln"><span>Metraż</span><b>${o.m2} m²</b></div>` : ''}
       <div class="ln"><span>Czas</span><b>ok. ${hrs(o.h)}</b></div>
       ${o.extras.length ? `<div class="ln"><span>Dodatki</span><b>${o.extras.map(id => EXTRAS.find(x => x.id === id).name).join(', ')}</b></div>` : ''}
       <div class="ln"><span>Płatność</span><b>${o.pay} · na miejscu</b></div>
       <div class="tot"><span class="muted small">Do zapłaty wykonawcy</span><b class="num">${zl(o.total)}</b></div>
     </div>
+    ${o.status !== 'cancel' && !o.issue ? `<button class="linkrow mt12" data-act="openProblem" data-a="${o.id}">${ic('flag', 's')}Zgłoś problem z tą wizytą${ic('chevron-right', 's')}</button>` : ''}
     <div class="sp"></div>
   </div></div>
-  ${active ? `<div class="footer"><button class="btn line" data-act="toast" data-a="Przełożenie terminu w pełnej wersji">Przełóż</button><button class="btn danger" style="flex:1" data-act="sheet" data-a="cancel" data-b="${o.id}">Odwołaj</button></div>`
-    : o.status === 'done' && !o.rated ? `<div class="footer"><button class="btn line" data-act="toast" data-a="Zgłoszenie wysłane. ${p.name.split(' ')[0]} wróci na poprawkę w 24 h" >Zgłoś problem</button><button class="btn primary" style="flex:1" data-act="openRate" data-a="${o.id}">Oceń wizytę</button></div>`
+  ${active ? `<div class="footer"><button class="btn line" data-act="openResched" data-a="${o.id}">Przełóż</button><button class="btn danger" style="flex:1" data-act="sheet" data-a="cancel" data-b="${o.id}">Odwołaj</button></div>`
+    : o.status === 'done' && !o.rated ? `<div class="footer"><button class="btn line" data-act="openProblem" data-a="${o.id}">Zgłoś problem</button><button class="btn primary" style="flex:1" data-act="openRate" data-a="${o.id}">Oceń wizytę</button></div>`
     : o.status === 'done' ? `<div class="footer"><button class="btn primary block" data-act="rebook" data-a="${o.id}">${ic('repeat', 's')}Zamów ponownie</button></div>` : ''}`;
 };
 
@@ -1094,15 +1119,15 @@ screens.inbox = () => {
   const ids = Object.keys(S.threads);
   const isPro = S.role === 'pro';
   const items = isPro
-    ? [{ id: 'c-tomasz', name: 'Tomasz', ini: 'T', tone: 't-blue', last: 'Czy da się w sobotę o 10?', at: '12:40', unread: 1 }, { id: 'c-ewa', name: 'Ewa M.', ini: 'EM', tone: 't-mint', last: 'Klucz zostawię u portiera.', at: 'wczoraj', unread: 0 }]
+    ? Object.entries(S.pro.threads).map(([id, t]) => { const l = t.msgs[t.msgs.length - 1]; return { id, name: t.name, ini: t.ini, tone: t.tone, last: (l.me ? 'Ty: ' : '') + l.t, at: l.at, unread: t.unread }; })
     : ids.map(id => { const p = proById(id); const t = S.threads[id]; const l = t.msgs[t.msgs.length - 1]; return { id, name: p.name, ini: p.ini, tone: p.tone, last: (l.me ? 'Ty: ' : '') + l.t, at: l.at, unread: t.unread }; });
   return `<div class="scroll"><div class="pad"><h1 class="pagetitle" style="margin-top:12px">Wiadomości</h1></div>
-    <div class="threads">${items.map(t => `<button class="thread" data-act="${isPro ? 'toast' : 'openChat'}" data-a="${isPro ? 'Czat z klientem działa tak samo jak po stronie klienta' : t.id}">
+    <div class="threads">${items.map(t => `<button class="thread" data-act="${isPro ? 'openPChat' : 'openChat'}" data-a="${t.id}">
       <div class="avatar sm ${t.tone}">${t.ini}</div>
       <div class="grow"><div class="row between"><span class="name">${esc(t.name)}</span><span class="tiny faint">${t.at}</span></div>
       <div class="small ${t.unread ? '' : 'muted'}" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;${t.unread ? 'font-weight:600' : ''}">${esc(t.last)}</div></div>
       ${t.unread ? '<span class="unread"></span>' : ''}</button>`).join('')}</div>
-    <div class="pad"><div class="note mt24">${ic('shield-check', 's')}<span>Rozmawiaj i płać tylko w aplikacji. Wtedy działa gwarancja poprawki i zwrot pieniędzy.</span></div></div>
+    <div class="pad"><div class="note mt24">${ic('shield-check', 's')}<span>${isPro ? 'Ustalenia w czacie zostają zapisane. Gdy klient zgłosi problem albo nie otworzy drzwi, mamy pełną historię.' : 'Rozmawiaj w aplikacji: ustalenia zostają zapisane, a my możemy pomóc, gdy coś pójdzie nie tak.'}</span></div></div>
   </div>`;
 };
 
@@ -1144,6 +1169,114 @@ function sendMsg(id, text) {
   }, 1400);
 }
 function scrollChat() { const el = document.getElementById('msgScroll'); if (el) el.scrollTop = el.scrollHeight; }
+
+/* ---------- powiadomienia ---------- */
+function pushNotif(icon, t, d, act, a) { S.notifs.unshift({ id: 'n' + Date.now() + Math.random().toString(36).slice(2, 5), icon, t, d, at: nowTime(), read: false, act, a }); }
+screens.notifs = () => {
+  const fresh = S.notifs.filter(n => !n.read), old = S.notifs.filter(n => n.read);
+  const row = n => `<button class="notif ${n.read ? '' : 'new'}" data-act="openNotif" data-a="${n.id}"><span class="ni">${ic(n.icon, 's')}</span><div class="grow"><div class="row between" style="gap:8px"><b class="small">${esc(n.t)}</b><span class="tiny faint">${n.at}</span></div><div class="tiny muted">${esc(n.d)}</div></div></button>`;
+  const pr = S.notifPrefs; const tog = (k, t, sub) => `<button class="toggle-row" data-act="notifPref" data-a="${k}"><div class="grow"><b>${t}</b><span>${sub}</span></div><span class="switch ${pr[k] ? 'on' : ''}"></span></button>`;
+  return `${topbar('Powiadomienia', fresh.length ? `<button class="btn sm line" data-act="readAll">Przeczytane</button>` : '')}
+  <div class="scroll"><div class="pad">
+    ${fresh.length ? `<div class="eyebrow mt8">Nowe</div><div class="notifs mt8">${fresh.map(row).join('')}</div>` : ''}
+    ${old.length ? `<div class="eyebrow mt24">Wcześniej</div><div class="notifs mt8">${old.map(row).join('')}</div>` : ''}
+    ${!S.notifs.length ? `<div class="empty">${ic('bell-off')}<div>Na razie cisza</div></div>` : ''}
+    <div class="section-h"><h3>Jak mamy przypominać?</h3></div>
+    <div class="card" style="padding:2px 16px">${tog('push', 'Powiadomienia w telefonie', 'Potwierdzenia, oferty, odpowiedzi')}${tog('sms', 'SMS dzień przed wizytą', 'Także do osoby, która będzie na miejscu')}${tog('email', 'E-mail z podsumowaniem', 'Raz w tygodniu')}</div>
+    <div class="sp"></div>
+  </div></div>`;
+};
+
+/* ---------- przełożenie i pominięcie wizyty ---------- */
+function reschedBody(o) {
+  const p = proById(o.pro); const R = S.resched; const days = Array.from({ length: 12 }, (_, i) => addDays(i + 1));
+  return `<div class="small muted" style="margin-top:-4px">Teraz: ${dayLabel(addDays(o.date))}, ${o.time} · ${esc(p.name)}</div>
+    <div class="field" style="margin-top:14px"><span class="lbl">Nowy dzień</span><div class="dates">${days.map((d, i) => { const di = i + 1; const free = SLOTS.some(t => !slotTaken(p.id, di, t)); return `<button class="date ${R.day === di ? 'on' : ''}" data-act="reschedDay" data-a="${di}" ${free ? '' : 'disabled style="opacity:.4"'}>${DAYS[d.getDay()]}<b>${d.getDate()}</b></button>`; }).join('')}</div></div>
+    <div class="field"><span class="lbl">Godzina</span><div class="slots">${SLOTS.map(t => `<button class="slot ${R.time === t ? 'on' : ''}" data-act="reschedTime" data-a="${t}" ${slotTaken(p.id, R.day, t) ? 'disabled' : ''}>${t}</button>`).join('')}</div></div>
+    <div class="note mt12">${ic('info', 's')}<span>${p.name.split(' ')[0]} dostanie prośbę o zmianę i potwierdzi ją w aplikacji. Do tego czasu stary termin jest zarezerwowany.</span></div>`;
+}
+
+/* ---------- zgłoszenie problemu ---------- */
+const ISSUE_CATS = ['Niedokładnie posprzątane', 'Szkoda lub zniszczenie', 'Spóźnienie', 'Wykonawca nie przyszedł', 'Inne'];
+const ISSUE_WANTS = ['Poprawka w ciągu 24 h', 'Kontakt telefoniczny', 'Tylko informuję'];
+screens.problem = ({ id }) => {
+  const o = S.orders.find(x => x.id === id); const p = proById(o.pro); const P = S.problem;
+  return `${topbar('Zgłoś problem')}
+  <div class="scroll"><div class="pad">
+    <div class="small muted">${catById(o.service).name} · ${dayLabel(addDays(o.date))}, ${o.time} · ${esc(p.name)}</div>
+    <div class="field"><span class="lbl">Co się stało?</span><div class="chips">${ISSUE_CATS.map(c => `<button class="chip ${P.cat === c ? 'on' : ''}" data-act="probSet" data-a="cat" data-b="${c}">${c}</button>`).join('')}</div></div>
+    <div class="field"><label for="pdesc2">Opisz krótko</label><textarea class="input" id="pdesc2" placeholder="np. kamień przy baterii w łazience został, pękł wazon na półce w salonie" data-model="problem.desc">${esc(P.desc)}</textarea></div>
+    <div class="field"><span class="lbl">Zdjęcia <span class="faint" style="font-weight:500">(${P.photos.length}/4)</span></span>
+      <div class="photos">${P.photos.map(src => `<div class="ph" style="background-image:url(${src})"></div>`).join('')}${P.photos.length < 4 ? `<label class="ph" for="probPhotoIn">${ic('camera')}<input type="file" id="probPhotoIn" accept="image/*" multiple></label>` : ''}</div>
+      <div class="hint">Zdjęcia bardzo pomagają, szczególnie przy szkodach.</div></div>
+    <div class="field"><span class="lbl">Czego oczekujesz?</span><div class="chips">${ISSUE_WANTS.map(w => `<button class="chip ${P.want === w ? 'on' : ''}" data-act="probSet" data-a="want" data-b="${w}">${w}</button>`).join('')}</div></div>
+    <div class="note mt16">${ic('scale', 's')}<span>Płacisz bezpośrednio wykonawcy, więc to on rozwiązuje problem. My przekazujemy zgłoszenie, pilnujemy odpowiedzi w ciągu 24 h, a zgłoszenia wpływają na pozycję wykonawcy w wynikach.${P.cat === 'Szkoda lub zniszczenie' && p.insured ? ` ${p.name.split(' ')[0]} ma polisę OC, która może pokryć szkodę.` : ''}</span></div>
+    <div class="sp"></div>
+  </div></div>
+  <div class="footer"><button class="btn primary block" data-act="sendProblem" data-a="${o.id}" ${P.cat ? '' : 'disabled'}>${ic('send', 's')}Wyślij zgłoszenie</button></div>`;
+};
+function issueBlock(o, p) {
+  const st = o.issue.status; const steps = [['sent', 'Zgłoszenie wysłane', o.issue.at], ['answered', 'Wykonawca odpowiedział', o.issue.answeredAt || 'czeka, max 24 h'], ['resolved', 'Rozwiązane', '']];
+  const idx = steps.findIndex(x => x[0] === st);
+  return `<div class="card mt16 issue"><div class="row between"><b class="small">${ic('flag', 'xs')} ${esc(o.issue.cat)}</b><span class="tag ${st === 'resolved' ? 'mint' : 'yellow'}">${st === 'resolved' ? 'Rozwiązane' : 'W toku'}</span></div>
+    <div class="tiny muted mt8">Oczekujesz: ${esc(o.issue.want)}</div>
+    <div class="timeline mt12">${steps.map((x, i) => `<div class="tl ${i < idx || st === 'resolved' ? 'ok' : i === idx ? 'now' : ''}"><span class="dot">${ic(i <= idx ? 'check' : 'circle', 'xs')}</span><div><b>${x[1]}</b><span>${x[2]}</span></div></div>`).join('')}</div>
+    ${st === 'answered' ? `<div class="row mt12" style="gap:8px;flex-wrap:wrap"><button class="btn sm line" data-act="openChat" data-a="${p.id}">${ic('message-circle', 's')}Zobacz odpowiedź</button><button class="btn sm dark" data-act="resolveIssue" data-a="${o.id}">Problem rozwiązany</button></div>` : ''}
+  </div>`;
+}
+
+/* ---------- zaproszenie od wykonawcy: co widzi klient ---------- */
+function inviterPro(id) {
+  if (id !== 'me') return proById(id);
+  const L = S.pro.listing; return { id: 'me', name: L.name, ini: L.name.split(' ').map(w => w[0]).join('').slice(0, 2), tone: 't-mint', rating: 4.92, reviews: 38, rate: L.rate, tagline: L.tagline, services: L.services, area: districtAt(L.base.x, L.base.y), verified: L.idVerified, insured: L.insured, nextSlot: 'Jutro 9:00' };
+}
+screens.invited = ({ id }) => {
+  const p = inviterPro(id); const first = p.name.split(' ')[0]; const preview = id === 'me';
+  return `<div class="topbar">${backBtn()}<h2>${preview ? 'Podgląd zaproszenia' : 'Zaproszenie'}</h2></div>
+  <div class="scroll"><div class="pad">
+    ${preview ? `<div class="note yellow">${ic('eye', 's')}<span>Tak zobaczy Twój link klient, który nie ma jeszcze aplikacji.</span></div>` : ''}
+    <div class="invited">
+      <div class="avatar lg ${p.tone}">${esc(p.ini)}</div>
+      <div class="eyebrow mt16">Zaproszenie</div>
+      <h1>${esc(first)} zaprasza Cię do Lśni</h1>
+      <p class="muted">${esc(p.tagline)}</p>
+      <div class="row" style="gap:8px;justify-content:center">${stars(p.rating)}<span class="tiny faint">${p.reviews} opinii · ${p.area}</span>${p.verified ? `<span class="tag mint">${ic('badge-check', 'xs')}Zweryfikowana</span>` : ''}</div>
+    </div>
+    <div class="section-h"><h3>Co się zmienia</h3></div>
+    <div class="checklist">${[['calendar-check', 'Widzisz wolne terminy i rezerwujesz w aplikacji, bez SMS-ów'], ['bell-ring', 'Dostajesz przypomnienie dzień przed wizytą'], ['repeat', 'Stałe sprzątanie ustawiasz raz, a terminy same się powtarzają']].map(([i, t]) => `<div>${ic(i, 's')}<span>${t}</span></div>`).join('')}</div>
+    <div class="section-h"><h3>Co zostaje bez zmian</h3></div>
+    <div class="checklist">${[['hand-coins', 'Płacisz jak dotąd: gotówką, BLIK-iem lub przelewem'], ['user-check', `Umawiasz się bezpośrednio: ${esc(p.name)}. Nie pokazujemy Ci innych wykonawców`], ['gift', 'Aplikacja jest dla Ciebie darmowa']].map(([i, t]) => `<div>${ic(i, 's')}<span>${t}</span></div>`).join('')}</div>
+    <div class="sp"></div>
+  </div></div>
+  <div class="footer" style="flex-direction:column;align-items:stretch;gap:8px">
+    <button class="btn primary block" ${preview ? 'data-act="toast" data-a="To tylko podgląd"' : `data-act="startBooking" data-a="${p.id}"`}>Zarezerwuj termin · od ${p.rate} zł/h</button>
+    ${preview ? '' : `<button class="btn line block" data-act="openPro" data-a="${p.id}">Zobacz profil i opinie</button>`}
+  </div>`;
+};
+
+/* ---------- czat po stronie wykonawcy ---------- */
+const P_REPLIES = { kod: 'Kod to 14K2580, mieszkanie na 4 piętrze.', park: 'Najlepiej na podwórku od Rakowieckiej, jest miejsce dla gości.', drodze: 'Super, czekam!', skończ: 'Dziękuję bardzo, wygląda świetnie!', default: 'Dobrze, dziękuję!' };
+screens.pchat = ({ id }) => {
+  const t = S.pro.threads[id]; t.unread = 0;
+  const qr = ['Jestem w drodze, będę za 10 min', 'Poproszę o kod do domofonu', 'Gdzie mogę zaparkować?', 'Skończyłam, dziękuję!'];
+  return `<div class="topbar">${backBtn()}<div class="avatar sm ${t.tone}">${esc(t.ini)}</div><div class="grow" style="min-width:0"><div class="name">${esc(t.name)}</div><div class="tiny faint">${typingFor === 'p-' + id ? 'pisze…' : 'klient'}</div></div>
+    <button class="iconbtn" data-act="toast" data-a="Połączenie przez numer maskowany" aria-label="Zadzwoń">${ic('phone', 's')}</button></div>
+    <div class="scroll" id="msgScroll"><div class="msgs">
+      ${t.msgs.map(m => `<div class="msg ${m.me ? 'me' : 'them'}">${esc(m.t)}<time>${m.at}</time></div>`).join('')}
+      ${typingFor === 'p-' + id ? '<div class="msg them" style="padding:0"><span class="typing"><i></i><i></i><i></i></span></div>' : ''}
+    </div></div>
+    <div class="quickreplies">${qr.map(q => `<button class="chip" data-act="pQuick" data-a="${esc(q)}" data-b="${id}">${esc(q)}</button>`).join('')}</div>
+    <form class="composer" data-form="pchat" data-id="${id}"><input id="chatInput" name="m" placeholder="Wiadomość do klienta" autocomplete="off"><button class="send" type="submit" aria-label="Wyślij">${ic('send-horizontal', 's')}</button></form>`;
+};
+function sendPMsg(id, text) {
+  if (!text.trim()) return; const t = S.pro.threads[id]; t.msgs.push({ me: true, t: text.trim(), at: nowTime() });
+  typingFor = 'p-' + id; render(); scrollChat();
+  setTimeout(() => {
+    const low = text.toLowerCase(); const key = Object.keys(P_REPLIES).find(k => k !== 'default' && low.includes(k));
+    t.msgs.push({ me: false, t: P_REPLIES[key || 'default'], at: nowTime() }); typingFor = null;
+    if (top().name === 'pchat') { render(); scrollChat(); } else { t.unread++; toast(`${t.name}: ${P_REPLIES[key || 'default']}`, 'message-circle'); render(); }
+  }, 1300);
+}
 
 /* ---------- profile ---------- */
 screens.profile = () => {
@@ -1257,7 +1390,7 @@ screens.calendar = () => {
     <div class="dates">${days.map((d, i) => { const has = P.jobs.some(j => j.day === i); return `<button class="date ${P.calDay === i ? 'on' : ''}" data-act="calDay" data-a="${i}" style="position:relative">${i === 0 ? 'dziś' : DAYS[d.getDay()]}<b>${d.getDate()}</b>${has ? '<span style="position:absolute;bottom:6px;left:50%;width:5px;height:5px;margin-left:-2.5px;border-radius:50%;background:var(--glove)"></span>' : ''}</button>`; }).join('')}</div>
     <div class="row between mt24"><b>${DAYS_LONG[addDays(P.calDay).getDay()][0].toUpperCase() + DAYS_LONG[addDays(P.calDay).getDay()].slice(1)}, ${addDays(P.calDay).getDate()} ${MON[addDays(P.calDay).getMonth()]}</b><span class="small muted">${jobs.length ? `${jobs.length} zlec. · ${zl(dsum)}` : ''}</span></div>
     <div class="stack mt12">${jobs.length ? jobs.map(j => `<div class="job"><div class="time">${j.time}<span>${j.end}</span></div><div class="blk ${j.tone}"><div class="row between"><b class="small">${catById(j.service).name}</b><b class="small num">${zl(j.pay)}</b></div><div class="tiny faint">${j.client} · ${j.area}</div>
-      <div class="row mt8" style="gap:6px"><button class="btn sm line" style="height:32px" data-act="toast" data-a="Nawigacja otworzy się w aplikacji map">${ic('navigation', 'xs')}Trasa</button><button class="btn sm line" style="height:32px" data-act="toast" data-a="Czat z klientem w pełnej wersji">${ic('message-circle', 'xs')}Czat</button></div></div></div>`).join('')
+      <div class="row mt8" style="gap:6px;flex-wrap:wrap"><button class="btn sm line" style="height:32px" data-act="toast" data-a="Nawigacja otworzy się w aplikacji map">${ic('navigation', 'xs')}Trasa</button><button class="btn sm line" style="height:32px" data-act="openPChat" data-a="${j.thread || ''}" data-b="${esc(j.client)}">${ic('message-circle', 'xs')}Czat</button>${j.noshow ? `<span class="tag rose">${ic('door-closed', 'xs')}Nieobecność zgłoszona</span>` : S.pro.calDay === 0 ? `<button class="btn sm line" style="height:32px" data-act="sheet" data-a="noshow" data-b="${P.jobs.indexOf(j)}">${ic('door-closed', 'xs')}Nie otworzył</button>` : ''}</div></div></div>`).join('')
       : `<div class="card empty" style="padding:22px">${ic('coffee')}<div style="font-weight:650;color:var(--ink)">Wolny dzień</div><div class="small mt8">${P.avail[addDays(P.calDay).getDay()] ? 'Jesteś dostępna, klienci mogą rezerwować ten dzień.' : 'Ten dzień jest zablokowany dla klientów.'}</div></div>`}</div>
 
     ${dayRoute(jobs)}
@@ -1439,7 +1572,8 @@ screens.invite = () => {
     </ol>
     <div class="note mint mt12">${ic('lock', 's')}<span>Klienci z Twojego linku trafiają prosto do Ciebie. Na Twoim profilu nie pokazujemy im innych wykonawców.</span></div>
     <div class="field"><label for="invmsg">Gotowa wiadomość</label><textarea class="input" id="invmsg" rows="5">${esc(msg)}</textarea>
-      <button class="btn line block mt8" data-act="copyMsg">${ic('message-square', 's')}Kopiuj wiadomość</button></div>
+      <button class="btn line block mt8" data-act="copyMsg">${ic('message-square', 's')}Kopiuj wiadomość</button>
+      <button class="btn line block mt8" data-act="openInvited" data-a="me">${ic('eye', 's')}Zobacz, co zobaczy klient</button></div>
     <div class="section-h"><h3>Wizytówka do zostawienia</h3><span class="tiny faint">podgląd</span></div>
     <div class="bizcard"><div><div class="bz-logo">lśni<span class="dot"></span></div><b>${esc(L.name)}</b><span>${esc(L.tagline)}</span><span class="bz-link">${I.link}</span></div>${fakeQR(I.link + 'card')}</div>
     <button class="btn line block mt12" data-act="toast" data-a="PDF wizytówki zostanie wysłany na Twój e-mail">${ic('printer', 's')}Pobierz wizytówki do druku</button>
@@ -1664,6 +1798,19 @@ const sheets = {
       <div class="field"><span class="lbl">Powód</span><div class="chips">${['Zmiana planów', 'Znalazłem kogoś innego', 'Termin nie pasuje', 'Inny'].map((t, i) => `<button class="chip ${i === 0 ? 'on' : ''}" data-act="pickChip">${t}</button>`).join('')}</div></div>`,
       foot: `<button class="btn line" data-act="closeSheet">Zostaw</button><button class="btn danger" style="flex:1" data-act="cancelOrder" data-a="${id}">Odwołaj wizytę</button>` };
   },
+  resched(id) {
+    const o = S.orders.find(x => x.id === id);
+    return { title: 'Zmień termin', body: reschedBody(o),
+      foot: `${o.freq !== 'once' ? `<button class="btn line" data-act="skipVisit" data-a="${id}">Pomiń tę wizytę</button>` : `<button class="btn line" data-act="closeSheet">Wróć</button>`}<button class="btn dark" style="flex:1" data-act="doResched" data-a="${id}" ${S.resched.time ? '' : 'disabled'}>Poproś o zmianę</button>` };
+  },
+  noshow(i) {
+    const j = S.pro.jobs[Number(i)];
+    return { title: 'Klient nie otworzył?', body: `<p class="muted" style="margin-top:0">${esc(j.client)} · ${j.time} · ${j.area}</p>
+      <div class="checklist">${['Odczekaj 15 minut od godziny wizyty', 'Zadzwoń przez aplikację (numer maskowany)', 'Napisz wiadomość w czacie'].map(t => `<div>${ic('check', 's')}<span>${t}</span></div>`).join('')}</div>
+      <div class="minis mt16"><div><b class="num">${j.time.replace(/:00$/, ':17')}</b><span>czas zgłoszenia</span></div><div><b class="num">40 m</b><span>od adresu</span></div></div>
+      <div class="note mt12">${ic('shield-check', 's')}<span>Nieobecność klienta nie wpływa na Twoją ocenę. Klient dostanie powiadomienie, a po dwóch takich zgłoszeniach traci możliwość rezerwacji.</span></div>`,
+      foot: `<button class="btn line" data-act="closeSheet">Jeszcze poczekam</button><button class="btn danger" style="flex:1" data-act="reportNoShow" data-a="${i}">Zgłoś</button>` };
+  },
   ranking() {
     return { title: 'Jak ustalamy kolejność', body: `<p class="muted" style="margin-top:0">Wyniki układamy według tego, co najbardziej pomaga Ci wybrać:</p>
       <div class="checklist">${['Ocena i liczba opinii z potwierdzonych wizyt', 'Odległość i czas dojazdu do Twojego adresu', 'Wolne terminy w najbliższych dniach', 'Czas odpowiedzi na zapytania', 'Dopasowanie usług do tego, czego szukasz'].map(t => `<div>${ic('check', 's')}<span>${t}</span></div>`).join('')}</div>
@@ -1726,12 +1873,12 @@ function render() {
     const s = sheets[S.sheet.name](S.sheet.p);
     sheetHTML = `<div class="sheet-wrap"><div class="sheet-bg" data-act="closeSheet"></div><div class="sheet" role="dialog" aria-label="${s.title}"><div class="grab"></div><div class="sh-h"><h3>${s.title}</h3><button class="iconbtn ghost" data-act="closeSheet" aria-label="Zamknij">${ic('x', 's')}</button></div><div class="sh-b">${s.body}</div>${s.foot ? `<div class="sh-f">${s.foot}</div>` : ''}</div></div>`;
   }
-  $app.innerHTML = `<div class="view ${anim}">${html}</div>${S.introSeen ? '' : introHTML()}${showTabs ? `<nav class="tabbar">${tabs.map(tb => `<button class="tab ${S.tab === tb.id ? 'on' : ''}" data-act="setTab" data-a="${tb.id}"><span class="pill">${ic(tb.icon)}</span>${tb.label}${(tb.id === 'inbox' && unread && S.role === 'client') || (tb.id === 'orders' && needRate) || (tb.id === 'dash' && S.pro.requests.length) ? '<span class="dot"></span>' : ''}</button>`).join('')}</nav>` : ''}${sheetHTML}`;
+  $app.innerHTML = `<div class="view ${anim}">${html}</div>${S.introSeen ? '' : introHTML()}${showTabs ? `<nav class="tabbar">${tabs.map(tb => `<button class="tab ${S.tab === tb.id ? 'on' : ''}" data-act="setTab" data-a="${tb.id}"><span class="pill">${ic(tb.icon)}</span>${tb.label}${(tb.id === 'inbox' && ((unread && S.role === 'client') || (S.role === 'pro' && Object.values(S.pro.threads).some(x => x.unread)))) || (tb.id === 'orders' && needRate) || (tb.id === 'dash' && S.pro.requests.length) ? '<span class="dot"></span>' : ''}</button>`).join('')}</nav>` : ''}${sheetHTML}`;
   anim = '';
   const nsc = $app.querySelector('.view .scroll');
   if (nsc && key === lastKey && scrollMemo[key]) nsc.scrollTop = scrollMemo[key];
-  else if (nsc && scrollMemo[key] && t.name !== 'chat') nsc.scrollTop = scrollMemo[key];
-  if (t.name === 'chat') scrollChat();
+  else if (nsc && scrollMemo[key] && t.name !== 'chat' && t.name !== 'pchat') nsc.scrollTop = scrollMemo[key];
+  if (t.name === 'chat' || t.name === 'pchat') scrollChat();
   lastKey = key;
   persist();
   syncPitch();
@@ -1891,7 +2038,11 @@ const A = {
   pickChip(_, __, el) { el.parentElement.querySelectorAll('.chip').forEach(c => c.classList.remove('on')); el.classList.add('on'); },
 
   startBooking(id, preset) { S.booking = newBooking(id, preset); go('book'); },
-  bset(k, v) { S.booking[k] = v; render(); },
+  bset(k, v) {
+    const b = S.booking; b[k] = v;
+    if (k === 'addr' && v === 'mama' && !b.onName) Object.assign(b, { who: 'other', onName: 'Halina (mama)', onPhone: '600 123 120' });
+    render();
+  },
   bstep(k, d) { const b = S.booking; b[k] = Math.min(k === 'rooms' ? 8 : 5, Math.max(1, b[k] + Number(d))); render(); },
   bextra(id) { const x = S.booking.extras; const i = x.indexOf(id); i >= 0 ? x.splice(i, 1) : x.push(id); render(); },
   bfocus(t) { const x = S.booking.focus; const i = x.indexOf(t); i >= 0 ? x.splice(i, 1) : x.push(t); render(); },
@@ -1903,10 +2054,10 @@ const A = {
     sl.classList.add('busy'); sl.querySelector('.slide-label').textContent = 'Wysyłamy rezerwację…';
     setTimeout(() => {
       const b = S.booking; const p = proById(b.pro); const e = estimate(b, p);
-      const o = { id: 'o' + Date.now(), pro: b.pro, service: b.service, date: b.day, time: b.time, h: e.h, m2: b.m2, total: Math.round(e.total * 100) / 100, freq: b.freq, status: 'pending', extras: b.extras.slice(), addr: (addrById(b.addr) || curAddr()).street, addrId: b.addr, pay: { cash: 'Gotówka', blikphone: 'BLIK na telefon', transfer: 'Przelew', invoice: 'Faktura VAT' }[b.pay] || 'Gotówka' };
+      const o = { id: 'o' + Date.now(), pro: b.pro, service: b.service, date: b.day, time: b.time, h: e.h, m2: b.m2, total: Math.round(e.total * 100) / 100, freq: b.freq, status: 'pending', extras: b.extras.slice(), addr: (addrById(b.addr) || curAddr()).street, addrId: b.addr, pay: { cash: 'Gotówka', blikphone: 'BLIK na telefon', transfer: 'Przelew', invoice: 'Faktura VAT' }[b.pay] || 'Gotówka', onsite: b.who === 'other' && b.onName ? `${b.onName}${b.onPhone ? ' · ' + b.onPhone : ''}` : '' };
       S.orders.push(o); S.booking = null;
       S.stacks[stackKey()] = [{ name: S.tab }, { name: 'booked', p: { id: o.id } }]; anim = 'enter'; render();
-      setTimeout(() => { if (o.status === 'pending') { o.status = 'confirmed'; toast(`${p.name.split(' ')[0]} potwierdza rezerwację`, 'badge-check'); render(); } }, 4000);
+      setTimeout(() => { if (o.status === 'pending') { o.status = 'confirmed'; pushNotif('badge-check', 'Rezerwacja potwierdzona', `${p.name}: ${dayLabel(addDays(o.date))}, ${o.time}.`, 'openOrder', o.id); toast(`${p.name.split(' ')[0]} potwierdza rezerwację`, 'badge-check'); render(); } }, 4000);
     }, 700);
   },
   openOrder: id => go('order', { id }),
@@ -1921,7 +2072,7 @@ const A = {
     if (o.status === 'done') { if (wasProgress) o.prog = checklistFor(o).length; finishOrder(o); }
     render();
   },
-  cancelOrder(id) { const o = S.orders.find(x => x.id === id); o.status = 'cancel'; S.sheet = null; stack().pop(); toast('Wizyta odwołana, pieniądze wracają na konto', 'undo-2'); anim = 'fade'; render(); },
+  cancelOrder(id) { const o = S.orders.find(x => x.id === id); o.status = 'cancel'; S.sheet = null; stack().pop(); toast('Wizyta odwołana. Wykonawca dostał powiadomienie', 'undo-2'); anim = 'fade'; render(); },
   openRate(id) { S.rate = { stars: 5, tags: [], tip: 0, comment: '' }; go('rate', { id }); },
   rstar(i) { S.rate.stars = Number(i); render(); },
   rtag(t) { const x = S.rate.tags; const i = x.indexOf(t); i >= 0 ? x.splice(i, 1) : x.push(t); render(); },
@@ -1974,6 +2125,46 @@ const A = {
     const ad = { id: 'a' + Date.now(), label: S.newAddrLabel || 'Nowy adres', street: rg.street, x: Math.round(v.x * 100) / 100, y: Math.round(v.y * 100) / 100, note: S.newAddrNote || '' };
     S.addresses.push(ad); S.addrId = ad.id; updateGeo(); buzz([8, 30, 8]); toast(`Zapisano: ${ad.street}, ${rg.district}`, 'map-pin-plus'); afterAddrChange(ad.id);
   },
+  openNotifs() { go('notifs'); },
+  openNotif(id) { const n = S.notifs.find(x => x.id === id); if (!n) return; n.read = true; if (n.act && A[n.act]) A[n.act](n.a); else render(); },
+  readAll() { S.notifs.forEach(n => { n.read = true; }); render(); },
+  notifPref(k) { S.notifPrefs[k] = !S.notifPrefs[k]; render(); },
+  openResched(id) { const o = S.orders.find(x => x.id === id); S.resched = { day: Math.max(1, o.date + 1), time: null }; A.sheet('resched', id); },
+  reschedDay(d) { S.resched.day = Number(d); if (S.resched.time && slotTaken(S.orders.find(x => x.id === S.sheet.p).pro, S.resched.day, S.resched.time)) S.resched.time = null; render(); },
+  reschedTime(t) { S.resched.time = t; render(); },
+  doResched(id) {
+    const o = S.orders.find(x => x.id === id); const p = proById(o.pro); const R = S.resched;
+    o.date = R.day; o.time = R.time; o.status = 'pending'; S.sheet = null; buzz(8); toast('Prośba o zmianę wysłana', 'calendar-clock'); render();
+    setTimeout(() => { if (o.status === 'pending') { o.status = 'confirmed'; pushNotif('calendar-check', 'Nowy termin potwierdzony', `${p.name}: ${dayLabel(addDays(o.date))}, ${o.time}.`, 'openOrder', o.id); toast(`${p.name.split(' ')[0]} potwierdza nowy termin`, 'calendar-check'); render(); } }, 3500);
+  },
+  skipVisit(id) {
+    const o = S.orders.find(x => x.id === id); const step = { week: 7, biweek: 14, month: 28 }[o.freq] || 14;
+    o.date += step; S.sheet = null; pushNotif('calendar-x', 'Wizyta pominięta', `Następna: ${dayLabel(addDays(o.date))}, ${o.time}. Wykonawca wie o zmianie.`, 'openOrder', o.id);
+    toast(`Pominięto. Następna wizyta: ${dayLabel(addDays(o.date))}, ${o.time}`, 'calendar-x'); render();
+  },
+  openProblem(id) { S.problem = { cat: '', want: ISSUE_WANTS[0], desc: '', photos: [] }; go('problem', { id }); },
+  probSet(k, v) { S.problem[k] = v; render(); },
+  sendProblem(id) {
+    const o = S.orders.find(x => x.id === id); const p = proById(o.pro); const P = S.problem;
+    o.issue = { cat: P.cat, want: P.want, status: 'sent', at: dayLabel(today) + ', ' + nowTime() }; back(); toast('Zgłoszenie wysłane do wykonawcy', 'flag');
+    setTimeout(() => {
+      if (!o.issue || o.issue.status !== 'sent') return; o.issue.status = 'answered'; o.issue.answeredAt = nowTime();
+      const th = (S.threads[p.id] ||= { unread: 0, msgs: [] });
+      th.msgs.push({ me: false, t: P.want.startsWith('Poprawka') ? `Bardzo przepraszam. Mogę przyjechać jutro o 9:00 i poprawić łazienkę bez dodatkowej opłaty. ${P.cat === 'Szkoda lub zniszczenie' ? 'Za wazon odpowiem z mojej polisy OC, proszę o zdjęcie.' : ''}` : 'Przepraszam za kłopot, zadzwonię dziś po 17, żeby to wyjaśnić.', at: nowTime() }); th.unread++;
+      pushNotif('message-circle', 'Wykonawca odpowiedział na zgłoszenie', `${p.name} proponuje rozwiązanie.`, 'openChat', p.id);
+      toast(`${p.name.split(' ')[0]} odpowiada na zgłoszenie`, 'message-circle'); render();
+    }, 4000);
+  },
+  resolveIssue(id) { const o = S.orders.find(x => x.id === id); o.issue.status = 'resolved'; toast('Dziękujemy, zgłoszenie zamknięte', 'check'); render(); },
+  openInvited(id) { go('invited', { id }); },
+  demoInvite() { S.introSeen = true; S.role = 'client'; S.tab = 'home'; S.stacks = {}; S.sheet = null; render(); setTimeout(() => go('invited', { id: 'marta' }), 50); },
+  openPChat(id, name) {
+    if (!id) { id = (name || 'klient').toLowerCase().replace(/[^a-ząćęłńóśźż]+/g, '-'); S.pro.threads[id] ||= { name: name || 'Klient', ini: (name || 'K').split(' ').map(w => w[0]).join('').slice(0, 2), tone: 't-lilac', unread: 0, msgs: [] }; }
+    go('pchat', { id });
+  },
+  pQuick(text, id) { sendPMsg(id, text); },
+  reportNoShow(i) { const j = S.pro.jobs[Number(i)]; j.noshow = true; S.sheet = null; buzz([10, 40, 10]); toast('Zgłoszenie zapisane. Klient dostał powiadomienie', 'door-closed'); render(); },
+  joinWaitlist(key) { if (!S.waitlist.includes(key)) S.waitlist.push(key); buzz(8); toast('Zapisano. Damy znać, gdy ruszymy w Twojej okolicy', 'bell-plus'); const m = mapInst('loc'); if (m) liveLoc(m.v.x, m.v.y); else render(); },
   openBoost() { const D = S.pro.boost.draft; D.ds = D.ds.filter(n => coveredDistricts().includes(n)); go('boost'); },
   openInvite() { go('invite'); },
   boostToggle(n) {
@@ -2070,6 +2261,7 @@ document.addEventListener('change', e => {
   const el = e.target;
   if (el.id === 'photoIn') { readPhotos(el.files, S.pro.listing.photos, 8); return; }
   if (el.id === 'postPhotoIn') { readPhotos(el.files, S.draft.photos, 6); return; }
+  if (el.id === 'probPhotoIn') { readPhotos(el.files, S.problem.photos, 4); return; }
   if (el.dataset.rr) { if (el.dataset.model) { let v = el.value; if (el.dataset.type === 'num') v = Number(v); setPath(el.dataset.model, v); } render(); }
 });
 document.addEventListener('submit', e => {
@@ -2077,6 +2269,7 @@ document.addEventListener('submit', e => {
   const f = e.target; const kind = f.dataset.form;
   if (kind === 'loc') { const first = document.querySelector('#locSug .sug'); if (first) first.click(); return; }
   if (kind === 'search' || kind === 'search2') { S.filters.q = f.q.value; if (kind === 'search') { S.filters.cat = null; go('search'); } else render(); }
+  if (kind === 'pchat') { const v = f.m.value; f.m.value = ''; sendPMsg(f.dataset.id, v); setTimeout(() => { const i = document.getElementById('chatInput'); i && i.focus(); }, 0); }
   if (kind === 'chat') { const v = f.m.value; f.m.value = ''; sendMsg(f.dataset.id, v); setTimeout(() => { const i = document.getElementById('chatInput'); i && i.focus(); }, 0); }
 });
 
@@ -2148,6 +2341,7 @@ setInterval(() => {
     x.wait = (x.wait || 0) + 1;
     if (x.wait >= 2 + (x.offers.length % 2)) {
       x.wait = 0; const of = x.pool[x.offers.length]; x.offers.push(of);
+      pushNotif('hand-coins', `Nowa oferta: ${zl(of.price)}`, `${proById(of.pro).name} · ${catById(x.cat).name}`, 'openOffers', x.id);
       if (!(t.name === 'offers' && t.p.id === x.id)) toast(`Nowa oferta: ${proById(of.pro).name.split(' ')[0]}, ${zl(of.price)}`, 'hand-coins');
       x.justAdded = of.id;
       if (t.name === 'orders' || (t.name === 'offers' && t.p.id === x.id)) dirty = true;
