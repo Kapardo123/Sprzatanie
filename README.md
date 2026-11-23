@@ -34,6 +34,16 @@ Na komputerze aplikacja wyświetla się w ramce telefonu, a na telefonie na peł
 
 Dane są przykładowe i zapisują się w `localStorage` przeglądarki. Link „Zresetuj dane demo” przywraca stan początkowy.
 
+## Interakcje
+
+- Brudna szyba na ekranie głównym: przetrzyj ją palcem, a pod spodem jest kod rabatowy
+- Suwak „przed i po” na profilu wykonawcy
+- Płatność i zwolnienie płatności przeciągnięciem ściągaczki
+- Mapa wykonawców w wyszukiwarce (przełącznik Lista / Mapa)
+- Arkusze zamykane przeciągnięciem w dół, krótka wibracja na telefonie przy ważnych akcjach
+
+Ilustracje kategorii, okładek, kuchni i panoramy Warszawy są rysowane w SVG i biorą kolory z motywu, więc działają też w trybie ciemnym.
+
 ## Pliki
 
 - `index.html`: układ i style (tokeny kolorów dla jasnego i ciemnego motywu)

@@ -251,7 +251,8 @@ const TABS = {
 const stackKey = () => S.role + ':' + S.tab;
 const stack = () => (S.stacks[stackKey()] ||= [{ name: S.tab }]);
 const top = () => stack()[stack().length - 1];
-let anim = '';
+let anim = ''; let popHeart = null;
+const buzz = ms => { try { navigator.vibrate && navigator.vibrate(ms); } catch (e) { } };
 function go(name, p = {}) { stack().push({ name, p }); anim = 'enter'; S.sheet = null; render(); }
 function back() { if (stack().length > 1) { stack().pop(); anim = 'fade'; render(); } }
 function setTab(t) { if (S.tab === t) { S.stacks[stackKey()] = [{ name: t }]; } S.tab = t; anim = 'fade'; render(); }
@@ -269,7 +270,7 @@ function icons(root) { if (!root) return; root.querySelectorAll('i[data-lucide]'
 /* ================= shared components ================= */
 const avatar = (p, cls = '') => `<div class="avatar ${p.tone} ${cls}">${esc(p.ini)}</div>`;
 const stars = r => `<span class="rating">${ic('star', 'xs star')}${r.toFixed(2).replace('.', ',')}</span>`;
-const heart = id => `<button class="heartbtn ${S.favs.includes(id) ? 'on' : ''}" data-act="fav" data-a="${id}" aria-label="Ulubione">${ic('heart', 's')}</button>`;
+const heart = id => `<button class="heartbtn ${S.favs.includes(id) ? 'on' : ''} ${popHeart === id ? 'pop' : ''}" data-act="fav" data-a="${id}" aria-label="Ulubione">${ic('heart', 's')}</button>`;
 const priceLabel = p => p.fixed ? `od ${p.rate} zł <small>/ kanapa</small>` : p.perWindow ? `od ${p.perWindow} zł <small>/ okno</small>` : `${p.rate} zł <small>/ h</small>`;
 const backBtn = (ghost) => `<button class="iconbtn ${ghost ? 'ghost' : ''}" data-act="back" aria-label="Wróć">${ic('chevron-left')}</button>`;
 const topbar = (title, right = '') => `<div class="topbar">${backBtn()}<h2>${title}</h2>${right}</div>`;
@@ -300,6 +301,77 @@ function proCard(p) {
   </div>`;
 }
 
+/* ================= ILUSTRACJE (własne, rysowane w SVG, kolory z tokenów motywu) ================= */
+const spark = (x, y, r, f) => `<path d="M${x} ${y - r}C${x + r * .18} ${y - r * .18} ${x + r * .18} ${y - r * .18} ${x + r} ${y}C${x + r * .18} ${y + r * .18} ${x + r * .18} ${y + r * .18} ${x} ${y + r}C${x - r * .18} ${y + r * .18} ${x - r * .18} ${y + r * .18} ${x - r} ${y}C${x - r * .18} ${y - r * .18} ${x - r * .18} ${y - r * .18} ${x} ${y - r}Z" fill="var(--${f})"/>`;
+const ILLO = {
+  dom: `<path d="M11 31 32 14l21 17v24H11z" fill="var(--glove)"/><path d="M6 33 32 11l26 22" fill="none" stroke="var(--ink)" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"/><rect x="26" y="39" width="12" height="16" rx="2" fill="var(--ink)"/><rect x="15" y="35" width="8" height="8" rx="1.5" fill="var(--surface)"/><rect x="41" y="35" width="8" height="8" rx="1.5" fill="var(--surface)"/>${spark(52, 9, 6, 'cloth')}`,
+  generalne: `<path d="M21 29h20l4 8v19a3 3 0 0 1-3 3H21a3 3 0 0 1-3-3V37z" fill="var(--cloth)"/><rect x="23" y="40" width="17" height="11" rx="2" fill="var(--surface)"/><path d="M26 44h11M26 47.5h7" stroke="var(--cloth)" stroke-width="1.6" stroke-linecap="round"/><rect x="26" y="21" width="10" height="9" rx="1" fill="var(--ink)"/><path d="M21 12h21l4 7H22z" fill="var(--ink)"/><rect x="44" y="13" width="7" height="4" rx="1" fill="var(--ink)"/><path d="M29 21q-7 2-9 9" fill="none" stroke="var(--ink)" stroke-width="3" stroke-linecap="round"/><circle cx="56" cy="12" r="2.2" fill="var(--cloth)"/><circle cx="59" cy="18" r="1.6" fill="var(--cloth)"/><circle cx="57" cy="6" r="1.3" fill="var(--cloth)"/>${spark(10, 20, 5, 'glove')}`,
+  remont: `<circle cx="14" cy="49" r="7" fill="var(--surface)"/><circle cx="22" cy="53" r="5" fill="var(--surface)"/><circle cx="50" cy="51" r="4.5" fill="var(--surface)"/><rect x="10" y="9" width="34" height="15" rx="6" fill="var(--glove)"/><path d="M15 13v7" stroke="var(--surface)" stroke-width="2.5" stroke-linecap="round" opacity=".7"/><path d="M44 16.5h7v13H33v8" fill="none" stroke="var(--ink)" stroke-width="3.5" stroke-linejoin="round"/><rect x="29" y="36" width="8" height="21" rx="3" fill="var(--ink)"/>`,
+  okna: `<rect x="9" y="9" width="40" height="46" rx="3" fill="var(--ink)"/><rect x="13" y="13" width="15" height="18" fill="var(--cloth-soft)"/><rect x="30" y="13" width="15" height="18" fill="var(--cloth-soft)"/><rect x="13" y="33" width="15" height="18" fill="var(--cloth-soft)"/><rect x="30" y="33" width="15" height="18" fill="var(--cloth-soft)"/><path d="M15 29q14-15 28-3" fill="none" stroke="var(--surface)" stroke-width="4" stroke-linecap="round"/><g transform="rotate(-32 47 45)"><rect x="34" y="39" width="26" height="6" rx="2" fill="var(--mint)"/><rect x="44.5" y="44" width="5" height="16" rx="2.5" fill="var(--ink)"/></g>`,
+  tapicerka: `<rect x="13" y="19" width="38" height="18" rx="6" fill="var(--lilac)"/><rect x="9" y="33" width="46" height="13" rx="5" fill="var(--lilac)"/><path d="M32 21v12" stroke="var(--surface)" stroke-width="2" stroke-linecap="round" opacity=".6"/><rect x="5" y="27" width="10" height="21" rx="5" fill="var(--ink)"/><rect x="49" y="27" width="10" height="21" rx="5" fill="var(--ink)"/><rect x="12" y="47" width="4" height="6" rx="1" fill="var(--ink)"/><rect x="48" y="47" width="4" height="6" rx="1" fill="var(--ink)"/><circle cx="49" cy="10" r="5" fill="var(--surface)" stroke="var(--cloth)" stroke-width="2"/><circle cx="40" cy="6" r="2.8" fill="var(--surface)" stroke="var(--cloth)" stroke-width="1.6"/><circle cx="57" cy="18" r="2.2" fill="var(--surface)" stroke="var(--cloth)" stroke-width="1.4"/>`,
+  biuro: `<rect x="15" y="9" width="34" height="48" rx="2" fill="var(--cloth)"/>${[0, 1, 2].map(c => [0, 1, 2, 3].map(r => `<rect x="${20 + c * 9}" y="${14 + r * 9}" width="6" height="5" rx="1" fill="var(--surface)"/>`).join('')).join('')}<rect x="27" y="49" width="10" height="8" fill="var(--ink)"/><path d="M8 57h48" stroke="var(--ink)" stroke-width="3.5" stroke-linecap="round"/>${spark(54, 12, 5, 'glove')}`,
+  najem: `<rect x="7" y="17" width="8" height="32" rx="2" fill="var(--ink)"/><rect x="12" y="32" width="45" height="12" rx="3" fill="var(--surface)"/><rect x="16" y="26" width="13" height="8" rx="3.5" fill="var(--surface)" stroke="var(--ink)" stroke-width="1.5"/><path d="M30 30h27v14H30z" fill="var(--rose)"/><rect x="7" y="44" width="52" height="5" rx="2" fill="var(--ink)"/><circle cx="48" cy="13" r="5.5" fill="none" stroke="var(--glove)" stroke-width="3"/><path d="M43.5 17 34 25.5m4-3.5 2.5 2.8m1-6.2 2.5 2.8" fill="none" stroke="var(--glove)" stroke-width="3" stroke-linecap="round"/>`,
+  prasowanie: `<path class="steam" d="M17 22q4-4 0-8t0-8M25 22q4-4 0-8t0-8" fill="none" stroke="var(--cloth)" stroke-width="2.4" stroke-linecap="round"/><path d="M8 47q2-19 21-21h19q5 0 5 5v16z" fill="var(--mint)"/><path d="M23 26q2-10 12-10h13q4 0 4 4v7" fill="none" stroke="var(--ink)" stroke-width="4" stroke-linecap="round"/><rect x="6" y="46" width="50" height="6" rx="2" fill="var(--ink)"/><circle cx="38" cy="38" r="4" fill="var(--surface)"/>`
+};
+const illo = (id, cls = '') => { const art = ILLO[id] || ILLO.dom; const shadow = art.replace(/(fill|stroke)="var\(--[a-z-]+\)"/g, '$1="var(--ink)"'); return `<svg class="illo ${cls}" viewBox="0 0 64 64" aria-hidden="true"><g transform="translate(2.2 2.6)" opacity=".13">${shadow}</g>${art}</svg>`; };
+
+/* panorama za szybą: dachy Warszawy z Pałacem Kultury */
+function skyline() {
+  const b = [[0, 22, 28], [24, 16, 40], [42, 26, 22], [88, 20, 34], [112, 30, 24], [146, 18, 46], [250, 22, 36], [274, 16, 54], [292, 28, 26]];
+  return `<svg class="sky" viewBox="0 0 320 120" preserveAspectRatio="xMidYMax slice" aria-hidden="true">
+    <circle cx="268" cy="34" r="16" fill="var(--glove)"/>
+    <path d="M30 40q10-8 22 0q8-6 16 2" fill="none" stroke="var(--surface)" stroke-width="5" stroke-linecap="round" opacity=".8"/>
+    <g fill="var(--ink)" opacity=".88" transform="translate(0 30)">${b.map(([x, w, h]) => `<rect x="${x}" y="${90 - h}" width="${w}" height="${h}"/>`).join('')}
+      <path d="M70 90V40l14-8v58z"/><path d="M180 90V66h8V54h7V42h5V30h4V20h3v-8h2.2V0h1.6v12H213v8h3v10h4v12h5v12h7v12h8v24z"/></g></svg>`;
+}
+
+/* przed / po: ta sama kuchnia, raz zapuszczona, raz po wizycie */
+function kitchen(dirty) {
+  const tiles = Array.from({ length: 16 }, (_, i) => `<path d="M${i * 20} 60v50" />`).join('') + [80, 100].map(y => `<path d="M0 ${y}h320"/>`).join('');
+  const clean = `${spark(70, 74, 7, 'glove')}${spark(188, 92, 5, 'cloth')}${spark(292, 140, 6, 'glove')}${spark(250, 30, 4, 'surface')}`;
+  const dirt = `<rect width="320" height="180" fill="var(--grime)" opacity=".55"/>
+    <path d="M0 0l40 30M0 0l20 40M0 0l48 10M8 6q10 10 26 12M4 18q12 6 16 18" stroke="var(--ink-3)" stroke-width="1" fill="none" opacity=".7"/>
+    <ellipse cx="62" cy="88" rx="16" ry="9" fill="var(--grime-d)" opacity=".5"/><ellipse cx="120" cy="72" rx="9" ry="6" fill="var(--grime-d)" opacity=".45"/><ellipse cx="270" cy="96" rx="12" ry="5" fill="var(--grime-d)" opacity=".4"/>
+    <path d="M96 122v14q0 4 2 6M210 122v22" stroke="var(--grime-d)" stroke-width="4" stroke-linecap="round" opacity=".55"/>
+    <rect x="214" y="18" width="72" height="44" fill="var(--grime-d)" opacity=".35"/>
+    <ellipse cx="172" cy="100" rx="20" ry="4" fill="var(--surface)" stroke="var(--ink)" stroke-width="2"/><ellipse cx="174" cy="95" rx="18" ry="3.6" fill="var(--surface)" stroke="var(--ink)" stroke-width="2"/><ellipse cx="171" cy="90" rx="16" ry="3.2" fill="var(--surface)" stroke="var(--ink)" stroke-width="2"/>
+    <rect x="132" y="94" width="12" height="16" rx="2" fill="var(--rose)" transform="rotate(14 138 102)"/>
+    ${Array.from({ length: 18 }, (_, i) => `<circle cx="${20 + (i * 53) % 290}" cy="${108 + (i * 7) % 5}" r="1.6" fill="var(--grime-d)"/>`).join('')}`;
+  return `<svg viewBox="0 0 320 180" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+    <rect width="320" height="180" fill="var(--surface-2)"/>
+    <rect y="60" width="320" height="50" fill="var(--surface)"/><g stroke="var(--line)" stroke-width="1.5">${tiles}</g>
+    <rect x="210" y="14" width="80" height="52" rx="4" fill="var(--cloth-soft)" stroke="var(--ink)" stroke-width="3"/><path d="M250 14v52M210 40h80" stroke="var(--ink)" stroke-width="3"/><circle cx="232" cy="28" r="7" fill="var(--glove)"/>
+    <rect x="22" y="34" width="92" height="5" rx="1" fill="var(--ink)"/>
+    <rect x="30" y="18" width="12" height="16" rx="2" fill="var(--glove)"/><rect x="48" y="14" width="10" height="20" rx="2" fill="var(--mint)"/><rect x="64" y="22" width="14" height="12" rx="2" fill="var(--cloth)"/><rect x="84" y="16" width="10" height="18" rx="2" fill="var(--rose)"/>
+    <path d="M182 104v-22q0-6 6-6h8" fill="none" stroke="var(--ink-2)" stroke-width="4" stroke-linecap="round"/>
+    <rect x="148" y="104" width="64" height="7" rx="3" fill="var(--ink-3)"/>
+    <path d="M40 110q-6-26 4-30q8 10 0 30M46 110q8-22 18-20q-2 14-12 20" fill="var(--mint)"/><rect x="34" y="100" width="20" height="10" rx="2" fill="var(--sand)"/>
+    <rect y="110" width="320" height="12" fill="var(--ink)"/>
+    <rect y="122" width="320" height="58" fill="var(--surface)"/><g stroke="var(--line)" stroke-width="2"><path d="M80 122v58M160 122v58M240 122v58"/></g>
+    <g fill="var(--ink-2)"><rect x="66" y="136" width="8" height="3" rx="1.5"/><rect x="86" y="136" width="8" height="3" rx="1.5"/><rect x="226" y="136" width="8" height="3" rx="1.5"/><rect x="246" y="136" width="8" height="3" rx="1.5"/></g>
+    ${dirty ? dirt : clean}</svg>`;
+}
+
+/* ilustrowana mapa okolicy (bez zewnętrznych map) */
+const PIN_XY = { marta: [47, 55], olena: [64, 70], czysto: [20, 26], pawel: [30, 9], babel: [86, 44], agnieszka: [54, 30] };
+function mapSVG() {
+  return `<svg class="mapsvg" viewBox="0 0 360 420" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+    <rect width="360" height="420" fill="var(--surface-2)"/>
+    <path d="M20 150q30-40 90-20q30 20 10 60q-40 30-90 10q-30-20-10-50z" fill="var(--mint-soft)"/>
+    <path d="M210 250q30-20 50 10q10 30-20 40q-40 0-30-50z" fill="var(--mint-soft)"/>
+    <path d="M300 -10q-30 80 10 150q50 80 10 160q-20 60 20 140h40V-10z" fill="var(--cloth-soft)"/>
+    <g stroke="var(--surface)" stroke-width="7" stroke-linecap="round" fill="none">
+      <path d="M0 70h300M0 200h290M0 330h300M60 0v420M150 0v420M240 0v420M0 270q100-30 200 10"/></g>
+    <path d="M120 -10L210 430" stroke="var(--surface)" stroke-width="13" stroke-linecap="round"/>
+    <text x="0" y="0" transform="translate(186 352) rotate(77)" font-size="10" font-weight="700" fill="var(--ink-3)" letter-spacing="2">PUŁAWSKA</text>
+    <g font-size="10" font-weight="700" letter-spacing="3" fill="var(--ink-3)" opacity=".8"><text x="72" y="244">MOKOTÓW</text><text x="20" y="44">OCHOTA</text><text x="170" y="40">ŚRÓDMIEŚCIE</text><text x="318" y="210" transform="rotate(90 318 210)">WISŁA</text></g>
+    <text x="44" y="166" font-size="9" fill="var(--mint)" font-weight="600">Pole Mokotowskie</text><text x="214" y="276" font-size="9" fill="var(--mint)" font-weight="600">Morskie Oko</text>
+  </svg>`;
+}
+const swipeBtn = (act, arg, label, off) => `<div class="slide ${off ? 'off' : ''}" data-done="${act}" data-a="${arg || ''}" id="slide-${act}">
+  <div class="slide-fill"></div><span class="slide-label">${label}</span>
+  <button class="slide-knob" type="button" aria-label="${label}">${illo('okna', 'knob-illo')}</button></div>`;
+
 /* ================= CLIENT SCREENS ================= */
 const screens = {};
 
@@ -314,14 +386,20 @@ screens.home = () => {
       <button class="iconbtn" data-act="toast" data-a="Brak nowych powiadomień" aria-label="Powiadomienia">${ic('bell', 's')}</button>
     </div>
     <div class="pad">
-      <h1 class="hero-h">Kto dziś u&nbsp;Ciebie <span class="swipe">posprząta?</span></h1>
+      <h1 class="hero-h">Kto dziś u&nbsp;Ciebie posprząta?</h1>
       <form class="searchbox" data-form="search">
         ${ic('search', 's faint')}
         <input id="homeSearch" name="q" placeholder="np. mycie okien, po remoncie, Olena" autocomplete="off">
         <button class="go" type="submit" aria-label="Szukaj">${ic('arrow-right', 's')}</button>
       </form>
       <div class="cats">
-        ${CATS.map(c => `<button class="cat" data-act="openCat" data-a="${c.id}"><span class="tile ${c.tone}">${ic(c.icon)}</span>${c.short}</button>`).join('')}
+        ${CATS.map(c => `<button class="cat" data-act="openCat" data-a="${c.id}"><span class="tile ${c.tone}">${illo(c.id)}</span>${c.short}</button>`).join('')}
+      </div>
+      <div class="glass ${S.wiped ? 'clean' : ''}" id="glass">
+        <div class="behind">${skyline()}
+          <div class="coupon"><span class="eyebrow">Szyba czysta</span><b>−20% na mycie okien</b>
+            <button class="code" data-act="copyCode">SZYBA20 ${ic('copy', 'xs')}</button></div></div>
+        ${S.wiped ? '' : `<canvas id="grime" aria-label="Brudna szyba. Przeciągnij palcem, żeby ją przetrzeć"></canvas><div class="glass-hint">${ic('hand', 'xs')}przetrzyj szybę palcem</div>`}
       </div>
       <div class="postcta">
         <div class="faces">${PROS.slice(0, 4).map(p => avatar(p, 'xs')).join('')}<span class="tiny faint">+38 w okolicy</span></div>
@@ -339,7 +417,7 @@ screens.home = () => {
 
       <div class="section-h"><h3>Wolne jeszcze dziś</h3></div>
       <div class="quick">
-        <svg class="bubbles" viewBox="0 0 100 100" aria-hidden="true"><circle cx="40" cy="40" r="30" fill="none" stroke="currentColor" stroke-width="3"/><circle cx="78" cy="70" r="14" fill="none" stroke="currentColor" stroke-width="3"/><circle cx="20" cy="85" r="7" fill="none" stroke="currentColor" stroke-width="3"/></svg>
+        <span class="quick-illo">${illo(quick.services[0])}</span>
         <div class="eyebrow" style="color:inherit;opacity:.75">${quick.area} · ${String(quick.dist).replace('.', ',')} km od Ciebie</div>
         <h4>${quick.name.split(' ')[0]} może przyjechać ${quick.nextSlot.toLowerCase()}</h4>
         <div class="small" style="opacity:.85">Mieszkanie 54 m² · ok. ${hrs(qEst.h)} · ${zl(qEst.work)}</div>
@@ -350,7 +428,7 @@ screens.home = () => {
     </div>
     <div class="pad"><div class="hscroll">
       ${featured.map(p => `<div class="feat" role="button" tabindex="0" data-act="openPro" data-a="${p.id}">
-        <div class="cover ${p.tone} pattern-dots">${avatar(p)}<span class="heart">${heart(p.id)}</span></div>
+        <div class="cover ${p.tone}"><span class="cover-illo">${illo(p.services[0])}</span>${avatar(p)}<span class="heart">${heart(p.id)}</span></div>
         <div class="body">
           <div class="row" style="gap:5px"><span class="name">${esc(p.name)}</span>${ic('badge-check', 'verified')}</div>
           <div class="tiny faint mt8" style="margin-top:2px">${stars(p.rating)} (${p.reviews}) · ${p.jobs} zleceń</div>
@@ -413,7 +491,8 @@ screens.search = () => {
         <label class="row" style="gap:4px">Sortuj:<select id="sort" data-model="filters.sort" data-rr="1">
           ${[['rec', 'polecane'], ['price', 'cena'], ['dist', 'odległość'], ['rating', 'ocena']].map(([v, l]) => `<option value="${v}" ${f.sort === v ? 'selected' : ''}>${l}</option>`).join('')}
         </select></label></div>
-      <div class="stack">${list.length ? list.map(proCard).join('') : `<div class="empty">${ic('search-x')}<div style="font-weight:650;color:var(--ink)">Nikt nie pasuje do filtrów</div><div class="small mt8">Poluzuj limit ceny albo wyłącz część filtrów.</div><button class="btn sm line mt16" data-act="clearFilters">Wyczyść filtry</button></div>`}</div>
+      <div class="seg mb12"><button class="${S.searchView !== 'map' ? 'on' : ''}" data-act="searchView" data-a="list">${ic('list', 's')} Lista</button><button class="${S.searchView === 'map' ? 'on' : ''}" data-act="searchView" data-a="map">${ic('map', 's')} Mapa</button></div>
+      ${S.searchView === 'map' ? mapView(list) : `<div class="stack">${list.length ? list.map(proCard).join('') : `<div class="empty">${ic('search-x')}<div style="font-weight:650;color:var(--ink)">Nikt nie pasuje do filtrów</div><div class="small mt8">Poluzuj limit ceny albo wyłącz część filtrów.</div><button class="btn sm line mt16" data-act="clearFilters">Wyczyść filtry</button></div>`}</div>`}
       <div class="sp"></div>
     </div></div>`;
 };
@@ -431,7 +510,7 @@ screens.provider = ({ id }) => {
   });
   return `<div class="scroll">
     <div class="phead">
-      <div class="pcover ${p.tone} pattern-dots"><div class="topbtns">${backBtn()}<div class="r"><button class="iconbtn" data-act="share" aria-label="Udostępnij">${ic('share', 's')}</button>${heart(p.id).replace('heartbtn', 'heartbtn iconbtn')}</div></div></div>
+      <div class="pcover ${p.tone}"><span class="cover-illo">${illo(p.services[0])}</span><div class="topbtns">${backBtn()}<div class="r"><button class="iconbtn" data-act="share" aria-label="Udostępnij">${ic('share', 's')}</button>${heart(p.id).replace('heartbtn', 'heartbtn iconbtn')}</div></div></div>
       ${avatar(p, 'lg')}
       <h1>${esc(p.name)} ${p.verified ? ic('badge-check', 'verified') : ''}</h1>
       <div class="small muted">${p.kind} · ${p.area} · na Lśni od ${p.since}</div>
@@ -443,6 +522,13 @@ screens.provider = ({ id }) => {
         <div><b>${p.response}</b><span>odpowiedź</span></div>
       </div>
       <p class="muted" style="margin:16px 0 0;font-size:14px">${esc(p.bio)}</p>
+      <div class="section-h"><h3>Przed i po</h3><span class="tiny faint">${p.area}, ${p.reviewsList[0].when}</span></div>
+      <div class="ba hint" id="ba">
+        <div class="ba-after">${kitchen(false)}</div><div class="ba-before">${kitchen(true)}</div>
+        <span class="ba-tag l">Przed</span><span class="ba-tag r">Po</span>
+        <div class="ba-handle"><span>${ic('chevrons-left-right', 's')}</span></div>
+        <input type="range" min="0" max="100" value="50" id="baRange" aria-label="Porównaj przed i po">
+      </div>
       <div class="badges">
         <div class="b ${p.verified ? '' : 'off'}">${ic('badge-check', 's')}Tożsamość potwierdzona dowodem</div>
         <div class="b ${p.insured ? '' : 'off'}">${ic(p.insured ? 'shield-check' : 'shield-off', 's')}${p.insured ? 'Polisa OC do 100 000 zł' : 'Brak polisy OC'}</div>
@@ -476,6 +562,15 @@ screens.provider = ({ id }) => {
   </div>`;
 };
 
+function mapView(list) {
+  const sel = list.find(p => p.id === S.mapSel) || list[0];
+  return `<div class="map">${mapSVG()}
+    <span class="me-pin" style="left:50%;top:58%"><i></i></span>
+    ${list.map((p, i) => { const [x, y] = PIN_XY[p.id]; return `<button class="pin ${sel && sel.id === p.id ? 'on' : ''}" style="left:${x}%;top:${y}%;animation-delay:${i * 70}ms" data-act="mapSel" data-a="${p.id}" aria-label="${esc(p.name)}"><span class="avatar ${p.tone}">${esc(p.ini)}</span><b>${p.fixed || p.perWindow ? 'od ' + (p.perWindow || p.rate) : p.rate} zł</b></button>`; }).join('')}
+  </div>
+  ${sel ? `<div class="mt12">${proCard(sel)}</div>` : '<div class="empty">Nikt nie pasuje do filtrów</div>'}`;
+}
+
 /* ---------- booking ---------- */
 function newBooking(proId, preset) {
   const p = proById(proId);
@@ -495,11 +590,12 @@ screens.book = () => {
       <h2>${STEP_TITLES[b.step - 1]}</h2><span class="tiny faint">${b.step} z 4</span></div>
     <div class="steps">${[1, 2, 3, 4].map(i => `<i class="${i <= b.step ? 'on' : ''}"></i>`).join('')}</div>
     <div class="scroll"><div class="pad">${body}<div class="sp"></div></div></div>
-    <div class="footer">
+    <div class="footer" ${b.step === 4 ? 'hidden' : ''}>
       <div class="sum"><b class="num" id="estTotal">${zl(b.step === 4 ? e.total : e.work - e.discount)}</b><span id="estSub">ok. ${hrs(e.h)} · ${p.name.split(' ')[0]}${e.disc ? ' · −' + Math.round(e.disc * 100) + '%' : ''}</span></div>
       ${b.step < 4 ? `<button class="btn primary" data-act="bookNext" ${canNext ? '' : 'disabled'}>${b.step === 2 && !b.time ? 'Wybierz godzinę' : 'Dalej'}</button>`
-      : `<button class="btn primary" data-act="pay" id="payBtn" ${blikOk ? '' : 'disabled'}>${ic('lock', 's')}Zapłać</button>`}
-    </div>`;
+      : ''}
+    </div>
+    ${b.step === 4 ? `<div class="footer slidefoot">${swipeBtn('pay', '', `Przesuń, aby zapłacić ${zl(e.total)}`, !blikOk)}</div>` : ''}`;
 };
 
 function bookStep1(b, p, e) {
@@ -693,7 +789,7 @@ screens.rate = ({ id }) => {
     ${avatar(p, 'lg').replace('class="avatar', 'style="margin:8px auto 0" class="avatar')}
     <h1 class="pagetitle" style="font-size:24px;margin:14px 0 2px">Jak oceniasz sprzątanie?</h1>
     <div class="small muted">${esc(p.name)} · ${catById(o.service).name} · ${dayLabel(addDays(o.date))}</div>
-    <div class="starsel">${[1, 2, 3, 4, 5].map(i => `<button class="${i <= r.stars ? 'on' : ''}" data-act="rstar" data-a="${i}" aria-label="${i} gwiazdek">${ic('star')}</button>`).join('')}</div>
+    <div class="starsel">${[1, 2, 3, 4, 5].map(i => `<button style="--i:${i}" class="${i <= r.stars ? 'on' : ''}" data-act="rstar" data-a="${i}" aria-label="${i} gwiazdek">${ic('star')}</button>`).join('')}</div>
     <div class="small faint">${['', 'Słabo', 'Mogło być lepiej', 'W porządku', 'Dobrze', 'Rewelacyjnie'][r.stars]}</div>
     <div class="field" style="text-align:left"><span class="lbl">Co wyszło najlepiej?</span>
       <div class="chips">${tags.map(t => `<button class="chip ${r.tags.includes(t) ? 'on' : ''}" data-act="rtag" data-a="${t}">${t}</button>`).join('')}</div></div>
@@ -703,7 +799,7 @@ screens.rate = ({ id }) => {
       <div class="chips">${[0, 10, 20, 30].map(t => `<button class="chip ${r.tip === t ? 'on' : ''}" data-act="rtip" data-a="${t}">${t ? t + ' zł' : 'Bez napiwku'}</button>`).join('')}</div></div>
     <div class="sp"></div>
   </div></div>
-  <div class="footer"><div class="sum"><b class="num">${zl(o.total + r.tip)}</b><span>zostanie zwolnione</span></div><button class="btn primary" data-act="submitRate" data-a="${o.id}">Zatwierdź i zapłać</button></div>`;
+  <div class="footer slidefoot">${swipeBtn('submitRate', o.id, `Przesuń, aby zwolnić ${zl(o.total + r.tip)}`)}</div>`;
 };
 
 /* ---------- inbox & chat ---------- */
@@ -1192,6 +1288,85 @@ function render() {
   lastKey = key;
   persist();
   syncPitch();
+  afterRender();
+}
+
+/* ================= interakcje dotykowe ================= */
+function afterRender() { initGrime(); initBA(); document.querySelectorAll('#app .slide').forEach(initSlide); initSheetDrag(); }
+
+// szyba: brud na canvasie, ścierany palcem (destination-out)
+function initGrime() {
+  const c = document.getElementById('grime'); if (!c || c.dataset.ready) return; c.dataset.ready = '1';
+  const r = c.getBoundingClientRect(); const w = r.width, h = r.height; if (!w) return;
+  const dpr = Math.min(2, window.devicePixelRatio || 1); c.width = w * dpr; c.height = h * dpr;
+  const g = c.getContext('2d', { willReadFrequently: true }); g.scale(dpr, dpr);
+  const css = getComputedStyle(document.documentElement); const fog = css.getPropertyValue('--fog').trim(); const dirt = css.getPropertyValue('--grime-d').trim();
+  g.fillStyle = fog; g.fillRect(0, 0, w, h);
+  let seed = 7; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  g.globalAlpha = .22; g.fillStyle = dirt;
+  for (let i = 0; i < 46; i++) { const x = rnd() * w, y = rnd() * h, rr = 6 + rnd() * 30; const gr = g.createRadialGradient(x, y, 0, x, y, rr); gr.addColorStop(0, dirt); gr.addColorStop(1, 'transparent'); g.fillStyle = gr; g.beginPath(); g.arc(x, y, rr, 0, 7); g.fill(); }
+  g.globalAlpha = .18; g.strokeStyle = dirt; g.lineCap = 'round';
+  for (let i = 0; i < 6; i++) { const x = rnd() * w; g.lineWidth = 1 + rnd() * 1.5; g.beginPath(); g.moveTo(x, rnd() * h * .4); g.quadraticCurveTo(x + 6, h * .6, x - 4 + rnd() * 8, h * (.6 + rnd() * .4)); g.stroke(); }
+  g.globalAlpha = 1;
+  // napis „wypisany palcem” w kurzu
+  g.globalCompositeOperation = 'destination-out'; g.save(); g.translate(w * .5, h * .5); g.rotate(-.05);
+  g.font = `800 ${Math.round(w / 8)}px ${css.getPropertyValue('--f-display')}`; g.textAlign = 'center'; g.textBaseline = 'middle';
+  g.fillStyle = '#000'; g.globalAlpha = .9; g.fillText('umyj mnie', 0, -4);
+  g.restore(); g.globalAlpha = 1;
+  let last = null, moves = 0, done = false;
+  const pt = e => { const b = c.getBoundingClientRect(); return [e.clientX - b.left, e.clientY - b.top]; };
+  const wipe = (a, b2) => {
+    g.globalCompositeOperation = 'destination-out';
+    [[46, .25], [30, .9]].forEach(([lw, al]) => { g.strokeStyle = '#000'; g.globalAlpha = al; g.lineWidth = lw; g.lineCap = 'round'; g.beginPath(); g.moveTo(a[0], a[1]); g.lineTo(b2[0], b2[1]); g.stroke(); });
+    g.globalAlpha = 1;
+  };
+  const check = () => {
+    const d = g.getImageData(0, 0, c.width, c.height).data; let clear = 0, n = 0;
+    for (let i = 3; i < d.length; i += 4 * 24) { n++; if (d[i] < 90) clear++; }
+    if (clear / n > .52 && !done) {
+      done = true; buzz([10, 40, 18]); c.classList.add('gone'); document.getElementById('glass').classList.add('clean', 'shine');
+      setTimeout(() => { S.wiped = true; persist(); toast('Lśni! Kod SZYBA20 jest Twój', 'sparkles'); render(); }, 700);
+    }
+  };
+  c.addEventListener('pointerdown', e => { last = pt(e); c.setPointerCapture(e.pointerId); c.parentElement.classList.add('wiping'); wipe(last, [last[0] + .1, last[1]]); });
+  c.addEventListener('pointermove', e => { if (!last) return; const p2 = pt(e); wipe(last, p2); last = p2; if (++moves % 8 === 0) check(); });
+  const up = () => { if (last) check(); last = null; };
+  c.addEventListener('pointerup', up); c.addEventListener('pointercancel', up);
+}
+
+// suwak przed/po
+function initBA() {
+  const ba = document.getElementById('ba'); if (!ba || ba.dataset.ready) return; ba.dataset.ready = '1';
+  const inp = ba.querySelector('input');
+  inp.addEventListener('input', () => { ba.classList.remove('hint'); ba.style.setProperty('--x', inp.value + '%'); });
+  inp.addEventListener('pointerdown', () => ba.classList.remove('hint'));
+}
+
+// „ściągaczka”: przeciągnij, żeby potwierdzić
+function initSlide(sl) {
+  if (sl.dataset.ready) return; sl.dataset.ready = '1';
+  const knob = sl.querySelector('.slide-knob'); const fill = sl.querySelector('.slide-fill'); const label = sl.querySelector('.slide-label');
+  let x0 = null, dx = 0;
+  const max = () => sl.clientWidth - knob.offsetWidth - 8;
+  const set = v => { knob.style.transform = `translateX(${v}px)`; fill.style.width = (v + knob.offsetWidth + 4) + 'px'; label.style.opacity = Math.max(0, 1 - v / (max() * .6)); };
+  const fire = () => { sl.classList.add('done'); set(max()); buzz([8, 30, 14]); const fn = A[sl.dataset.done]; setTimeout(() => fn && fn(sl.dataset.a), 160); };
+  knob.addEventListener('pointerdown', e => { if (sl.classList.contains('off') || sl.classList.contains('done')) { sl.classList.remove('nudge'); void sl.offsetWidth; sl.classList.add('nudge'); return; } x0 = e.clientX; knob.setPointerCapture(e.pointerId); sl.classList.add('drag'); });
+  knob.addEventListener('pointermove', e => { if (x0 === null) return; dx = Math.max(0, Math.min(max(), e.clientX - x0)); set(dx); });
+  const up = () => { if (x0 === null) return; x0 = null; sl.classList.remove('drag'); if (dx > max() * .82) fire(); else { dx = 0; set(0); if (!sl.classList.contains('off')) { sl.classList.remove('nudge'); void sl.offsetWidth; sl.classList.add('nudge'); } } };
+  knob.addEventListener('pointerup', up); knob.addEventListener('pointercancel', up);
+  knob.addEventListener('keydown', e => { if ((e.key === 'Enter' || e.key === ' ') && !sl.classList.contains('off')) { e.preventDefault(); fire(); } });
+}
+
+// arkusz: przeciągnij w dół, żeby zamknąć
+function initSheetDrag() {
+  const sh = document.querySelector('#app .sheet'); if (!sh || sh.dataset.ready) return; sh.dataset.ready = '1';
+  const handle = sh.querySelector('.grab'); const head = sh.querySelector('.sh-h'); let y0 = null, dy = 0;
+  [handle, head].forEach(el => {
+    el.addEventListener('pointerdown', e => { if (e.target.closest('button')) return; y0 = e.clientY; el.setPointerCapture(e.pointerId); sh.style.transition = 'none'; });
+    el.addEventListener('pointermove', e => { if (y0 === null) return; dy = Math.max(0, e.clientY - y0); sh.style.transform = `translateY(${dy}px)`; });
+    const up = () => { if (y0 === null) return; y0 = null; sh.style.transition = 'transform .25s cubic-bezier(.2,.8,.2,1)'; if (dy > 90) { sh.style.transform = 'translateY(110%)'; setTimeout(() => A.closeSheet(), 200); } else sh.style.transform = ''; dy = 0; };
+    el.addEventListener('pointerup', up); el.addEventListener('pointercancel', up);
+  });
 }
 function syncPitch() {
   document.querySelectorAll('.pitch [data-act="setRole"]').forEach(b => { b.className = 'btn sm ' + (b.dataset.a === S.role ? 'dark' : 'line'); });
@@ -1206,8 +1381,8 @@ const A = {
   share: () => toast('Link do profilu skopiowany', 'link'),
   fav(id) {
     const i = S.favs.indexOf(id);
-    if (i >= 0) { S.favs.splice(i, 1); toast('Usunięto z ulubionych', 'heart-off'); } else { S.favs.push(id); toast('Dodano do ulubionych', 'heart'); }
-    render();
+    if (i >= 0) { S.favs.splice(i, 1); toast('Usunięto z ulubionych', 'heart-off'); } else { S.favs.push(id); popHeart = id; buzz(12); toast('Dodano do ulubionych', 'heart'); }
+    render(); popHeart = null;
   },
   openPro: id => go('provider', { id }),
   openCat(id) { S.filters.cat = id; S.filters.q = ''; go('search'); },
@@ -1232,8 +1407,8 @@ const A = {
   bookNext() { S.booking.step++; scrollMemo = {}; anim = 'enter'; render(); },
   bookPrev() { S.booking.step--; anim = 'fade'; render(); },
   pay() {
-    const btn = document.getElementById('payBtn'); if (!btn) return;
-    btn.disabled = true; btn.innerHTML = 'Potwierdź w aplikacji banku…';
+    const sl = document.getElementById('slide-pay'); if (!sl) return;
+    sl.classList.add('busy'); sl.querySelector('.slide-label').textContent = 'Potwierdź w aplikacji banku…';
     setTimeout(() => {
       const b = S.booking; const p = proById(b.pro); const e = estimate(b, p);
       const o = { id: 'o' + Date.now(), pro: b.pro, service: b.service, date: b.day, time: b.time, h: e.h, m2: b.m2, total: Math.round(e.total * 100) / 100, freq: b.freq, status: 'pending', extras: b.extras.slice(), addr: b.addr === 'home' ? 'ul. Puławska 112/14' : 'ul. Odyńca 27/3', pay: b.pay === 'blik' ? 'BLIK' : b.pay === 'card' ? 'Karta' : 'Faktura' };
@@ -1290,6 +1465,12 @@ const A = {
   publish() { S.pro.listing.published = true; toast('Ogłoszenie zapisane i widoczne dla klientów', 'megaphone'); render(); },
   previewPro() { go('selfpreview'); },
 
+  searchView(v) { S.searchView = v; render(); },
+  mapSel(id) { S.mapSel = id; buzz(8); render(); },
+  copyCode() {
+    const done = () => toast('Skopiowano kod SZYBA20', 'copy');
+    try { navigator.clipboard.writeText('SZYBA20').then(done, done); } catch (e) { done(); }
+  },
   newPost() { S.draft = newDraft(S.filters.cat); go('post'); },
   dset(k, v) { S.draft[k] = k === 'day' ? Number(v) : v; render(); },
   dphotoDel(i) { S.draft.photos.splice(Number(i), 1); render(); },
@@ -1360,7 +1541,7 @@ function liveUpdate(kind) {
     const v = document.getElementById('m2val'); if (v) v.innerHTML = `${b.m2}<small>m²</small>`;
     const t = document.getElementById('estTotal'); if (t) t.textContent = zl(b.step === 4 ? e.total : e.work - e.discount);
     const s = document.getElementById('estSub'); if (s) s.textContent = `ok. ${hrs(e.h)} · ${p.name.split(' ')[0]}${e.disc ? ' · −' + Math.round(e.disc * 100) + '%' : ''}`;
-    const pb = document.getElementById('payBtn'); if (pb && kind === 'blik') pb.disabled = !/^\d{6}$/.test(b.blik);
+    const pb = document.getElementById('slide-pay'); if (pb && kind === 'blik') pb.classList.toggle('off', !/^\d{6}$/.test(b.blik));
     const note = document.querySelector('.note b'); if (note && b.step === 1) note.textContent = hrs(e.h);
   }
   if (kind === 'pm2') { const v = document.getElementById('pm2val'); if (v) v.innerHTML = `${S.draft.m2}<small>m²</small>`; }
