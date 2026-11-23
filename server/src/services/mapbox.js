@@ -100,9 +100,7 @@ function createMapbox(db) {
 // Zasięg na podstawie prawdziwej odległości drogowej (z Matrix) albo przybliżenia.
 function reachWith(provider, point, road) {
   if (!road) return geo.reach(provider, point);
-  const r = provider.radius_km;
-  const status = road.km <= r ? 'in' : (provider.fee_gr > 0 && road.km <= r + 5) ? 'fee' : 'out';
-  return { km: road.km, eta: road.min, reach: status, feeGr: status === 'fee' ? provider.fee_gr : 0, source: 'mapbox' };
+  return geo.reachFrom(provider, road.km, road.min, 'mapbox');
 }
 
 module.exports = { createMapbox, reachWith };

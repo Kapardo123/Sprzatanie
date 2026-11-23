@@ -45,9 +45,8 @@ module.exports = function bookingRoutes(r, { db, domain, notifier, mapbox }) {
     if (rc.reach === 'out') fail(422, 'out_of_reach', `${p.display_name} nie dojeżdża pod ten adres`);
     const at = `${v.date(body.date, 'data')}T${v.time(body.time, 'godzina')}`;
     if (!isSlotFree(p, at)) conflict('Ten termin jest już zajęty albo niedostępny. Wybierz inny.', 'slot_taken');
-    const q = quote(p, scope, rc.reach === 'fee' ? p.fee_gr : 0);
-    const district = geo.areaAt(addr.lat, addr.lng).key;
-    const boost = domain.activeBoosts().find(b => b.provider_id === p.user_id && b.district === district);
+    const q = quote(p, scope, rc.feeGr);
+    const boost = domain.activeBoosts().find(b => b.provider_id === p.user_id);
     const invite = db.get('SELECT * FROM invites WHERE provider_id = ? AND client_id = ?', p.user_id, user.id);
     const id = newId('bkg_'); const t = nowIso();
     db.tx(() => {
@@ -61,7 +60,7 @@ module.exports = function bookingRoutes(r, { db, domain, notifier, mapbox }) {
         'pending', boost ? 1 : 0, invite ? p.user_id : null, t, t);
       if (boost) db.run('UPDATE boosts SET requests = requests + 1 WHERE id = ?', boost.id);
     });
-    notify(p.user_id, { kind: 'booking_request', title: 'Nowe zapytanie o sprzątanie', body: `${SERVICE_NAMES[scope.service]}, ${when(at)} · ${district} · ${zl(q.totalGr)}`, link: `booking:${id}`, sms: true });
+    notify(p.user_id, { kind: 'booking_request', title: 'Nowe zapytanie o sprzątanie', body: `${SERVICE_NAMES[scope.service]}, ${when(at)} · ${String(rc.km).replace(".", ",")} km od bazy · ${zl(q.totalGr)}`, link: `booking:${id}`, sms: true });
     return { __status: 201, data: domain.bookingView(getBooking(id), user, now) };
   });
 

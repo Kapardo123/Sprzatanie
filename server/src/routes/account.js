@@ -54,7 +54,7 @@ module.exports = function accountRoutes(r, { db, sms, domain, mapbox }) {
     return {
       id: u.id, phone: u.phone, name: u.name, role: u.role, createdAt: u.created_at, noshowCount: u.noshow_count,
       prefs: { push: !!u.pref_push, sms: !!u.pref_sms, email: !!u.pref_email },
-      addresses: db.all('SELECT id, label, street, lat, lng, note FROM addresses WHERE user_id = ? ORDER BY created_at', id).map(a => { const ar = geo.areaAt(a.lat, a.lng); return Object.assign(a, { district: ar.name, areaKey: ar.key, area: geo.areaLabel(ar), city: ar.city }); }),
+      addresses: db.all('SELECT id, label, street, lat, lng, note, city FROM addresses WHERE user_id = ? ORDER BY created_at', id).map(a => Object.assign(a, { city: a.city || geo.placeName(a.lat, a.lng).name })),
       provider: p ? { id: p.slug, name: p.display_name, idStatus: p.id_status, insuranceStatus: p.insurance_status, creditZl: domain.creditGr(id) / 100, inviteCode: p.invite_code } : null
     };
   }
@@ -93,10 +93,12 @@ module.exports = function accountRoutes(r, { db, sms, domain, mapbox }) {
     const lat = v.num(body.lat, 'szerokość', { min: 49, max: 55 }), lng = v.num(body.lng, 'długość', { min: 14, max: 25 });
     if (!geo.inPoland(lat, lng)) fail(422, 'outside_area', 'Działamy na terenie Polski. Ten punkt jest poza granicami kraju.');
     const id = newId('adr_'); const rev = geo.reverse(lat, lng);
-    if (!body.street && mapbox && mapbox.enabled()) { const mb = await mapbox.reverse(lat, lng); if (mb && mb.street) rev.street = mb.street; }
-    db.run('INSERT INTO addresses (id, user_id, label, street, lat, lng, note, created_at) VALUES (?,?,?,?,?,?,?,?)', id, user.id,
-      v.str(body.label, 'nazwa', { max: 40, optional: true }) || 'Adres', v.str(body.street, 'ulica', { max: 120, optional: true }) || rev.street, lat, lng, v.str(body.note, 'uwagi', { max: 200, optional: true }), nowIso());
-    return Object.assign(db.get('SELECT id, label, street, lat, lng, note FROM addresses WHERE id = ?', id), { district: rev.district, areaKey: rev.area.key, area: geo.areaLabel(rev.area), city: rev.area.city });
+    // nazwa ulicy i miejscowości z Mapbox (gdy jest), inaczej najbliższa miejscowość
+    if (mapbox && mapbox.enabled()) { const mb = await mapbox.reverse(lat, lng); if (mb) { if (mb.street) rev.street = mb.street; if (mb.city) rev.city = mb.city; } }
+    db.run('INSERT INTO addresses (id, user_id, label, street, lat, lng, note, city, created_at) VALUES (?,?,?,?,?,?,?,?,?)', id, user.id,
+      v.str(body.label, 'nazwa', { max: 40, optional: true }) || 'Adres', v.str(body.street, 'ulica', { max: 120, optional: true }) || rev.street, lat, lng, v.str(body.note, 'uwagi', { max: 200, optional: true }),
+      v.str(body.city, 'miejscowość', { max: 80, optional: true }) || rev.city, nowIso());
+    return db.get('SELECT id, label, street, lat, lng, note, city FROM addresses WHERE id = ?', id);
   });
   r.del('/api/addresses/:id', { auth: 'user' }, ({ user, params }) => {
     const a = db.get('SELECT id FROM addresses WHERE id = ? AND user_id = ?', params.id, user.id) || notFound('Nie ma takiego adresu');
@@ -107,8 +109,7 @@ module.exports = function accountRoutes(r, { db, sms, domain, mapbox }) {
   r.post('/api/waitlist', ({ body, user, req }) => {
     const lat = v.num(body.lat, 'szerokość', { min: 49, max: 55 }), lng = v.num(body.lng, 'długość', { min: 14, max: 25 });
     const phone = body.phone ? v.phone(body.phone) : '';
-    const a = geo.areaAt(lat, lng);
-    const area = geo.inPoland(lat, lng) ? geo.areaLabel(a) : `poza Polską (${lat.toFixed(2)}, ${lng.toFixed(2)})`;
+    const area = geo.inPoland(lat, lng) ? geo.placeName(lat, lng).name : `poza Polską (${lat.toFixed(2)}, ${lng.toFixed(2)})`;
     db.run('INSERT INTO waitlist (id, user_id, phone, lat, lng, area, created_at) VALUES (?,?,?,?,?,?,?)', newId('wl_'), user ? user.id : null, phone, lat, lng, area, nowIso());
     return { ok: true, area };
   });

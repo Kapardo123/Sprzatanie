@@ -7,6 +7,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const { newId, nowIso, localNow, addDays, addHours } = require('./util');
+const geo = require('./geo');
 
 const PROS = [
   { slug: 'marta', name: 'Marta Kowalczyk', ini: 'MK', tone: 't-yellow', kind: 'Osoba prywatna', lat: 52.1980, lng: 21.0220, r: 6, fee: 15, rate: 45, minH: 3, since: 2019, rs: 1054, rc: 212, jobs: 540, resp: 8, svc: ['dom', 'generalne', 'okna', 'najem'], f: { insured: 1, eco: 1, sup: 1, pets: 1, inv: 0 }, sup_: 1, langs: ['PL', 'EN'], tag: 'Mieszkania i domy, ekologiczne środki, własny odkurzacz z filtrem HEPA', bio: 'Sprzątam zawodowo od 2019 roku. Pracuję według stałej checklisty, więc wiesz, co będzie zrobione. Przynoszę własny sprzęt i środki z certyfikatem Ecolabel. Lubię zwierzęta.' },
@@ -30,8 +31,8 @@ const PROS = [
   { slug: 'torun', name: 'Pierniczek Sprząta', ini: 'PS', tone: 't-yellow', kind: 'Jednoosobowa firma', lat: 53.0100, lng: 18.6000, r: 10, fee: 15, rate: 44, minH: 3, since: 2019, rs: 450, rc: 95, jobs: 230, resp: 12, svc: ['dom', 'okna'], f: { insured: 1, eco: 0, sup: 1, pets: 1, inv: 1 }, langs: ['PL'], tag: 'Toruń i okolice. Mieszkania i okna', bio: 'Toruń, Lubicz i Wielka Nieszawka.' },
   { slug: 'blysk', name: 'Błysk Serwis', ini: 'BS', tone: 't-yellow', kind: 'Firma', lat: 52.2900, lng: 21.0600, r: 13, fee: 25, rate: 55, minH: 4, since: 2015, rs: 1253, rc: 264, jobs: 700, resp: 25, svc: ['remont', 'biuro', 'okna'], f: { insured: 1, eco: 0, sup: 1, pets: 1, inv: 1 }, langs: ['PL'], tag: 'Praga, Targówek, Białołęka. Remonty, biura, witryny', bio: 'Sprzątamy po remontach i budowach oraz obsługujemy biura i lokale usługowe.' }
 ];
-// Wyróżnienia są w miastach (klucz = nazwa miasta jak w geo-pl.js).
-const PROMO = { eko: ['Warszawa', 'Piaseczno'], kinga: ['Warszawa'], kasia: ['Warszawa', 'Łomianki'], 'krakowska-iskra': ['Kraków'], baltyk: ['Gdańsk', 'Sopot'], warta: ['Poznań'] };
+// Wykonawcy z aktywnym wyróżnieniem (obejmuje cały ich zasięg dojazdu).
+const PROMO = ['eko', 'kinga', 'kasia', 'krakowska-iskra', 'baltyk', 'warta'];
 const SUPER = ['marta', 'czysto', 'eko', 'kasia'];
 
 function seed(db, { now = localNow() } = {}) {
@@ -40,9 +41,9 @@ function seed(db, { now = localNow() } = {}) {
   const user = (key, phone, name, role, simulated = 0) => { const id = newId('usr_'); ids[key] = id; db.run('INSERT INTO users (id, phone, name, role, simulated, created_at) VALUES (?,?,?,?,?,?)', id, phone, name, role, simulated, t); return id; };
   const ledger = (pid, gr, reason, at = t) => db.run('INSERT INTO credit_ledger (id, provider_id, amount_gr, reason, created_at) VALUES (?,?,?,?,?)', newId('crd_'), pid, gr, reason, at);
   const provider = (uid, x) => {
-    db.run(`INSERT INTO providers (user_id, slug, display_name, initials, tone, kind, tagline, bio, services, langs, rate_gr, min_hours, fixed_price, per_window_gr, base_lat, base_lng, radius_km, fee_gr, supplies, eco, pets, invoice, insured,
-      id_status, insurance_status, rating_sum, rating_count, jobs_done, response_min, since, super, invite_code, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-      uid, x.slug, x.name, x.ini, x.tone, x.kind, x.tag, x.bio, JSON.stringify(x.svc), JSON.stringify(x.langs || ['PL']), x.rate * 100, x.minH, x.fixed || 0, (x.perWindow || 0) * 100, x.lat, x.lng, x.r, x.fee * 100,
+    db.run(`INSERT INTO providers (user_id, slug, display_name, initials, tone, kind, tagline, bio, services, langs, rate_gr, min_hours, fixed_price, per_window_gr, base_lat, base_lng, base_label, radius_km, km_rate_gr, free_km, supplies, eco, pets, invoice, insured,
+      id_status, insurance_status, rating_sum, rating_count, jobs_done, response_min, since, super, invite_code, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+      uid, x.slug, x.name, x.ini, x.tone, x.kind, x.tag, x.bio, JSON.stringify(x.svc), JSON.stringify(x.langs || ['PL']), x.rate * 100, x.minH, x.fixed || 0, (x.perWindow || 0) * 100, x.lat, x.lng, x.label || geo.placeName(x.lat, x.lng).name, x.r + (x.fee ? 5 : 0), x.fee ? 200 : 0, x.fee ? Math.round(x.r / 2) : 0,
       x.f.sup, x.f.eco, x.f.pets, x.f.inv, x.f.insured, 'verified', x.f.insured ? 'verified' : 'none', x.rs, x.rc, x.jobs, x.resp, x.since, SUPER.includes(x.slug) ? 1 : 0, x.slug, t);
     for (let d = 1; d <= 6; d++) if (d < 6 || x.rc > 150) db.run('INSERT INTO availability (provider_id, weekday, start_hour, end_hour) VALUES (?,?,8,18)', uid, d);
   };
@@ -121,8 +122,17 @@ function seed(db, { now = localNow() } = {}) {
       db.run('INSERT INTO boosts (id, provider_id, district, days, price_gr, paid_credit_gr, guaranteed_views, views, opens, requests, starts_at, ends_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)', id, pid, district, days, price, price, guaranteed, views, Math.round(views / 7), Math.round(views / 30), starts, addDays(starts, days));
       return id;
     };
-    boost(ola, 'Warszawa', 3, 3300, 61, 122, -1); ledger(ola, -3300, 'Wyróżnienie: Warszawa (3 dni)');
-    Object.entries(PROMO).forEach(([slug, list]) => list.forEach(d => boost(ids['p_' + slug], d, 14, 5000, 40, 200, -3)));
+    boost(ola, '13 km od: Warszawa', 3, 3300, 61, 122, -1); ledger(ola, -3300, 'Wyróżnienie: 13 km od: Warszawa (3 dni)');
+    PROMO.forEach(slug => boost(ids['p_' + slug], 'zasięg dojazdu', 14, 5000, 40, 200, -3));
+    // wyszukiwania z ostatnich 30 dni (mapa cieplna „gdzie szukają klienci”): więcej tam, gdzie więcej mieszkańców
+    let seedRnd = 7; const rnd = () => (seedRnd = (seedRnd * 16807) % 2147483647) / 2147483647;
+    require('./geo-pl').CITIES.forEach(([, lat, lng, pop]) => {
+      const n = Math.round(Math.sqrt(pop) * 0.9); const spread = 0.01 + Math.sqrt(pop) * 0.001;
+      for (let i = 0; i < n; i++) {
+        const a = rnd() * Math.PI * 2, r = spread * Math.sqrt(rnd());
+        db.run("INSERT INTO search_log (district, lat, lng, created_at) VALUES ('', ?, ?, ?)", Math.round((lat + r * Math.sin(a) * 0.62) * 1e3) / 1e3, Math.round((lng + r * Math.cos(a)) * 1e3) / 1e3, new Date(Date.now() - rnd() * 29 * 86400e3).toISOString());
+      }
+    });
   });
   return true;
 }

@@ -34,43 +34,43 @@ module.exports = function catalogRoutes(r, { db, domain, mapbox }) {
       js: localGl ? '/vendor/mapbox-gl.js' : 'https://api.mapbox.com/mapbox-gl-js/v3.34.2/mapbox-gl.js',
       css: localGl ? '/vendor/mapbox-gl.css' : 'https://api.mapbox.com/mapbox-gl-js/v3.34.2/mapbox-gl.css' } : null
   }));
-  r.get('/api/meta', () => ({ services: SERVICES.map(id => ({ id, name: SERVICE_NAMES[id] })), extras: Object.entries(EXTRAS).map(([id, h]) => ({ id, hours: h })), cities: geo.CITY_LIST.map(c => c.name) }));
+  r.get('/api/meta', () => ({ services: SERVICES.map(id => ({ id, name: SERVICE_NAMES[id] })), extras: Object.entries(EXTRAS).map(([id, h]) => ({ id, hours: h })) }));
 
-  // ---------- geografia ----------
-  const withArea = x => { const a = geo.areaAt(x.lat, x.lng); return Object.assign(x, { district: x.city || a.city, areaKey: a.key, area: domain.areaView(a), inArea: x.inArea !== undefined ? x.inArea : geo.inPoland(x.lat, x.lng) }); };
-  // Wyszukiwanie prawdziwych adresów w całej Polsce (Mapbox), bez Mapboxa: miasta i lokalny słownik ulic.
+  // ---------- geografia (bez dzielnic i miast: tylko punkty, odległości i zasięgi) ----------
+  const withPoland = x => Object.assign(x, { inArea: x.inArea !== undefined ? x.inArea : geo.inPoland(x.lat, x.lng) });
+  // Wyszukiwanie prawdziwych adresów i miejscowości w całej Polsce (Mapbox), bez Mapboxa: miejscowości i lokalny słownik ulic.
   // near=lat,lng ustawia wyniki najbliżej użytkownika (np. „Długa” w Gdańsku, gdy klient jest w Gdańsku).
   r.get('/api/geo/search', async ({ query }) => {
     const q = v.str(query.q, 'adres', { min: 2, max: 120 });
     const near = String(query.near || '').split(',').map(Number);
     const prox = near.length === 2 && near.every(Number.isFinite) && geo.inPoland(near[0], near[1]) ? { lat: near[0], lng: near[1] } : null;
     const found = await mapbox.search(q, prox);
-    return { source: found ? 'mapbox' : 'local', results: (found || geo.searchLocal(q)).filter(x => x.street).map(withArea) };
+    return { source: found ? 'mapbox' : 'local', results: (found || geo.searchLocal(q)).filter(x => x.street).map(withPoland) };
   });
+  // Adres pod punktem i to, co dzieje się wokół: ilu wykonawców tu dojeżdża, średnia stawka, wolne terminy dziś.
   r.get('/api/geo/reverse', async ({ query }) => {
     const lat = v.num(query.lat, 'lat', { min: 49, max: 55 }), lng = v.num(query.lng, 'lng', { min: 14, max: 25 });
     const found = await mapbox.reverse(lat, lng); const local = geo.reverse(lat, lng);
-    const out = found ? Object.assign({}, local, { street: found.street, full: found.full, city: found.city, postcode: found.postcode, inArea: found.inArea, source: 'mapbox' }) : Object.assign(local, { full: `${geo.areaLabel(local.area)}, woj. ${local.area.region}`, source: 'local' });
-    const area = local.area; out.areaKey = area.key; out.area = domain.areaView(area);
-    if (area.kind !== 'outskirts') out.stats = areaStats(area);
+    const out = found ? Object.assign({}, local, { street: found.street, full: found.full, city: found.city || local.city, postcode: found.postcode, inArea: found.inArea, source: 'mapbox' }) : Object.assign(local, { source: 'local' });
+    out.stats = pointStats({ lat, lng });
     return out;
   });
-  // Miasta w promieniu km od punktu: kształty (GeoJSON) i statystyki.
-  r.get('/api/geo/areas', ({ query }) => {
-    const lat = v.num(query.lat ?? 52.2297, 'lat', { min: 49, max: 55 }), lng = v.num(query.lng ?? 21.0122, 'lng', { min: 14, max: 25 });
-    const km = v.num(query.km ?? 25, 'promień', { min: 1, max: 80 });
-    const here = geo.areaAt(lat, lng);
-    const list = geo.areasNear(lat, lng, km).sort((a, b) => geo.haversineKm({ lat, lng }, a) - geo.haversineKm({ lat, lng }, b)).slice(0, 40);
-    return { here: domain.areaView(here), areas: list.map(a => Object.assign(domain.areaView(a), { center: [a.lat, a.lng], population: a.pop * 1000 }, areaStats(a))),
-      shapes: { type: 'FeatureCollection', features: list.map(geo.areaShape) } };
-  });
-  function areaStats(a) {
+  function pointStats(pt) {
     const today = localNow().slice(0, 10);
-    const sv = db.all('SELECT * FROM providers WHERE published = 1').filter(p => geo.servesArea(p, a)); const hourly = sv.filter(p => !p.fixed_price);
-    return { demand: domain.demand(a.key), providers: sv.length,
-      avgRate: hourly.length ? Math.round(hourly.reduce((s, p) => s + p.rate_gr, 0) / hourly.length / 100) : 0,
+    const sv = db.all('SELECT * FROM providers WHERE published = 1').filter(p => geo.reach(p, pt).reach === 'in'); const hourly = sv.filter(p => !p.fixed_price);
+    return { providers: sv.length, avgRate: hourly.length ? Math.round(hourly.reduce((s, p) => s + p.rate_gr, 0) / hourly.length / 100) : 0,
       freeToday: sv.reduce((s, p) => s + domain.slotsFor(p, today).length, 0) };
   }
+  // Gdzie szukają klienci: wyszukiwania z ostatnich 30 dni w promieniu km, zgrupowane w siatkę ok. 1 km (mapa cieplna).
+  // Bez danych osobowych: zapisujemy tylko zaokrąglony punkt i czas wyszukiwania.
+  r.get('/api/geo/demand', ({ query }) => {
+    const lat = v.num(query.lat, 'lat', { min: 49, max: 55 }), lng = v.num(query.lng, 'lng', { min: 14, max: 25 }), km = v.num(query.km ?? 25, 'promień', { min: 1, max: 80 });
+    const since = new Date(Date.now() - 30 * 86400e3).toISOString(); const c = { lat, lng }; const cells = new Map();
+    db.all('SELECT lat, lng FROM search_log WHERE created_at > ? AND lat IS NOT NULL', since).filter(x => geo.haversineKm(c, x) <= km).forEach(x => {
+      const k = `${Math.round(x.lat * 100) / 100},${Math.round(x.lng * 100) / 100}`; cells.set(k, (cells.get(k) || 0) + 1);
+    });
+    return { demandPerDay: domain.demandIn(lat, lng, km * geo.ROAD), points: [...cells].map(([k, n]) => { const [a, b] = k.split(',').map(Number); return { lat: a, lng: b, n }; }) };
+  });
   // Trasa między dwoma punktami (dla zalogowanych, żeby nikt nie zużywał limitów Mapboxa z zewnątrz).
   r.get('/api/geo/route', { auth: 'user' }, async ({ query }) => {
     const [a, b] = ['from', 'to'].map(k => String(query[k] || '').split(',').map(Number));
@@ -90,7 +90,7 @@ module.exports = function catalogRoutes(r, { db, domain, mapbox }) {
   r.get('/api/providers/:id', async ({ params, query, user }) => {
     const p = domain.mustProvider(params.id); if (!p.published) notFound('Ten profil nie jest już dostępny');
     const point = pointFrom(query, user);
-    if (query.src === 'promo') { const b = domain.activeBoosts().find(x => x.provider_id === p.user_id && x.district === geo.areaAt(point.lat, point.lng).key); if (b) db.run('UPDATE boosts SET opens = opens + 1 WHERE id = ?', b.id); }
+    if (query.src === 'promo') { const b = domain.activeBoosts().find(x => x.provider_id === p.user_id); if (b) db.run('UPDATE boosts SET opens = opens + 1 WHERE id = ?', b.id); }
     const roads = await roadsTo(point, [p]);
     return domain.providerView(p, point, { full: true, road: roads && roads.get(p.user_id) });
   });
@@ -103,7 +103,7 @@ module.exports = function catalogRoutes(r, { db, domain, mapbox }) {
     const p = domain.mustProvider(v.str(body.provider, 'wykonawca'));
     const point = pointFrom(body, user); const roads = await roadsTo(point, [p]);
     const rc = reachWith(p, point, roads && roads.get(p.user_id));
-    const q = quote(p, normalizeScope(body, p), rc.reach === 'fee' ? p.fee_gr : 0);
+    const q = quote(p, normalizeScope(body, p), rc.feeGr);
     return { reach: rc.reach, km: rc.km, eta: rc.eta, hours: q.hours, workZl: q.workGr / 100, discountZl: q.discountGr / 100, travelZl: q.travelGr / 100, totalZl: q.totalGr / 100 };
   });
 

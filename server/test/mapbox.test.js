@@ -57,8 +57,8 @@ test('wyszukiwanie adresów przez Mapbox, z pamięcią podręczną', async () =>
   const before = calls.filter(c => c.includes('forward')).length;
   const r = await api('GET', '/api/geo/search?q=Racławicka 99');
   assert.equal(r.data.source, 'mapbox');
-  assert.equal(r.data.results[0].street, 'Racławicka 99'); assert.equal(r.data.results[0].district, 'Warszawa'); assert.equal(r.data.results[0].inArea, true);
-  assert.equal(r.data.results[0].city, 'Warszawa'); assert.equal(r.data.results[0].areaKey, 'Warszawa');
+  assert.equal(r.data.results[0].street, 'Racławicka 99'); assert.equal(r.data.results[0].inArea, true);
+  assert.equal(r.data.results[0].city, 'Warszawa');
   assert.equal(r.data.results[1].inArea, false, 'adres poza Polską jest oznaczony');
   // inne miejsce odniesienia = osobne zapytanie (wyniki najbliżej użytkownika)
   await api('GET', '/api/geo/search?q=Racławicka 99&near=50.06,19.94');
@@ -95,11 +95,3 @@ test('trasa dojazdu do rezerwacji i trasa dnia wykonawcy po drogach', async () =
   assert.equal(d.data.source, 'mapbox'); assert.ok(d.data.geometry.length >= 3); assert.ok(d.data.legs.every(l => l.min === 11));
 });
 
-test('kształty miast jako GeoJSON', async () => {
-  const r = (await api('GET', '/api/geo/areas?lat=52.2297&lng=21.0122&km=12')).data.shapes;
-  assert.ok(['Warszawa', 'Pruszków', 'Ząbki'].every(k => r.features.some(f => f.properties.key === k)));
-  assert.ok(r.features.every(f => !f.properties.key.includes('/')), 'bez dzielnic');
-  const mok = r.features.find(f => f.properties.key === 'Warszawa');
-  const ring = mok.geometry.coordinates[0]; assert.deepEqual(ring[0], ring[ring.length - 1]);
-  assert.ok(ring.every(([lng, lat]) => lng > 20.7 && lng < 21.3 && lat > 52.0 && lat < 52.4));
-});

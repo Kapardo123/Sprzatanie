@@ -30,7 +30,7 @@ W trybie deweloperskim wykonawcy z danych startowych sami potwierdzają rezerwac
 |---|---|
 | **Konta** | Logowanie kodem SMS (6 cyfr, ważny 5 minut, najwyżej 5 prób). Limit wysyłki: 3 kody na numer w 10 minut i 20 na adres IP na godzinę. Kody i tokeny w bazie tylko jako skróty SHA-256. Sesja ważna 60 dni. |
 | **RODO** | Eksport danych (`GET /api/me/export`) i usunięcie konta z anonimizacją (`DELETE /api/me`). |
-| **Wyszukiwanie** | Odległość i czas dojazdu od adresu klienta, zasięg wykonawcy i dopłata za dojazd, filtry, sortowanie, najwyżej 2 profile „Promowane” z rotacją. Każde wyszukiwanie zasila statystykę popytu w dzielnicy. |
+| **Wyszukiwanie** | Odległość i czas dojazdu od adresu klienta, zasięg wykonawcy i opłata za dojazd (stawka za km), filtry, sortowanie, najwyżej 2 profile „Promowane” z rotacją. Każde wyszukiwanie zasila statystykę popytu w dzielnicy. |
 | **Rezerwacje** | Cena liczona na serwerze. Kontrola wolnych terminów i godzin pracy. Statusy: zapytanie, potwierdzona, w drodze, w trakcie, zakończona, odwołana, odrzucona, nieobecność. Przełożenie, pominięcie wizyty w serii, automatyczna następna wizyta w stałym sprzątaniu, ewidencja późnych odwołań. |
 | **Prywatność** | Kod do drzwi wykonawca widzi dopiero 2 godziny przed wizytą. Numery maskowane (PIN do bramki telefonicznej). |
 | **Powiadomienia** | W aplikacji, plus SMS dla ważnych zdarzeń (nowe zapytanie, odwołanie, nieobecność, przypomnienie dzień przed). Przypomnienie SMS dostaje też osoba na miejscu. Użytkownik ustawia kanały. |
@@ -39,7 +39,7 @@ W trybie deweloperskim wykonawcy z danych startowych sami potwierdzają rezerwac
 | **Nieobecności** | Wykonawca zgłasza je najwcześniej 15 minut po godzinie wizyty. Po 2 nieobecnościach klient nie może rezerwować. Zespół może zgłoszenie odrzucić. |
 | **Opinie** | Tylko po zakończonej wizycie, jedna na wizytę. Automatyczna moderacja: telefon, e-mail, link albo wulgaryzm kierują opinię do ręcznej moderacji. Wykonawca może raz odpowiedzieć publicznie. |
 | **Weryfikacja** | Wykonawca przesyła dowód z selfie albo polisę OC. Decyzję podejmuje zespół w panelu albo zewnętrzny dostawca przez webhook podpisany HMAC. |
-| **Wyróżnienia** | Cena zależna od popytu w mieście, tylko miasta w zasięgu, opłata z kredytu. Gwarancja wyświetleń: po zakończeniu kredyt wraca proporcjonalnie. Liczymy wyświetlenia, wejścia w profil i zapytania. |
+| **Wyróżnienia** | Cały zasięg dojazdu wykonawcy, cena zależna od popytu w tym kole, opłata z kredytu. Gwarancja wyświetleń: po zakończeniu kredyt wraca proporcjonalnie. Liczymy wyświetlenia, wejścia w profil i zapytania. |
 | **Kredyt i zaproszenia** | 50 zł na start, 20 zł za klienta z linku `/z/<kod>` po jego pierwszej zakończonej wizycie. |
 | **Lista oczekujących** | Zapis spoza obsługiwanego obszaru. Gdy wykonawca zacznie dojeżdżać w okolicę, osoba z listy dostaje powiadomienie. |
 | **Panel zespołu** | `/admin`: przegląd, zgłoszenia ze zdjęciami, nieobecności, weryfikacje z podglądem dokumentów, moderacja opinii, blokowanie kont, lista oczekujących, dziennik działań i wysłane SMS-y. Każda decyzja trafia do dziennika. |
@@ -55,7 +55,7 @@ W trybie deweloperskim wykonawcy z danych startowych sami potwierdzają rezerwac
 | Powiadomienia push | Zapis w aplikacji działa. Kanał push nie jest podpięty. | Po przejściu na aplikację natywną: Firebase Cloud Messaging lub APNs w `src/services/notify.js`. |
 | E-mail | Nie podpięty | Np. Postmark lub Amazon SES w `src/services/notify.js`. |
 | Płatność za wyróżnienia ponad kredyt | API zwraca `402 payment_required` z brakującą kwotą | Podpiąć Przelewy24 albo Stripe i dopisywać wpłatę do `credit_ledger`. |
-| Mapy | Gotowa integracja z Mapbox (opis niżej) | Założyć konto Mapbox i ustawić `MAPBOX_TOKEN`. Opcjonalnie: dokładne granice obszarów (patrz „Cała Polska” niżejn`. |
+| Mapy | Gotowa integracja z Mapbox (opis niżej) | Założyć konto Mapbox i ustawić `MAPBOX_TOKEN`. |
 
 ## Mapy (Mapbox)
 
@@ -64,10 +64,10 @@ Po ustawieniu `MAPBOX_TOKEN` aplikacja online pokazuje prawdziwą mapę Mapbox z
 | Gdzie | Co daje | API Mapbox |
 |---|---|---|
 | Wybór adresu | Podpowiedzi prawdziwych adresów z numerami, adres pod pinezką przy przesuwaniu mapy, zapis z dokładnymi współrzędnymi | Search / Geocoding v6 (forward, reverse) |
-| Wyniki, profil, wycena, rezerwacja | Odległość i czas dojazdu po prawdziwych drogach. Od nich zależy zasięg i dopłata za dojazd. | Matrix (do 24 wykonawców w jednym zapytaniu) |
+| Wyniki, profil, wycena, rezerwacja | Odległość i czas dojazdu po prawdziwych drogach. Od nich zależy zasięg i opłata za dojazd. | Matrix (do 24 wykonawców w jednym zapytaniu) |
 | Śledzenie dojazdu | Trasa po ulicach i auto przesuwające się po niej, czas do przyjazdu | Directions |
 | Trasa dnia wykonawcy | Kolejne wizyty po drogach, kilometry i czasy odcinków | Directions (do 25 punktów) |
-| Mapy w aplikacji | Mapa okolicy z warstwami miast, wyszukiwarka z pinezkami i zasięgiem, „Szukaj w tym obszarze”, obszar pracy, wyróżnienia. Jasny i ciemny styl zależnie od motywu. | Mapbox GL JS v3, style `light-v11` / `dark-v11` |
+| Mapy w aplikacji | Mapa okolicy z wykonawcami i mapą cieplną wyszukiwań, wyszukiwarka z pinezkami i zasięgiem, „Szukaj w tym obszarze”, obszar pracy, wyróżnienia. Jasny i ciemny styl zależnie od motywu. | Mapbox GL JS v3, style `light-v11` / `dark-v11` |
 | Podglądy na ekranie głównym i w ogłoszeniu | Lekki obrazek zamiast pełnej mapy | Static Images |
 
 **Jak to chroni limity i działa bez przerw:**
@@ -82,20 +82,14 @@ Po ustawieniu `MAPBOX_TOKEN` aplikacja online pokazuje prawdziwą mapę Mapbox z
 
 **Adresy w całej Polsce.** Wyszukiwanie obejmuje cały kraj (miasta, ulice, adresy). Wyniki są ustawiane najbliżej aktualnego adresu użytkownika (parametr `near`), więc „Długa 5” wpisana w Gdańsku pokaże najpierw Gdańsk. Adres spoza Polski jest oznaczony i nie da się go zapisać.
 
-## Cała Polska: miasta
+## Cała Polska: baza, zasięg i stawka za km
 
-Do popytu, statystyk i wyróżnień serwer dzieli kraj na **miasta**, bez dzielnic (`src/geo.js`, dane w `src/geo-pl.js`):
+Nie ma podziału na dzielnice ani miasta (`src/geo.js`):
 
-- **miasto**: ok. 115 miast i większych miejscowości, w tym te przy dużych miastach (Pruszków, Ząbki, Sopot, Gdynia), klucz = nazwa, np. `Gdańsk`,
-- **okolice**: punkt poza wszystkimi miastami należy do okolic najbliższego, np. `Olsztyn/okolice`. Taki adres działa normalnie (wyszukiwanie, rezerwacje), tylko nie da się w nim kupić wyróżnienia.
-
-Promień miasta rośnie z liczbą mieszkańców (od 4 km do 15 km dla Warszawy). Punkt należy do miasta, do którego środka ma najbliżej względem jego promienia, więc centrum Pruszkowa to Pruszków, a Ursus to Warszawa. Wykonawca obsługuje miasto, jeśli jego zasięg dojazdu sięga przynajmniej części miasta. Popyt startowy rośnie z pierwiastkiem z liczby mieszkańców (Warszawa ok. 95 wyszukiwań dziennie, miasto 60 tys. ok. 17) i z liczbą wyszukiwań z ostatnich 7 dni.
-
-Granice miast są przybliżone (koło o promieniu miasta). Wystarczają do mapy cieplnej i wyboru miasta do wyróżnienia. Dokładne granice gmin można później wczytać z PRG (Państwowy Rejestr Granic, dane otwarte GUGiK). Nowe miasto dodaje się jednym wierszem w `src/geo-pl.js`.
-
-**Koszty.** Mapbox ma darmowe limity miesięczne dla każdego z tych API (szczegóły w cenniku Mapbox). Pamięć podręczna i jedno zapytanie Matrix na wyszukiwanie mocno ograniczają zużycie.
-
-Biblioteka Mapbox GL JS jest serwowana z `node_modules` pod `/vendor/`. Gdy jej nie ma, aplikacja pobiera ją z oficjalnego CDN Mapbox.
+- **Wykonawca** ma bazę (punkt; w aplikacji najprościej wpisać nazwę miejscowości, wtedy baza to jej centrum), promień dojazdu 2–60 km i opcjonalnie stawkę za kilometr powyżej darmowych km (`km_rate_gr`, `free_km`). Nazwa miejsca bazy (`base_label`) pochodzi z Mapbox albo z najbliższej miejscowości i służy tylko do wyświetlania.
+- **Klient** widzi wykonawców, pod których zasięg wpada jego adres. Odległość liczymy po drogach (Mapbox Matrix), a bez Mapbox jako linię prostą × 1,3. Opłata za dojazd = stawka × (km − darmowe km), zaokrąglona do złotówki, i trafia do wyceny.
+- **Wyróżnienie** obejmuje cały zasięg wykonawcy: „Promowane” widzą klienci, pod których adres dojeżdża. Cena zależy od popytu w tym kole: wyszukiwania z ostatnich 7 dni wokół bazy, nie mniej niż wartość startowa liczona z liczby mieszkańców miejscowości w zasięgu (lista w `src/geo-pl.js` służy tylko do tego i do nazw miejsc).
+- **Mapa cieplna** (`GET /api/geo/demand`): wyszukiwania z 30 dni zgrupowane w siatkę ok. 1 km. Zapisujemy tylko zaokrąglony punkt i czas wyszukiwania, bez danych osobowych.
 
 ## Konfiguracja
 
@@ -122,9 +116,9 @@ Wszystkie odpowiedzi są w JSON. Błędy mają postać `{ "error": { "code", "me
 | `GET/PATCH/DELETE /api/me` · `GET /api/me/export` | zalogowany | Konto, ustawienia powiadomień, RODO |
 | `POST /api/addresses` · `DELETE /api/addresses/:id` | zalogowany | Adresy (w całej Polsce) |
 | `GET /api/providers` · `GET /api/providers/:id` · `GET /api/providers/:id/slots` | wszyscy | Wyszukiwanie, profil, wolne terminy |
-| `POST /api/quote` | wszyscy | Wycena z dopłatą za dojazd |
+| `POST /api/quote` | wszyscy | Wycena z opłatą za dojazd |
 | `GET /api/config` | wszyscy | Token publiczny Mapbox i style map |
-| `GET /api/geo/search` · `/reverse` · `/areas` | wszyscy | Wyszukiwanie adresów w Polsce, adres i obszar z punktu, obszary w okolicy ze statystykami i kształtami (GeoJSON) |
+| `GET /api/geo/search` · `/reverse` · `/demand` | wszyscy | Wyszukiwanie adresów i miejscowości w Polsce, adres z punktu i kto tam dojeżdża, mapa cieplna wyszukiwań |
 | `GET /api/geo/route` · `GET /api/bookings/:id/route` | zalogowany | Trasa po drogach |
 | `POST /api/bookings` · `GET /api/bookings` · `GET /api/bookings/:id` | zalogowany | Rezerwacje (`?as=provider` dla wykonawcy) |
 | `POST /api/bookings/:id/cancel` · `/reschedule` · `/skip` · `/call` | klient | Odwołanie, zmiana terminu, pominięcie, numer maskowany |

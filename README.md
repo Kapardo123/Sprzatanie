@@ -43,26 +43,26 @@ Dane są przykładowe i zapisują się w `localStorage` przeglądarki. Link „Z
 ## Model biznesowy (na start)
 
 - **Klient nic nie płaci w aplikacji.** Rezerwuje termin, a z wykonawcą rozlicza się na miejscu: gotówką, BLIK-iem na telefon lub przelewem.
-- **Wykonawca nie płaci prowizji ani abonamentu.** Płaci tylko za **wyróżnienie**: wyższą pozycję w wybranych miastach z oznaczeniem „Promowane”, najwyżej 2 profile naraz.
-- **Cena wyróżnienia zależy od wielkości miasta i popytu**, np. Warszawa około 65 zł/tydz., Kraków około 45 zł, Toruń około 27 zł, Pruszków około 18 zł. Każde wyróżnienie ma gwarancję liczby wyświetleń, a jeśli nie zostanie spełniona, kredyt wraca.
+- **Wykonawca nie płaci prowizji ani abonamentu.** Płaci tylko za **wyróżnienie**: wyższą pozycję w wynikach w całym swoim zasięgu dojazdu, z oznaczeniem „Promowane”, najwyżej 2 profile naraz.
+- **Cena wyróżnienia zależy od popytu w zasięgu wykonawcy** (ilu klientów szuka sprzątania w jego kole), np. 13 km od centrum Warszawy około 66 zł/tydz., 20 km od Piaseczna około 40 zł/tydz. Każde wyróżnienie ma gwarancję liczby wyświetleń, a jeśli nie zostanie spełniona, kredyt wraca.
 - **Kredyt na wyróżnienia:** 50 zł na start oraz 20 zł za każdego własnego klienta, którego wykonawca przyprowadzi do aplikacji swoim linkiem lub kodem QR. W ten sposób wykonawcy ściągają klientów.
 - Ekran „Jak ustalamy kolejność” wyjaśnia ranking i oznaczenie „Promowane” (wymóg przejrzystości wobec konsumentów).
 
 ## Lokalizacja
 
-**Z serwerem i tokenem Mapbox aplikacja działa w całej Polsce:** adresy z każdego miasta i wsi, prawdziwa mapa, czasy dojazdu po drogach. Do statystyk, popytu i wyróżnień kraj jest podzielony na miasta (ok. 115), bez podziału na dzielnice (szczegóły w [server/README.md](server/README.md#cała-polska-miasta)). Mapa okolicy pokazuje miasta wokół adresu klienta, a edytor zasięgu i wyróżnienia miasta wokół bazy wykonawcy.
+**Z serwerem i tokenem Mapbox aplikacja działa na prawdziwej mapie całej Polski:** adresy z każdego miasta i wsi, czasy dojazdu po drogach. Nie ma podziału na dzielnice ani miasta. Wykonawca ustawia bazę (najprościej: centrum swojej miejscowości, wystarczy wpisać jej nazwę), promień dojazdu (2–50 km) i opcjonalnie stawkę za kilometr, np. 2 zł/km powyżej 5 km. Klient widzi tych, którzy dojeżdżają pod jego adres, z opłatą za dojazd w wycenie.
 
-**Tryb demo** (bez serwera) ma uproszczony model Warszawy i 7 miast obok (Pruszków, Piaseczno, Ząbki i inne) w kilometrach: Wisłę, główne ulice i parki, rysowane w SVG bez zewnętrznych usług. Mapy można przesuwać, przybliżać kółkiem albo dwoma palcami.
+**Tryb demo** (bez serwera) nie może wczytać prawdziwej mapy, więc ma schemat Warszawy i okolic w kilometrach: Wisłę, główne ulice i parki, rysowane w SVG bez zewnętrznych usług. Zasady (baza, promień, stawka za km) są te same. Mapy można przesuwać, przybliżać kółkiem albo dwoma palcami.
 
 **Klient**
 - Wybór adresu: wyszukiwarka ulic, zapisane adresy i wskazywanie miejsca pinezką na mapie. Przy każdym adresie widać, ilu wykonawców tam dojeżdża.
-- Odległość i czas dojazdu każdego wykonawcy liczone od wybranego adresu. Wykonawcy poza zasięgiem są ukryci, a ci tuż za granicą zasięgu pokazują dopłatę za dojazd, która trafia do wyceny.
-- Mapa okolicy z warstwami: wykonawcy, ceny, wolne terminy dziś i popyt. Po dotknięciu miasta widać jego statystyki i najlepiej ocenianych wykonawców.
+- Odległość i czas dojazdu każdego wykonawcy liczone od wybranego adresu. Wykonawcy poza zasięgiem są ukryci, a ci, którzy liczą za kilometr, pokazują opłatę za dojazd, która trafia do wyceny.
+- Mapa okolicy: wykonawcy, którzy dojeżdżają pod adres, wolni dziś i mapa cieplna „gdzie szukają klienci” (wyszukiwania z 30 dni).
 - Wyszukiwarka z mapą: zasięg wybranego wykonawcy, „Szukaj w tym obszarze”, filtr odległości.
 - Śledzenie dojazdu wykonawcy na mapie z odliczaniem czasu. Po dojeździe zlecenie samo przechodzi w „W trakcie”.
 
 **Wykonawca**
-- Edytor obszaru pracy: baza (dotknij mapy), promień dojazdu, dopłata za dalsze zlecenia, miasta w zasięgu, liczba mieszkańców, zapytania, konkurencja, szacowany potencjał i podpowiedź, gdzie warto się rozszerzyć.
+- Edytor obszaru pracy: baza (wpisz miejscowość albo dotknij mapy), promień dojazdu, stawka za km i darmowe kilometry, mapa cieplna wyszukiwań, liczba wyszukiwań w zasięgu, konkurencja i szacowany potencjał.
 - Odległość od bazy przy zapytaniach i zleceniach z giełdy.
 - Trasa dnia w grafiku: kolejność wizyt, kilometry i czas jazdy między zleceniami.
 

@@ -91,16 +91,16 @@ Lśni nie pośredniczy w płatnościach, więc nie zwraca pieniędzy. Może za t
 
 **Kto:** Paweł mieszka w małej miejscowości pod Olsztynem.
 
-**Sytuacja:** pobrał aplikację po poleceniu znajomej, ale nikt do niego nie dojeżdża. (Wcześniej przykładem były Ząbki, ale od kiedy aplikacja działa w całej Polsce, Ząbki to zwykły obszar z własnymi wykonawcami.)
+**Sytuacja:** pobrał aplikację po poleceniu znajomej, ale nikt do niego nie dojeżdża. 
 
 **Potrzeby:**
 - uczciwa informacja zamiast pustej listy,
 - możliwość zapisania się, żeby dostać wiadomość, gdy usługa ruszy w jego okolicy.
 
-To ważne przy starcie w całym kraju naraz, bo z listy oczekujących widać, w których miastach brakuje wykonawców i gdzie ich szukać najpierw.
+To ważne przy starcie w całym kraju naraz, bo z listy oczekujących widać, gdzie brakuje wykonawców i gdzie ich szukać najpierw.
 
 **Status:**
-- **Dodane: lista oczekujących.** Działa w wynikach i przy wyborze miejsca na mapie, gdy nikt nie dojeżdża pod wybrany adres. Lista zapisuje obszar (np. „Olsztyn (okolice)”), a zespół widzi w panelu, gdzie czeka najwięcej osób.
+- **Dodane: lista oczekujących.** Działa w wynikach i przy wyborze miejsca na mapie, gdy nikt nie dojeżdża pod wybrany adres. Lista zapisuje punkt i nazwę miejsca (np. „okolice: Olsztyn”), a zespół widzi w panelu, gdzie czeka najwięcej osób.
 
 ## 7. Wykonawca ustala szczegóły przed wizytą
 
@@ -129,14 +129,15 @@ To ważne przy starcie w całym kraju naraz, bo z listy oczekujących widać, w 
 - **Dodane: „Klient nie otworzył”** przy zleceniu w grafiku. Zgłoszenie ma instrukcję (odczekaj 15 minut, zadzwoń), zapisuje czas i odległość od adresu, a zlecenie dostaje oznaczenie.
 - Na później: blokada rezerwacji po dwóch nieobecnościach wymaga backendu.
 
-## 9. Wykonawca chce się wyróżnić w mieście obok
+## 9. Wykonawca przenosi bazę i chce więcej klientów
 
-**Kto:** Ola z Warszawy chce więcej klientów w Piasecznie.
+**Kto:** Ola przeprowadza się z Warszawy do Piaseczna.
 
-**Kroki:** otwiera Wyróżnienia i widzi, że Piaseczno jest poza jej zasięgiem. Zmienia zasięg w Obszarze pracy, wraca i kupuje wyróżnienie z kredytu.
+**Kroki:** w Obszarze pracy wpisuje „Piaseczno”, baza przenosi się do centrum miejscowości. Ustawia 20 km zasięgu i 2 zł/km powyżej 5 km, widzi na mapie cieplnej, gdzie szukają klienci. Potem kupuje wyróżnienie na cały zasięg z kredytu.
 
 **Status:**
-- Działało: komunikat o mieście poza zasięgiem, edytor zasięgu, ceny zależne od popytu, kredyt i gwarancja wyświetleń.
+- Działało: edytor zasięgu, ceny zależne od popytu, kredyt i gwarancja wyświetleń.
+- **Dodane:** baza z nazwy miejscowości, stawka za kilometr z darmowymi km, mapa cieplna wyszukiwań, wyróżnienie na cały zasięg zamiast dzielnic czy miast.
 
 ## 10. Biuro szuka stałej firmy sprzątającej
 
@@ -175,7 +176,7 @@ Pozycje, które makieta potrzebowała od serwera. Szczegóły są w [server/READ
 | Telefon | **Zrobione:** sesje z PIN-em i endpoint dla bramki telefonicznej. **Do podpięcia:** numer u operatora z IVR. |
 | Zgłoszenia | **Zrobione:** zgłoszenia ze zdjęciami, odpowiedź wykonawcy, eskalacja po 24 h, nieobecności i panel zespołu do ich obsługi. |
 | Opinie | **Zrobione:** automatyczna moderacja, moderacja w panelu, publiczne odpowiedzi wykonawców. |
-| Mapa | **Zrobione:** Mapbox (prawdziwa mapa, wyszukiwanie adresów, czasy dojazdu po drogach, trasy) w całej Polsce, z podziałem na ok. 115 miast (bez dzielnic). **Do podpięcia:** dokładne granice z PRG. |
+| Mapa | **Zrobione:** Mapbox (prawdziwa mapa, wyszukiwanie adresów, czasy dojazdu po drogach, trasy) w całej Polsce, bez podziału na dzielnice i miasta: baza, promień i stawka za km, mapa cieplna wyszukiwań. |
 | Prawo | **Projekty gotowe:** regulamin, polityka prywatności i zasady rankingu w `server/legal/`. **Wymagają sprawdzenia przez prawnika.** DAC7 do potwierdzenia z księgową. |
 | Płatności za wyróżnienia | **Do podpięcia:** zakup z kredytu działa. Dopłata ponad kredyt zwraca kwotę do zapłaty i czeka na operatora (Przelewy24 lub Stripe). |
 | Giełda zleceń z ofertami | **Na później:** w trybie online działa jeszcze lokalnie (dane demo). |

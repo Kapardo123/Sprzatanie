@@ -14,20 +14,15 @@ function createDomain(db) {
   const providerById = id => db.get('SELECT * FROM providers WHERE user_id = ?', id);
   const mustProvider = slug => providerBySlug(slug) || notFound('Nie ma takiego wykonawcy');
 
-  // ---------- popyt: wyszukiwania z ostatnich 7 dni, nie mniej niż wartość startowa ----------
-  // Kolumna search_log.district (i boosts.district) przechowuje klucz obszaru: nazwę miasta, np. "Gdańsk", albo "Toruń/okolice".
-  function demand(key) {
-    const since = new Date(Date.now() - 7 * 86400e3).toISOString();
-    const n = db.get('SELECT COUNT(*) c FROM search_log WHERE district = ? AND created_at > ?', key, since).c;
-    const a = geo.areaByKey(key);
-    return Math.max(a ? geo.demandFromPop(a.pop) : 5, Math.round(n / 7));
+  // ---------- popyt w kole: wyszukiwania z ostatnich 7 dni wokół punktu, nie mniej niż wartość startowa ----------
+  // Nie ma dzielnic ani miast: popyt liczymy dla koła (baza wykonawcy + promień dojazdu).
+  function demandIn(lat, lng, radiusKm) {
+    const since = new Date(Date.now() - 7 * 86400e3).toISOString(); const c = { lat, lng }; const straight = radiusKm / geo.ROAD;
+    const n = db.all('SELECT lat, lng FROM search_log WHERE created_at > ? AND lat IS NOT NULL', since).filter(r => geo.haversineKm(c, r) <= straight).length;
+    return Math.max(geo.baselineDemand(lat, lng, radiusKm), Math.round(n / 7));
   }
-  const areaView = a => a && { key: a.key, name: a.name, city: a.city, region: a.region, kind: a.kind, label: geo.areaLabel(a), radiusKm: Math.round(a.radius * 10) / 10 };
-  // Miasta, które wykonawca obsługuje (zasięg dojazdu sięga przynajmniej części miasta), od najbliższego.
-  function coveredAreas(p) {
-    const base = { lat: p.base_lat, lng: p.base_lng };
-    return geo.areasNear(p.base_lat, p.base_lng, p.radius_km).filter(a => geo.servesArea(p, a)).sort((a, b) => geo.haversineKm(base, a) - geo.haversineKm(base, b));
-  }
+  // Nazwa miejsca bazy wykonawcy (do wyświetlania, nie jest obszarem)
+  const baseLabel = p => p.base_label || geo.placeName(p.base_lat, p.base_lng).name;
 
   // ---------- wolne terminy ----------
   function slotsFor(p, date, now = localNow()) {
@@ -52,27 +47,29 @@ function createDomain(db) {
   // ---------- wyróżnienia i kredyt ----------
   const activeBoosts = (now = localNow()) => db.all('SELECT * FROM boosts WHERE starts_at <= ? AND ends_at > ?', now, now);
   const creditGr = providerId => db.get('SELECT COALESCE(SUM(amount_gr),0) s FROM credit_ledger WHERE provider_id = ?', providerId).s;
+  // Wyróżnienie obejmuje cały zasięg dojazdu wykonawcy: cena zależy od popytu w tym kole.
   function boostQuote(p, days) {
-    return coveredAreas(p).map(a => {
-      const d = demand(a.key);
-      return { district: a.key, area: areaView(a), demand: d, searchers: d * 7, priceZl: boostPriceGr(d, days) / 100, guaranteedViews: boostGuaranteedViews(d, days), competitors: countServing(a.key) };
-    });
+    const d = demandIn(p.base_lat, p.base_lng, p.radius_km);
+    return { demand: d, searchers: d * 7, days, priceZl: boostPriceGr(d, days) / 100, guaranteedViews: boostGuaranteedViews(d, days), competitors: countNear(p),
+      prices: Object.fromEntries([3, 7, 14].map(n => [n, boostPriceGr(d, n) / 100])), views: Object.fromEntries([3, 7, 14].map(n => [n, boostGuaranteedViews(d, n)])) };
   }
-  const countServing = key => { const a = geo.areaByKey(key); return a ? db.all('SELECT * FROM providers WHERE published = 1').filter(x => geo.servesArea(x, a)).length : 0; };
+  // Konkurencja: inni wykonawcy z bazą w zasięgu dojazdu
+  const countNear = p => db.all('SELECT base_lat, base_lng, user_id FROM providers WHERE published = 1 AND user_id != ?', p.user_id)
+    .filter(x => geo.roadKm({ lat: p.base_lat, lng: p.base_lng }, { lat: x.base_lat, lng: x.base_lng }) <= p.radius_km).length;
 
   // ---------- widok wykonawcy dla klienta ----------
   function providerView(p, point, { promoted = false, full = false, road = null } = {}) {
     const r = point ? reachWith(p, point, road) : null; const ns = nextSlot(p);
     const out = {
-      id: p.slug, name: p.display_name, ini: p.initials, tone: p.tone, kind: p.kind, area: geo.areaAt(p.base_lat, p.base_lng).city, city: geo.areaAt(p.base_lat, p.base_lng).city,
+      id: p.slug, name: p.display_name, ini: p.initials, tone: p.tone, kind: p.kind, area: baseLabel(p),
       tagline: p.tagline, services: json(p.services, []), langs: json(p.langs, []), rate: p.rate_gr / 100, minH: p.min_hours,
       fixed: !!p.fixed_price, perWindow: p.per_window_gr ? p.per_window_gr / 100 : 0, since: p.since, super: !!p.super,
       verified: p.id_status === 'verified', insured: !!p.insured, invoice: !!p.invoice, supplies: !!p.supplies, eco: !!p.eco, pets: !!p.pets,
       rating: p.rating_count ? Math.round(p.rating_sum / p.rating_count * 100) / 100 : 0, reviews: p.rating_count, jobs: p.jobs_done,
-      response: `${p.response_min} min`, base: { lat: p.base_lat, lng: p.base_lng }, radiusKm: p.radius_km, fee: p.fee_gr / 100,
+      response: `${p.response_min} min`, base: { lat: p.base_lat, lng: p.base_lng }, radiusKm: p.radius_km, kmRate: p.km_rate_gr / 100, freeKm: p.free_km,
       nextSlot: ns ? ns.label : 'Brak wolnych terminów', todayFree: !!(ns && ns.today), promoted
     };
-    if (r) Object.assign(out, { dist: r.km, eta: r.eta, reach: r.reach, distSource: r.source || 'estimate' });
+    if (r) Object.assign(out, { dist: r.km, eta: r.eta, reach: r.reach, travelFee: r.feeGr / 100, distSource: r.source || 'estimate' });
     if (full) {
       out.bio = p.bio;
       out.reviewsList = db.all("SELECT r.*, u.name client_name FROM reviews r JOIN users u ON u.id = r.client_id WHERE r.provider_id = ? AND r.status = 'published' ORDER BY r.created_at DESC LIMIT 20", p.user_id)
@@ -84,9 +81,7 @@ function createDomain(db) {
 
   // ---------- wyszukiwanie i ranking ----------
   function search(q, point, roads = null) {
-    const picked = geo.areaByKey(q.area || q.district); const district = picked && picked.kind !== 'outskirts' ? picked.key : null;
-    const here = geo.areaAt(point.lat, point.lng); const where = district || here.key;
-    db.run('INSERT INTO search_log (district, created_at) VALUES (?, ?)', where, new Date().toISOString());
+    db.run("INSERT INTO search_log (district, lat, lng, created_at) VALUES ('', ?, ?, ?)", Math.round(point.lat * 1e3) / 1e3, Math.round(point.lng * 1e3) / 1e3, new Date().toISOString());
     const text = String(q.q || '').trim().toLowerCase();
     let list = db.all('SELECT * FROM providers WHERE published = 1 AND online = 1').map(p => ({ p, v: providerView(p, point, { road: roads && roads.get(p.user_id) }) })).filter(({ p, v }) => {
       if (q.service && !v.services.includes(q.service)) return false;
@@ -95,7 +90,6 @@ function createDomain(db) {
       if (q.minRating && v.rating < Number(q.minRating)) return false;
       for (const k of ['verified', 'insured', 'supplies', 'eco', 'pets', 'invoice']) if (q[k] === '1' && !v[k]) return false;
       if (q.today === '1' && !v.todayFree) return false;
-      if (district) return geo.servesArea(p, picked);
       if (v.reach === 'out' && q.far !== '1') return false;
       if (q.maxDist && Number(q.maxDist) < 15 && v.dist > Number(q.maxDist)) return false;
       return true;
@@ -104,13 +98,14 @@ function createDomain(db) {
     const sort = sorters[q.sort] ? q.sort : 'rec';
     list.sort(sorters[sort]);
     if (sort === 'rec') { // najwyżej 2 profile „Promowane”, rotacja: najpierw te z najmniejszą liczbą wyświetleń
-      const boosts = activeBoosts().filter(b => b.district === where);
+      // wyróżnienie działa w całym zasięgu wykonawcy: pokazujemy je klientom, pod których adres dojeżdża
+      const boosts = activeBoosts();
       const promo = list.map(x => ({ x, b: boosts.find(b => b.provider_id === x.p.user_id) })).filter(o => o.b && o.x.v.reach !== 'out')
         .sort((a, b) => a.b.views - b.b.views).slice(0, config.maxPromotedInResults);
       promo.forEach(o => { o.x.v.promoted = true; db.run('UPDATE boosts SET views = views + 1 WHERE id = ?', o.b.id); });
       list = promo.map(o => o.x).concat(list.filter(x => !promo.some(o => o.x === x)));
     }
-    return { district: where, area: areaView(geo.areaByKey(where)), results: list.map(x => x.v) };
+    return { results: list.map(x => x.v) };
   }
 
   // ---------- widok rezerwacji ----------
@@ -122,7 +117,7 @@ function createDomain(db) {
     const out = {
       id: b.id, status: b.status, service: b.service, serviceName: SERVICE_NAMES[b.service], startsAt: b.starts_at, endsAt: addHours(b.starts_at, b.hours), hours: b.hours,
       m2: b.m2, rooms: b.rooms, baths: b.baths, extras: json(b.extras, []), freq: b.freq, totalZl: b.price_gr / 100, travelFeeZl: b.travel_fee_gr / 100, payMethod: b.pay_method,
-      address: b.address_text, area: geo.areaAt(b.lat, b.lng).city, addressId: b.address_id, lat: b.lat, lng: b.lng, onsite: b.onsite_name ? { name: b.onsite_name, phone: b.onsite_phone } : null,
+      address: b.address_text, addressId: b.address_id, lat: b.lat, lng: b.lng, onsite: b.onsite_name ? { name: b.onsite_name, phone: b.onsite_phone } : null,
       entry: b.entry, pets: b.pets, note: b.note, viaPromo: !!b.via_promo,
       provider: { id: p.slug, name: p.display_name, ini: p.initials, tone: p.tone, base: { lat: p.base_lat, lng: p.base_lng } },
       report: report ? { id: report.id, category: report.category, want: report.want, status: report.status, at: report.created_at, answeredAt: report.answered_at } : null,
@@ -135,7 +130,7 @@ function createDomain(db) {
   }
   const reliability = u => u.noshow_count >= 2 ? 'niska' : u.noshow_count === 1 || u.late_cancel_count >= 2 ? 'średnia' : 'wysoka';
 
-  return { providerBySlug, providerById, mustProvider, demand, slotsFor, nextSlot, activeBoosts, creditGr, boostQuote, countServing, coveredAreas, areaView, providerView, search, bookingView, ACTIVE };
+  return { providerBySlug, providerById, mustProvider, slotsFor, nextSlot, activeBoosts, creditGr, boostQuote, countNear, demandIn, baseLabel, providerView, search, bookingView, ACTIVE };
 }
 
 const firstName = name => String(name || 'Klient').split(' ')[0];

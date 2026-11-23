@@ -257,6 +257,19 @@ const SCHEMA = [
     value TEXT NOT NULL,
     expires_at TEXT NOT NULL
   );
+  `,
+  // 3: bez podziału na dzielnice i miasta. Wykonawca ma punkt bazy, promień dojazdu i opcjonalną stawkę za km
+  // (km_rate_gr za każdy km powyżej free_km). Wyszukiwania zapisują punkt, żeby liczyć popyt w dowolnym kole.
+  // Stara dopłata stała (fee_gr) zamienia się na 2 zł/km powyżej połowy promienia.
+  `
+  ALTER TABLE providers ADD COLUMN km_rate_gr INTEGER NOT NULL DEFAULT 0;
+  ALTER TABLE providers ADD COLUMN free_km REAL NOT NULL DEFAULT 0;
+  ALTER TABLE providers ADD COLUMN base_label TEXT NOT NULL DEFAULT '';
+  UPDATE providers SET km_rate_gr = 200, free_km = ROUND(radius_km / 2.0) WHERE fee_gr > 0;
+  ALTER TABLE search_log ADD COLUMN lat REAL;
+  ALTER TABLE search_log ADD COLUMN lng REAL;
+  CREATE INDEX search_log_t ON search_log(created_at);
+  ALTER TABLE addresses ADD COLUMN city TEXT NOT NULL DEFAULT '';
   `
 ];
 
