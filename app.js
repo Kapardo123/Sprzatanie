@@ -187,6 +187,9 @@ function seed() {
       ] }
     },
     booking: null,
+    posts: [],
+    draft: null,
+    offerSort: 'rec',
     rate: { stars: 5, tags: [], tip: 0, comment: '' },
     // tryb wykonawcy
     pro: {
@@ -201,6 +204,11 @@ function seed() {
         { day: 1, time: '09:00', end: '12:00', client: 'Krzysztof', service: 'generalne', area: 'Mokotów', pay: 202.5, tone: 'y' },
         { day: 3, time: '10:00', end: '13:30', client: 'Ania K.', service: 'dom', area: 'Wilanów', pay: 157.5, tone: 'm' }
       ],
+      market: [
+        { id: 'm1', client: 'Paulina', crating: 4.8, cat: 'remont', desc: 'Mieszkanie po malowaniu i wymianie paneli. Dużo pyłu, również w szafkach kuchennych. 2 pokoje, kuchnia, łazienka.', m2: 48, when: 'w tym tygodniu, elastycznie', dist: 2.4, area: 'Mokotów, Wierzbno', offers: 4, budget: 400, photos: 3, sent: 0 },
+        { id: 'm2', client: 'Marek', crating: 5.0, cat: 'okna', desc: '8 okien dwuskrzydłowych i drzwi balkonowe. 3 piętro, bez windy. Rolety do umycia.', m2: 0, when: 'sobota, od 9:00', dist: 4.1, area: 'Ochota, Szczęśliwice', offers: 2, budget: 0, photos: 1, sent: 0 }
+      ],
+      offerDraft: null,
       avail: { 1: true, 2: true, 3: true, 4: true, 5: true, 6: false, 0: false },
       calDay: 0,
       listing: {
@@ -217,6 +225,8 @@ function seed() {
 let S = Object.assign(seed(), store.get('state', {}));
 // zawsze zaczynaj od świeżych stosów nawigacji
 S.stacks = {}; S.sheet = null;
+// stan zapisany przez starszą wersję makiety może nie mieć nowych pól
+(() => { const d = seed(); S.posts ||= []; S.pro = Object.assign(d.pro, S.pro); S.pro.market ||= d.pro.market; S.offerSort ||= 'rec'; })();
 const persist = () => {
   const { sheet, stacks, booking, ...rest } = S;
   store.set('state', rest);
@@ -312,6 +322,12 @@ screens.home = () => {
       </form>
       <div class="cats">
         ${CATS.map(c => `<button class="cat" data-act="openCat" data-a="${c.id}"><span class="tile ${c.tone}">${ic(c.icon)}</span>${c.short}</button>`).join('')}
+      </div>
+      <div class="postcta">
+        <div class="faces">${PROS.slice(0, 4).map(p => avatar(p, 'xs')).join('')}<span class="tiny faint">+38 w okolicy</span></div>
+        <h4>Nie wiesz, kogo wybrać?</h4>
+        <p>Opisz, co trzeba posprzątać. Wykonawcy z okolicy przyślą oferty z ceną, zwykle w ciągu 15 minut.</p>
+        <button class="btn sm dark" data-act="newPost">${ic('plus', 's')}Dodaj zlecenie</button>
       </div>
       ${next ? (() => { const p = proById(next.pro); const d = addDays(next.date); return `
       <button class="upnext" data-act="openOrder" data-a="${next.id}">
@@ -571,8 +587,8 @@ screens.booked = ({ id }) => {
   const o = S.orders.find(x => x.id === id); const p = proById(o.pro); const d = addDays(o.date);
   return `<div class="scroll"><div class="done">
     <div class="ring">${ic('check')}</div>
-    <h1>Rezerwacja wysłana</h1>
-    <p class="muted" style="margin:0;max-width:30ch">${p.name.split(' ')[0]} potwierdzi ją zwykle w ${p.response}. Dostaniesz powiadomienie.</p>
+    <h1>${o.fromOffer ? 'Termin potwierdzony' : 'Rezerwacja wysłana'}</h1>
+    <p class="muted" style="margin:0;max-width:30ch">${o.fromOffer ? `Wybrałaś ofertę: ${esc(p.name)}. Pozostałym wykonawcom podziękowaliśmy w Twoim imieniu.` : `${p.name.split(' ')[0]} potwierdzi ją zwykle w ${p.response}. Dostaniesz powiadomienie.`}</p>
     <div class="receipt mt24" style="width:100%;text-align:left">
       <div class="ln"><span>Kiedy</span><b>${dayLabel(d)}, ${o.time}</b></div>
       <div class="ln"><span>Usługa</span><b>${catById(o.service).name}</b></div>
@@ -599,8 +615,9 @@ screens.orders = () => {
   const past = S.orders.filter(o => ['done', 'cancel'].includes(o.status)).sort((a, b) => b.date - a.date);
   const list = S.ordersSeg === 'up' ? up : past;
   return `<div class="scroll"><div class="pad">
-    <h1 class="pagetitle" style="margin-top:12px">Zlecenia</h1>
+    <div class="row between" style="margin-top:12px"><h1 class="pagetitle" style="margin:0">Zlecenia</h1><button class="btn sm line" data-act="newPost">${ic('plus', 's')}Dodaj zlecenie</button></div><div style="height:14px"></div>
     <div class="seg"><button class="${S.ordersSeg === 'up' ? 'on' : ''}" data-act="seg" data-a="up">Nadchodzące (${up.length})</button><button class="${S.ordersSeg === 'past' ? 'on' : ''}" data-act="seg" data-a="past">Historia</button></div>
+    ${S.ordersSeg === 'up' && S.posts.some(x => x.status === 'open') ? `<div class="section-h" style="margin-top:20px"><h3>Twoje ogłoszenia</h3></div><div class="stack">${S.posts.filter(x => x.status === 'open').map(postCard).join('')}</div><div class="section-h"><h3>Rezerwacje</h3></div>` : ''}
     <div class="stack mt16">
     ${list.length ? list.map((o, i) => { const p = proById(o.pro); const d = addDays(o.date); return `
       <button class="ocard ${S.ordersSeg === 'up' && i === 0 ? 'next' : ''}" data-act="openOrder" data-a="${o.id}">
@@ -643,6 +660,8 @@ screens.order = ({ id }) => {
       <div class="note">${ic('car', 's')}<span><b>${p.name.split(' ')[0]} jest w drodze</b>, dotrze za ok. 12 min.</span></div>` : ''}
     ${o.status === 'done' && !o.rated ? `<div class="note yellow mt16">${ic('hand-coins', 's')}<span>Usługa zakończona. Sprawdź mieszkanie i zatwierdź, wtedy zwolnimy płatność. Masz na to 24 h.</span></div>` : ''}
 
+    ${o.status === 'progress' ? liveBlock(o) : ''}
+    ${o.status === 'done' && o.report ? reportBlock(o, p) : ''}
     <div class="card mt16"><div class="timeline">${tl.map((t, i) => `<div class="tl ${cur > i ? 'ok' : cur === i ? 'now' : ''}"><span class="dot">${ic(cur > i ? 'check' : t[2], 'xs')}</span><div><b>${t[0]}</b><span>${t[1]}</span></div></div>`).join('')}</div>
       ${active ? `<button class="btn sm line mt16" data-act="advanceOrder" data-a="${o.id}">${ic('fast-forward', 's')}Symuluj kolejny status</button>` : ''}</div>
 
@@ -793,6 +812,9 @@ screens.dash = () => {
       <div class="section-h"><h3>Nowe zapytania</h3><span class="tag ${P.requests.length ? 'rose' : ''}">${P.requests.length}</span></div>
       <div class="stack">${P.requests.length ? P.requests.map(reqCard).join('') : `<div class="card empty" style="padding:24px">${ic('inbox')}<div style="font-weight:650;color:var(--ink)">Wszystko obsłużone</div><div class="small mt8">Nowe zapytania pojawią się tutaj i w powiadomieniach.</div></div>`}</div>
 
+      <div class="section-h"><h3>Giełda zleceń w okolicy</h3><span class="tiny faint">klienci czekają na oferty</span></div>
+      <div class="stack">${P.market.map(marketCard).join('')}</div>
+
       ${nextJob ? `<div class="section-h"><h3>Następne zlecenie</h3><button data-act="setTab" data-a="calendar">Grafik</button></div>
       <div class="job"><div class="time">${nextJob.time}<span>${dayLabel(addDays(nextJob.day))}</span></div><div class="blk ${nextJob.tone}"><div class="row between"><b class="small">${catById(nextJob.service).name}</b><b class="small num">${zl(nextJob.pay)}</b></div><div class="tiny faint">${nextJob.client} · ${nextJob.area} · do ${nextJob.end}</div></div></div>` : ''}
 
@@ -931,6 +953,173 @@ function proProfile() {
     <div class="sp"></div></div></div>`;
 }
 
+/* ================= POSTED JOBS & OFFERS ================= */
+const OFFER_MSGS = {
+  marta: 'Dzień dobry! Mogę przyjść z własnym sprzętem. Przy takim zakresie zaplanowałabym jedną wizytę bez pośpiechu.',
+  czysto: 'Przyjedziemy we dwójkę z odkurzaczem przemysłowym, więc będzie szybciej. Fakturę wystawimy od razu.',
+  olena: 'Mieszkam niedaleko, mogę przyjść nawet dziś po 14. Cena zawiera środki.',
+  pawel: 'Okna myję wodą demineralizowaną, ramy i parapety w cenie. Mogę w sobotę rano.',
+  babel: 'Proszę o zdjęcie metki z kanapy. Pierzemy ekstrakcyjnie, schnie ok. 4 godzin.',
+  agnieszka: 'Dzień dobry, mam wolny termin w tym tygodniu. Po sprzątaniu wyślę zdjęcia.'
+};
+function newDraft(cat) { return { cat: cat || 'remont', desc: '', m2: 54, when: 'flex', day: 2, budget: 0, photos: [] }; }
+function buildPool(post) {
+  let cands = PROS.filter(p => p.services.includes(post.cat));
+  if (cands.length < 3) cands = cands.concat(PROS.filter(p => !cands.includes(p) && p.services.includes('generalne')));
+  const mul = post.cat === 'remont' ? 2 : post.cat === 'generalne' ? 1.5 : 1;
+  return cands.slice(0, 4).map((p, i) => {
+    let price;
+    if (p.fixed) price = p.rate * 1.6;
+    else if (post.cat === 'okna' && p.perWindow) price = p.perWindow * 9;
+    else price = Math.max(p.minH, (post.m2 || 40) / 22 * mul) * p.rate * (0.92 + ((i * 37) % 20) / 100);
+    price = Math.round(price / 5) * 5;
+    const day = post.when === 'day' ? post.day : [1, 2, 2, 3][i % 4];
+    const time = SLOTS.find((t, k) => !slotTaken(p.id, day, t) && k > i % 3) || '10:00';
+    const h = p.fixed ? 2 : Math.max(p.minH, Math.ceil((post.m2 || 40) / 22 * mul * 2) / 2);
+    return { id: post.id + '-' + p.id, pro: p.id, price, day, time, h, msg: OFFER_MSGS[p.id] };
+  });
+}
+function postCard(x) {
+  const c = catById(x.cat); const min = x.offers.length ? Math.min(...x.offers.map(o => o.price)) : 0;
+  return `<button class="ocard" data-act="openOffers" data-a="${x.id}">
+    <span class="avatar sm ${c.tone}">${ic(c.icon, 's')}</span>
+    <div class="grow"><div class="row between" style="gap:8px"><span class="name">${c.name}</span><span class="livebadge">${x.offers.length < x.pool.length ? '<i></i>zbieramy' : 'gotowe'}</span></div>
+    <div class="tiny faint" style="margin:2px 0 8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(x.desc || 'Bez opisu')}</div>
+    <div class="row" style="gap:6px"><span class="tag blue">${x.offers.length} ${x.offers.length === 1 ? 'oferta' : x.offers.length > 1 && x.offers.length < 5 ? 'oferty' : 'ofert'}</span>${min ? `<span class="tag">od ${zl(min)}</span>` : ''}</div></div></button>`;
+}
+
+screens.post = () => {
+  const d = S.draft; const days = Array.from({ length: 10 }, (_, i) => addDays(i + 1));
+  return `${topbar('Nowe zlecenie')}
+  <div class="scroll"><div class="pad">
+    <p class="muted small" style="margin:0">Zlecenie zobaczy 9 sprawdzonych wykonawców z Twojej okolicy. Ty wybierasz ofertę, nic nie płacisz za publikację.</p>
+    <div class="field"><span class="lbl">Co trzeba zrobić?</span>
+      <div class="chips">${CATS.map(c => `<button class="chip ${d.cat === c.id ? 'on' : ''}" data-act="dset" data-a="cat" data-b="${c.id}">${ic(c.icon, 'xs')}${c.short}</button>`).join('')}</div></div>
+    <div class="field"><label for="pdesc">Opis</label>
+      <textarea class="input" id="pdesc" placeholder="${d.cat === 'remont' ? 'np. Po malowaniu i wymianie paneli, dużo pyłu, okna z naklejkami po ekipie' : d.cat === 'tapicerka' ? 'np. Narożnik 3-osobowy, plamy po kawie, sierść kota' : 'np. 2 pokoje, kuchnia z oknem, łazienka z wanną'}" data-model="draft.desc">${esc(d.desc)}</textarea>
+      <div class="hint">Konkretny opis to dokładniejsze ceny w ofertach.</div></div>
+    <div class="field"><span class="lbl">Zdjęcia <span class="faint" style="font-weight:500">(opcjonalnie, ${d.photos.length}/6)</span></span>
+      <div class="photos">${d.photos.map((src, i) => `<div class="ph" style="background-image:url(${src})"><button class="iconbtn" style="position:absolute;top:4px;right:4px;width:26px;height:26px" data-act="dphotoDel" data-a="${i}" aria-label="Usuń">${ic('x', 'xs')}</button></div>`).join('')}
+      ${d.photos.length < 6 ? `<label class="ph" for="postPhotoIn">${ic('camera')}<input type="file" id="postPhotoIn" accept="image/*" multiple></label>` : ''}</div>
+      <div class="hint">Zlecenia ze zdjęciami dostają o 40% więcej ofert.</div></div>
+    ${!['tapicerka', 'okna'].includes(d.cat) ? `<div class="field"><div class="row between"><span class="lbl" style="margin:0">Metraż</span><span class="big-val num" id="pm2val">${d.m2}<small>m²</small></span></div>
+      <input type="range" id="pm2" min="20" max="200" step="2" value="${d.m2}" data-model="draft.m2" data-type="num" data-live="pm2" aria-label="Metraż"></div>` : ''}
+    <div class="field"><span class="lbl">Kiedy?</span>
+      <div class="seg"><button class="${d.when === 'flex' ? 'on' : ''}" data-act="dset" data-a="when" data-b="flex">Elastycznie</button><button class="${d.when === 'day' ? 'on' : ''}" data-act="dset" data-a="when" data-b="day">Konkretny dzień</button></div>
+      ${d.when === 'day' ? `<div class="dates mt12">${days.map((x, i) => `<button class="date ${d.day === i + 1 ? 'on' : ''}" data-act="dset" data-a="day" data-b="${i + 1}">${DAYS[x.getDay()]}<b>${x.getDate()}</b></button>`).join('')}</div>` : '<div class="hint">Wykonawcy zaproponują swoje terminy w ciągu najbliższego tygodnia.</div>'}</div>
+    <div class="field"><div class="row between"><span class="lbl" style="margin:0">Budżet</span><b class="num" id="pbudget">${d.budget ? 'do ' + zl(d.budget) : 'nie podaję'}</b></div>
+      <input type="range" id="pbud" min="0" max="1000" step="50" value="${d.budget}" data-model="draft.budget" data-type="num" data-live="pbud" aria-label="Budżet">
+      <div class="hint">Bez budżetu dostaniesz więcej ofert. Z budżetem będą bardziej dopasowane.</div></div>
+    <div class="note mt16">${ic('map-pin', 's')}<span>ul. Puławska 112/14, Mokotów. Dokładny adres zobaczy tylko wykonawca, którego wybierzesz.</span></div>
+    <div class="sp"></div>
+  </div></div>
+  <div class="footer"><button class="btn primary block" data-act="publishPost">${ic('send', 's')}Opublikuj i zbieraj oferty</button></div>`;
+};
+
+screens.offers = ({ id }) => {
+  const x = S.posts.find(y => y.id === id); const c = catById(x.cat);
+  const offers = x.offers.slice();
+  const cheapest = offers.length ? Math.min(...offers.map(o => o.price)) : 0;
+  const best = offers.length ? Math.max(...offers.map(o => proById(o.pro).rating)) : 0;
+  const soonest = offers.length ? Math.min(...offers.map(o => o.day)) : 0;
+  const sorters = { rec: (a, b) => (a.price / proById(a.pro).rating) - (b.price / proById(b.pro).rating), price: (a, b) => a.price - b.price, rating: (a, b) => proById(b.pro).rating - proById(a.pro).rating, date: (a, b) => a.day - b.day || a.time.localeCompare(b.time) };
+  offers.sort(sorters[S.offerSort]);
+  const waiting = x.offers.length < x.pool.length && x.status === 'open';
+  return `${topbar('Oferty')}
+  <div class="scroll"><div class="pad">
+    <div class="card"><div class="row"><span class="avatar sm ${c.tone}">${ic(c.icon, 's')}</span><div class="grow"><div class="name">${c.name}</div>
+      <div class="tiny faint">${x.m2 && !['tapicerka', 'okna'].includes(x.cat) ? x.m2 + ' m² · ' : ''}${x.when === 'day' ? dayLabel(addDays(x.day)) : 'termin elastyczny'}${x.budget ? ' · budżet do ' + zl(x.budget) : ''}</div></div></div>
+      ${x.desc ? `<p class="small muted" style="margin:10px 0 0">${esc(x.desc)}</p>` : ''}
+      ${x.photos.length ? `<div class="photos mt12">${x.photos.slice(0, 4).map(s => `<div class="ph" style="background-image:url(${s})"></div>`).join('')}</div>` : ''}</div>
+    <div class="row between mt16"><span class="livebadge big">${waiting ? `<i></i>Zbieramy oferty` : x.status === 'chosen' ? 'Oferta wybrana' : 'Zbieranie zakończone'}</span><b class="small" style="white-space:nowrap">${x.offers.length} ${x.offers.length === 1 ? 'oferta' : x.offers.length > 1 && x.offers.length < 5 ? 'oferty' : 'ofert'}</b></div>
+    ${offers.length > 1 ? `<div class="hscroll mt12" style="padding-bottom:2px">${[['rec', 'Najlepszy stosunek'], ['price', 'Cena'], ['rating', 'Ocena'], ['date', 'Termin']].map(([v, l]) => `<button class="chip ${S.offerSort === v ? 'on' : ''}" data-act="offerSort" data-a="${v}">${l}</button>`).join('')}</div>` : ''}
+    <div class="stack mt12">
+      ${offers.map(o => { const p = proById(o.pro); const labels = [];
+        if (offers.length > 1 && o.price === cheapest) labels.push('<span class="tag mint">' + ic('badge-percent', 'xs') + 'Najtańsza</span>');
+        if (offers.length > 1 && p.rating === best) labels.push('<span class="tag yellow">' + ic('trophy', 'xs') + 'Najwyżej oceniany</span>');
+        if (offers.length > 1 && o.day === soonest) labels.push('<span class="tag blue">' + ic('zap', 'xs') + 'Najszybciej</span>');
+        const chosen = x.chosen === o.id;
+        return `<div class="offer ${chosen ? 'chosen' : ''} ${x.justAdded === o.id ? 'new' : ''}">
+          ${labels.length ? `<div class="chips" style="gap:6px;margin-bottom:10px">${labels.join('')}</div>` : ''}
+          <div class="row" style="align-items:flex-start">${avatar(p, 'sm')}<div class="grow"><div class="row" style="gap:5px"><span class="name">${esc(p.name)}</span>${ic('badge-check', 'verified')}</div>
+            <div class="tiny faint">${stars(p.rating)} (${p.reviews}) · ${String(p.dist).replace('.', ',')} km${p.insured ? ' · OC' : ''}${p.invoice ? ' · faktura' : ''}</div></div>
+            <div style="text-align:right"><div class="oprice num">${zl(o.price)}</div><div class="tiny faint">cena całkowita</div></div></div>
+          <div class="ofacts"><span>${ic('calendar', 'xs')}${dayLabel(addDays(o.day))}, ${o.time}</span><span>${ic('clock', 'xs')}ok. ${hrs(o.h)}</span>${x.budget && o.price <= x.budget ? `<span style="color:var(--mint)">${ic('check', 'xs')}w budżecie</span>` : ''}</div>
+          <div class="quote small">„${esc(o.msg)}”</div>
+          ${x.status === 'open' ? `<div class="acts"><button class="btn line sm" data-act="openPro" data-a="${p.id}">Profil</button><button class="btn line sm" data-act="openChat" data-a="${p.id}" aria-label="Napisz">${ic('message-circle', 's')}</button><button class="btn primary sm" style="flex:1" data-act="sheet" data-a="pickOffer" data-b="${x.id}|${o.id}">Wybierz</button></div>`
+            : chosen ? `<div class="tag mint">${ic('check', 'xs')}Wybrana oferta</div>` : ''}
+        </div>`; }).join('')}
+      ${waiting ? `<div class="offer skeleton"><div class="row"><span class="sk" style="width:40px;height:40px;border-radius:13px"></span><div class="grow"><span class="sk" style="width:60%"></span><span class="sk" style="width:35%;margin-top:6px"></span></div><span class="sk" style="width:70px;height:22px"></span></div><span class="sk" style="width:100%;height:40px;margin-top:14px;border-radius:12px"></span><div class="tiny faint" style="margin-top:10px">${proById(x.pool[x.offers.length].pro).name.split(' ')[0]} przygotowuje ofertę…</div></div>` : ''}
+    </div>
+    ${x.status === 'open' ? `<button class="btn line block mt16" data-act="closePost" data-a="${x.id}">Zakończ zbieranie ofert</button>` : ''}
+    <div class="sp"></div>
+  </div></div>`;
+};
+
+function marketCard(m) {
+  const c = catById(m.cat);
+  return `<div class="req">
+    <div class="head"><div class="row" style="gap:10px"><span class="avatar sm ${c.tone}">${ic(c.icon, 's')}</span><div><b class="small">${c.name}</b><div class="tiny faint">${esc(m.client)} · ${ic('star', 'xs star')} ${m.crating.toFixed(1).replace('.', ',')} · ${String(m.dist).replace('.', ',')} km</div></div></div>
+      <div style="text-align:right"><div class="tiny faint">budżet</div><b class="small">${m.budget ? 'do ' + zl(m.budget) : 'otwarty'}</b></div></div>
+    <p class="small muted" style="margin:12px 0 10px">${esc(m.desc)}</p>
+    <div class="facts" style="margin:0 0 14px">
+      <div>${ic('calendar', 's')}${m.when}</div>
+      <div>${ic('map-pin', 's')}${m.area.split(',')[0]}</div>
+      ${m.m2 ? `<div>${ic('ruler', 's')}${m.m2} m²</div>` : ''}
+      <div>${ic('images', 's')}${m.photos} zdjęcia</div>
+    </div>
+    ${m.sent ? `<div class="note mint">${ic('send', 's')}<span>Twoja oferta: <b>${zl(m.sent)}</b>. ${esc(m.client)} widzi ją razem z ${m.offers} innymi.</span></div>`
+      : `<div class="row between"><span class="tiny faint">${m.offers} wykonawców już wysłało oferty</span><button class="btn primary sm" data-act="sheet" data-a="sendOffer" data-b="${m.id}">${ic('send', 's')}Wyślij ofertę</button></div>`}
+  </div>`;
+}
+
+/* ================= LIVE CLEANING ================= */
+const ROOMS = [
+  { name: 'Kuchnia', icon: 'cooking-pot', tasks: ['Blaty i zlew', 'Fronty szafek', 'Płyta i okap', 'Podłoga'] },
+  { name: 'Łazienka', icon: 'bath', tasks: ['Prysznic i wanna', 'WC', 'Lustro i umywalka', 'Podłoga i fugi'] },
+  { name: 'Salon', icon: 'sofa', tasks: ['Kurze', 'Odkurzanie', 'Mycie podłogi'] },
+  { name: 'Sypialnia', icon: 'bed-double', tasks: ['Kurze', 'Ścielenie łóżka', 'Odkurzanie'] },
+  { name: 'Przedpokój', icon: 'door-open', tasks: ['Lustro i drzwi', 'Podłoga', 'Wyniesienie śmieci'] }
+];
+function checklistFor(o) {
+  const rooms = ROOMS.map(r => ({ name: r.name, icon: r.icon, tasks: r.tasks.slice() }));
+  o.extras.forEach(id => { const x = EXTRAS.find(e => e.id === id); rooms.push({ name: x.name, icon: x.icon, tasks: [x.name] }); });
+  const flat = []; rooms.forEach((r, ri) => r.tasks.forEach(t => flat.push({ room: ri, t }))); flat.rooms = rooms; return flat;
+}
+function liveBlock(o) {
+  const list = checklistFor(o); const rooms = list.rooms; const done = o.prog || 0;
+  const pct = Math.round(done / list.length * 100);
+  const cur = list[Math.min(done, list.length - 1)].room;
+  const p = proById(o.pro);
+  return `<div class="card mt16">
+    <div class="row between"><span class="livebadge big"><i></i>Sprzątanie na żywo</span><span class="tiny faint num">${done}/${list.length} zadań</span></div>
+    <div class="meter"><i style="width:${pct}%"></i></div>
+    <div class="tiny faint">Start o ${o.started || o.time}. Wykonawca odhacza zadania w aplikacji, a Ty widzisz postęp.</div>
+    <div class="rooms mt12">${rooms.map((r, ri) => {
+      const idx = list.map((x, i) => x.room === ri ? i : -1).filter(i => i >= 0);
+      const rd = idx.filter(i => i < done).length; const state = rd === idx.length ? 'ok' : ri === cur ? 'now' : '';
+      return `<div class="room ${state}"><span class="rt">${ic(state === 'ok' ? 'check' : r.icon, 's')}</span><div class="grow"><div class="row between"><b class="small">${r.name}</b><span class="tiny faint num">${rd}/${idx.length}</span></div>
+        ${state === 'now' ? `<div class="tasks">${idx.map(i => `<span class="${i < done ? 'ok' : i === done ? 'now' : ''}">${ic(i < done ? 'check' : 'circle', 'xs')}${list[i].t}</span>`).join('')}</div>` : ''}</div></div>`;
+    }).join('')}</div>
+  </div>`;
+}
+function finishOrder(o) {
+  o.rated = false;
+  const mins = Math.round(o.h * 60 - 10 + (o.id.length % 3) * 10);
+  o.report = { mins, notes: ['Odpływ w wannie wolno spływa, warto go przeczyścić.', 'Skończył się płyn do szyb pod zlewem.'] };
+  toast('Sprzątanie zakończone. Zobacz raport', 'sparkles');
+}
+function reportBlock(o, p) {
+  const list = checklistFor(o);
+  return `<div class="card mt16 report">
+    <div class="row between"><div><div class="eyebrow">Raport ze sprzątania</div><b style="font-family:var(--f-display);font-size:20px">Wszystko zrobione</b></div><span class="avatar sm t-mint">${ic('clipboard-list', 's')}</span></div>
+    <div class="kpis mt12"><div class="kpi"><span class="tiny faint">Zadania</span><b class="num">${list.length}/${list.length}</b></div><div class="kpi"><span class="tiny faint">Czas pracy</span><b class="num">${Math.floor(o.report.mins / 60)} h ${o.report.mins % 60} min</b></div></div>
+    <div class="chips mt12">${list.rooms.map(r => `<span class="tag mint">${ic('check', 'xs')}${r.name}</span>`).join('')}</div>
+    <div class="lbl small mt16" style="font-weight:650">Uwagi wykonawcy</div>
+    <div class="checklist mt8">${o.report.notes.map(n => `<div>${ic('scan-eye', 's')}<span>${n}</span></div>`).join('')}</div>
+  </div>`;
+}
+
 /* ================= sheets ================= */
 const sheets = {
   filters() {
@@ -949,6 +1138,25 @@ const sheets = {
     return { title: 'Odwołać wizytę?', body: `<p class="muted" style="margin-top:0">${free ? 'Do wizyty zostało ponad 24 h, więc odwołanie jest bezpłatne. Zablokowane pieniądze wrócą od razu.' : 'Do wizyty zostało mniej niż 24 h. Wykonawca otrzyma 50% kwoty jako rekompensatę za zarezerwowany czas.'}</p>
       <div class="field"><span class="lbl">Powód</span><div class="chips">${['Zmiana planów', 'Znalazłem kogoś innego', 'Termin nie pasuje', 'Inny'].map((t, i) => `<button class="chip ${i === 0 ? 'on' : ''}" data-act="pickChip">${t}</button>`).join('')}</div></div>`,
       foot: `<button class="btn line" data-act="closeSheet">Zostaw</button><button class="btn danger" style="flex:1" data-act="cancelOrder" data-a="${id}">Odwołaj ${free ? 'bezpłatnie' : 'za ' + zl(o.total / 2)}</button>` };
+  },
+  pickOffer(arg) {
+    const [pid, oid] = arg.split('|'); const x = S.posts.find(y => y.id === pid); const o = x.offers.find(y => y.id === oid); const p = proById(o.pro);
+    return { title: 'Wybrać tę ofertę?', body: `<div class="row">${avatar(p, 'sm')}<div class="grow"><div class="name">${esc(p.name)}</div><div class="tiny faint">${dayLabel(addDays(o.day))}, ${o.time} · ok. ${hrs(o.h)}</div></div><b class="num">${zl(o.price)}</b></div>
+      <div class="note mint mt16">${ic('lock', 's')}<span>Zablokujemy ${zl(o.price + SERVICE_FEE)} (z opłatą serwisową) na BLIK-u. Pieniądze trafią do wykonawcy po zatwierdzeniu usługi.</span></div>
+      <div class="note mt8">${ic('mail', 's')}<span>${x.offers.length - 1 === 1 ? 'Drugiemu wykonawcy' : `Pozostałym ${x.offers.length - 1} wykonawcom`} podziękujemy automatycznie.</span></div>`,
+      foot: `<button class="btn line" data-act="closeSheet">Wróć</button><button class="btn primary" style="flex:1" data-act="acceptOffer" data-a="${arg}">Potwierdź za ${zl(o.price + SERVICE_FEE)}</button>` };
+  },
+  sendOffer(id) {
+    const m = S.pro.market.find(y => y.id === id); const L = S.pro.listing;
+    const d = S.pro.offerDraft;
+    return { title: 'Twoja oferta', body: `<p class="small muted" style="margin-top:0">${esc(m.client)}: ${esc(m.desc)}</p>
+      <div class="field" style="margin-top:12px"><div class="row between"><span class="lbl" style="margin:0">Cena całkowita</span><span class="big-val num" id="ofPrice">${d.price}<small>zł</small></span></div>
+        <input type="range" id="ofp" min="100" max="900" step="10" value="${d.price}" data-model="pro.offerDraft.price" data-type="num" data-live="ofp" aria-label="Cena">
+        <div class="market"><span id="ofNet">Dla Ciebie po prowizji: ${zl(d.price * 0.88)}</span><span>${m.budget ? 'budżet klienta: ' + zl(m.budget) : ''}</span></div></div>
+      <div class="field"><span class="lbl">Proponowany termin</span><div class="chips">${[1, 2, 3, 5].map(i => `<button class="chip ${d.day === i ? 'on' : ''}" data-act="ofDay" data-a="${i}">${dayLabel(addDays(i))}</button>`).join('')}</div></div>
+      <div class="field"><label for="ofmsg">Wiadomość do klienta</label><textarea class="input" id="ofmsg" data-model="pro.offerDraft.msg">${esc(d.msg)}</textarea></div>
+      <div class="note">${ic('info', 's')}<span>Oferty z wiadomością i terminem wygrywają 2× częściej. Cenę możesz zmienić do momentu wyboru.</span></div>`,
+      foot: `<button class="btn line" data-act="closeSheet">Anuluj</button><button class="btn primary" style="flex:1" data-act="submitOffer" data-a="${id}">${ic('send', 's')}Wyślij ofertę</button>` };
   },
   decline(id) {
     return { title: 'Odrzucić zapytanie?', body: `<p class="muted" style="margin-top:0">Klient dostanie propozycję innych wykonawców. Powód widzisz tylko Ty, pomaga nam lepiej dobierać zapytania.</p>
@@ -1008,7 +1216,10 @@ const A = {
   toggleF(k) { S.filters[k] = !S.filters[k]; render(); },
   setF(k, v) { S.filters[k] = Number(v); render(); },
   clearFilters() { Object.assign(S.filters, { maxPrice: 100, minRating: 0, verified: false, insured: false, supplies: false, eco: false, pets: false, invoice: false, today: false, q: '' }); render(); },
-  sheet(name, p) { S.sheet = { name, p }; render(); },
+  sheet(name, p) {
+    if (name === 'sendOffer') { const m = S.pro.market.find(y => y.id === p); S.pro.offerDraft = { price: m.budget ? Math.round(m.budget * 0.85 / 10) * 10 : 300, day: 2, msg: `Dzień dobry, chętnie się tym zajmę. Przyjadę z własnym sprzętem i środkami. Pozdrawiam, ${S.pro.listing.name.split(' ')[0]}` }; }
+    S.sheet = { name, p }; render();
+  },
   closeSheet() { S.sheet = null; render(); },
   pickChip(_, __, el) { el.parentElement.querySelectorAll('.chip').forEach(c => c.classList.remove('on')); el.classList.add('on'); },
 
@@ -1036,8 +1247,10 @@ const A = {
   seg(a) { S.ordersSeg = a; render(); },
   advanceOrder(id) {
     const o = S.orders.find(x => x.id === id); const flow = ['pending', 'confirmed', 'enroute', 'progress', 'done'];
+    const wasProgress = o.status === 'progress';
     o.status = flow[Math.min(flow.length - 1, flow.indexOf(o.status) + 1)];
-    if (o.status === 'done') { o.rated = false; toast('Sprzątanie zakończone. Zatwierdź usługę', 'sparkles'); }
+    if (o.status === 'progress') { o.prog = 0; o.started = nowTime(); }
+    if (o.status === 'done') { if (wasProgress) o.prog = checklistFor(o).length; finishOrder(o); }
     render();
   },
   cancelOrder(id) { const o = S.orders.find(x => x.id === id); o.status = 'cancel'; S.sheet = null; stack().pop(); toast('Wizyta odwołana, pieniądze wracają na konto', 'undo-2'); anim = 'fade'; render(); },
@@ -1077,6 +1290,27 @@ const A = {
   publish() { S.pro.listing.published = true; toast('Ogłoszenie zapisane i widoczne dla klientów', 'megaphone'); render(); },
   previewPro() { go('selfpreview'); },
 
+  newPost() { S.draft = newDraft(S.filters.cat); go('post'); },
+  dset(k, v) { S.draft[k] = k === 'day' ? Number(v) : v; render(); },
+  dphotoDel(i) { S.draft.photos.splice(Number(i), 1); render(); },
+  publishPost() {
+    const d = S.draft; const x = Object.assign({ id: 'p' + Date.now(), status: 'open', offers: [], chosen: null }, JSON.parse(JSON.stringify(d)));
+    x.pool = buildPool(x); S.posts.unshift(x); S.draft = null; S.offerSort = 'rec';
+    stack()[stack().length - 1] = { name: 'offers', p: { id: x.id } }; anim = 'enter';
+    toast('Zlecenie opublikowane. Oferty zaraz się pojawią', 'send'); render();
+  },
+  openOffers(id) { S.offerSort = 'rec'; go('offers', { id }); },
+  offerSort(v) { S.offerSort = v; render(); },
+  closePost(id) { const x = S.posts.find(y => y.id === id); x.pool = x.offers.slice(); if (!x.offers.length) { S.posts = S.posts.filter(y => y.id !== id); back(); toast('Zlecenie usunięte', 'trash-2'); return; } render(); },
+  acceptOffer(arg) {
+    const [pid, oid] = arg.split('|'); const x = S.posts.find(y => y.id === pid); const of = x.offers.find(y => y.id === oid);
+    x.status = 'chosen'; x.chosen = oid; x.pool = x.offers.slice();
+    const ord = { id: 'o' + Date.now(), pro: of.pro, service: x.cat, date: of.day, time: of.time, h: of.h, m2: ['okna', 'tapicerka'].includes(x.cat) ? 0 : x.m2, total: of.price + SERVICE_FEE, freq: 'once', status: 'confirmed', extras: [], addr: 'ul. Puławska 112/14', pay: 'BLIK', fromOffer: true };
+    S.orders.push(ord); S.sheet = null; S.posts = S.posts.filter(y => y.id !== pid).concat(x);
+    S.stacks[stackKey()] = [{ name: S.tab }, { name: 'booked', p: { id: ord.id } }]; anim = 'enter'; render();
+  },
+  ofDay(i) { S.pro.offerDraft.day = Number(i); render(); },
+  submitOffer(id) { const m = S.pro.market.find(y => y.id === id); m.sent = S.pro.offerDraft.price; S.sheet = null; toast(`Oferta wysłana. ${m.client} dostanie powiadomienie`, 'send'); render(); },
   cycleTheme() {
     const order = [null, 'light', 'dark']; const cur = document.documentElement.getAttribute('data-theme');
     const next = order[(order.indexOf(cur) + 1) % 3];
@@ -1108,7 +1342,8 @@ document.addEventListener('input', e => {
 });
 document.addEventListener('change', e => {
   const el = e.target;
-  if (el.id === 'photoIn') { readPhotos(el.files); return; }
+  if (el.id === 'photoIn') { readPhotos(el.files, S.pro.listing.photos, 8); return; }
+  if (el.id === 'postPhotoIn') { readPhotos(el.files, S.draft.photos, 6); return; }
   if (el.dataset.rr) { if (el.dataset.model) { let v = el.value; if (el.dataset.type === 'num') v = Number(v); setPath(el.dataset.model, v); } render(); }
 });
 document.addEventListener('submit', e => {
@@ -1128,6 +1363,9 @@ function liveUpdate(kind) {
     const pb = document.getElementById('payBtn'); if (pb && kind === 'blik') pb.disabled = !/^\d{6}$/.test(b.blik);
     const note = document.querySelector('.note b'); if (note && b.step === 1) note.textContent = hrs(e.h);
   }
+  if (kind === 'pm2') { const v = document.getElementById('pm2val'); if (v) v.innerHTML = `${S.draft.m2}<small>m²</small>`; }
+  if (kind === 'pbud') { const v = document.getElementById('pbudget'); if (v) v.textContent = S.draft.budget ? 'do ' + zl(S.draft.budget) : 'nie podaję'; }
+  if (kind === 'ofp') { const d = S.pro.offerDraft; document.getElementById('ofPrice').innerHTML = `${d.price}<small>zł</small>`; document.getElementById('ofNet').textContent = 'Dla Ciebie po prowizji: ' + zl(d.price * 0.88); }
   if (kind === 'maxPrice') { const v = document.getElementById('maxPriceVal'); if (v) v.textContent = S.filters.maxPrice >= 100 ? 'bez limitu' : S.filters.maxPrice + ' zł/h'; }
   if (kind === 'rate') {
     const L = S.pro.listing; document.getElementById('rateVal').innerHTML = `${L.rate}<small>zł/h</small>`;
@@ -1142,8 +1380,8 @@ function refreshPreview() {
   const tmp = document.createElement('div'); tmp.innerHTML = screens.listing();
   const np = tmp.querySelector('#preview'); if (np) wrap.innerHTML = np.innerHTML;
 }
-function readPhotos(files) {
-  const L = S.pro.listing; const list = Array.from(files).slice(0, 8 - L.photos.length);
+function readPhotos(files, target, max) {
+  const list = Array.from(files).slice(0, max - target.length);
   let left = list.length; if (!left) return;
   list.forEach(f => {
     const r = new FileReader();
@@ -1153,7 +1391,7 @@ function readPhotos(files) {
       img.onload = () => {
         const c = document.createElement('canvas'); const s = 240 / Math.max(img.width, img.height);
         c.width = img.width * s; c.height = img.height * s; c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
-        L.photos.push(c.toDataURL('image/jpeg', .7)); if (--left === 0) { toast('Zdjęcia dodane', 'image'); render(); }
+        target.push(c.toDataURL('image/jpeg', .7)); if (--left === 0) { toast('Zdjęcia dodane', 'image'); render(); }
       };
       img.onerror = () => { if (--left === 0) render(); };
       img.src = r.result;
@@ -1161,6 +1399,29 @@ function readPhotos(files) {
     r.readAsDataURL(f);
   });
 }
+
+/* ================= tickers: oferty spływają, checklista się odhacza ================= */
+setInterval(() => {
+  let dirty = false; const t = top();
+  S.posts.forEach(x => {
+    if (x.status !== 'open' || x.offers.length >= x.pool.length) return;
+    x.wait = (x.wait || 0) + 1;
+    if (x.wait >= 2 + (x.offers.length % 2)) {
+      x.wait = 0; const of = x.pool[x.offers.length]; x.offers.push(of);
+      if (!(t.name === 'offers' && t.p.id === x.id)) toast(`Nowa oferta: ${proById(of.pro).name.split(' ')[0]}, ${zl(of.price)}`, 'hand-coins');
+      x.justAdded = of.id;
+      if (t.name === 'orders' || (t.name === 'offers' && t.p.id === x.id)) dirty = true;
+    }
+  });
+  S.orders.forEach(o => {
+    if (o.status !== 'progress') return;
+    const total = checklistFor(o).length; o.prog = (o.prog || 0) + 1;
+    if (o.prog >= total) { o.status = 'done'; finishOrder(o); }
+    if (t.name === 'order' && t.p.id === o.id) dirty = true;
+  });
+  if (dirty && !S.sheet && !document.activeElement.matches('input,textarea')) render();
+  S.posts.forEach(x => { x.justAdded = null; });
+}, 1300);
 
 /* ================= boot ================= */
 const theme = store.get('theme', null);

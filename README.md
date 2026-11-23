@@ -21,11 +21,14 @@ Na komputerze aplikacja wyświetla się w ramce telefonu, a na telefonie na peł
 - Profil wykonawcy: statystyki, weryfikacja, cennik, dostępność na 7 dni, zakres standardu, opinie
 - Rezerwacja w 4 krokach: zakres (metraż, pokoje, łazienki, dodatki) z wyceną na żywo, termin i cykliczność z rabatem, adres i sposób wejścia, płatność BLIK lub kartą
 - Zlecenia: status na osi czasu (z symulacją „w drodze”), odwołanie z zasadami 24 h, zatwierdzenie usługi, ocena z napiwkiem, ponowne zamówienie
+- Dodanie zlecenia (opis, zdjęcia, termin, budżet), na które wykonawcy przysyłają oferty na żywo; porównanie ofert (najtańsza, najwyżej oceniana, najszybciej) i wybór jednej
+- Sprzątanie na żywo: checklista pokój po pokoju odhaczana w trakcie wizyty, a po zakończeniu raport z czasem pracy i uwagami wykonawcy
 - Czat z wykonawcą z szybkimi odpowiedziami
 - Ulubieni wykonawcy
 
 **Wykonawca**
 - Panel: zarobki w tygodniu, nowe zapytania (przyjmij lub odrzuć z możliwością cofnięcia), statystyki ogłoszenia, lista rzeczy do uzupełnienia w profilu
+- Giełda zleceń w okolicy: wysłanie oferty z ceną (z kwotą po prowizji), terminem i wiadomością
 - Grafik: zlecenia na dany dzień i stała dostępność w tygodniu
 - Edytor ogłoszenia z podglądem na żywo: usługi, stawka na tle średniej w dzielnicy, prognoza zarobków, obszar dojazdu, udogodnienia, zdjęcia, weryfikacja
 
