@@ -146,12 +146,12 @@ module.exports = function proRoutes(r, { db, domain, notifier, sms, mapbox }) {
   r.post('/api/pro/boosts', { auth: 'pro' }, ({ user, body, now }) => {
     const p = domain.providerById(user.id) || notFound('Najpierw utwórz profil wykonawcy');
     const days = v.oneOf(Number(body.days), 'czas trwania', [3, 7, 14]);
-    // Obszary podaje się kluczami, np. "Warszawa/Mokotów", "Kraków/Krowodrza" albo "Gdańsk".
-    const districts = v.arr(body.districts ?? body.areas, 'obszary', { max: 12 }).map(String);
-    if (!districts.length) badRequest('Wybierz co najmniej jeden obszar', 'validation');
+    // Obszary to miasta, podawane nazwą, np. "Gdańsk".
+    const districts = v.arr(body.districts ?? body.areas ?? body.cities, 'miasta', { max: 12 }).map(String);
+    if (!districts.length) badRequest('Wybierz co najmniej jedno miasto', 'validation');
     for (const n of districts) {
       const a = geo.areaByKey(n);
-      if (!a || a.kind === 'outskirts') badRequest(`Nie znamy obszaru „${n}”`, 'validation');
+      if (!a || a.kind === 'outskirts') badRequest(`Nie znamy miasta „${n}”`, 'validation');
       if (!geo.servesArea(p, a)) fail(422, 'outside_reach', `${geo.areaLabel(a)}: poza Twoim zasięgiem dojazdu`);
       if (db.get('SELECT 1 FROM boosts WHERE provider_id = ? AND district = ? AND ends_at > ?', user.id, n, now)) conflict(`${geo.areaLabel(a)}: wyróżnienie już trwa`, 'already_active');
     }

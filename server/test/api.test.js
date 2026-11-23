@@ -62,9 +62,9 @@ test('limit prób wysłania kodu', async () => {
   assert.equal(r.status, 429);
 });
 
-test('wyszukiwanie: zasięg, najwyżej 2 profile Promowane, filtr dzielnicy', async () => {
+test('wyszukiwanie: zasięg, najwyżej 2 profile Promowane, filtr miasta', async () => {
   const r = await api('GET', '/api/providers?lat=52.195&lng=21.024');
-  assert.equal(r.status, 200); assert.equal(r.data.district, 'Warszawa/Mokotów'); assert.equal(r.data.area.label, 'Mokotów, Warszawa');
+  assert.equal(r.status, 200); assert.equal(r.data.district, 'Warszawa'); assert.equal(r.data.area.label, 'Warszawa');
   const promo = r.data.results.filter(p => p.promoted);
   assert.ok(promo.length >= 1 && promo.length <= 2);
   assert.deepEqual(r.data.results.slice(0, promo.length).map(p => p.id), promo.map(p => p.id), 'promowane są na górze');
@@ -73,9 +73,9 @@ test('wyszukiwanie: zasięg, najwyżej 2 profile Promowane, filtr dzielnicy', as
   assert.ok(far.data.results.length > r.data.results.length);
   const priceSorted = await api('GET', '/api/providers?lat=52.195&lng=21.024&sort=price');
   assert.ok(priceSorted.data.results.every(p => !p.promoted), 'bez promowanych przy innym sortowaniu');
-  const d = await api('GET', '/api/providers?area=Warszawa/Bielany');
+  const d = await api('GET', '/api/providers?area=Łomianki');
   assert.ok(d.data.results.some(p => p.id === 'kasia'));
-  const views = db().get("SELECT SUM(views) v FROM boosts WHERE district = 'Warszawa/Mokotów'").v;
+  const views = db().get("SELECT SUM(views) v FROM boosts WHERE district = 'Warszawa'").v;
   assert.ok(views > 0, 'wyświetlenia wyróżnień są liczone');
 });
 
@@ -94,7 +94,7 @@ test('pełna wizyta: rezerwacja → akceptacja → w drodze → zakończona → 
   // nowy klient z linku od Oli
   const ewa = await login('533444555', { name: 'Ewa Testowa', ref: 'ola-zielinska' });
   const adr = await api('POST', '/api/addresses', { label: 'Dom', lat: 52.2005, lng: 21.0105, note: '2 piętro' }, ewa);
-  assert.equal(adr.status, 200); assert.equal(adr.data.district, 'Mokotów'); assert.equal(adr.data.areaKey, 'Warszawa/Mokotów');
+  assert.equal(adr.status, 200); assert.equal(adr.data.district, 'Warszawa'); assert.equal(adr.data.areaKey, 'Warszawa');
   const slot = await freeSlot('ola-zielinska');
   const b = await api('POST', '/api/bookings', { provider: 'ola-zielinska', service: 'dom', m2: 60, rooms: 3, baths: 1, date: slot.date, time: slot.time, addressId: adr.data.id, payMethod: 'blikphone', doorCode: '1234', onsiteName: 'Mama', onsitePhone: '600 123 120' }, ewa);
   assert.equal(b.status, 201, JSON.stringify(b.data)); assert.equal(b.data.status, 'pending'); assert.equal(b.data.onsite.phone, '+48600123120');
@@ -208,14 +208,19 @@ test('wykonawca może pisać tylko do swoich klientów', async () => {
 
 test('wyróżnienia: wycena, zakup z kredytu, brak kredytu, zwrot z gwarancji', async () => {
   const ola = await login('500100300');
+  // większy zasięg: Warszawa i miasta obok (Piaseczno, Ząbki, Marki…)
+  assert.equal((await api('POST', '/api/pro/profile', { radiusKm: 15 }, ola)).status, 200);
   const q = await api('GET', '/api/pro/boosts?days=7', undefined, ola);
-  assert.equal(q.status, 200); assert.ok(q.data.districts.some(d => d.district === 'Warszawa/Mokotów' && d.active));
+  assert.ok(q.data.districts.length >= 3 && q.data.districts.every(d => !d.district.includes('/')), 'tylko całe miasta');
+  assert.equal(q.status, 200); assert.ok(q.data.districts.some(d => d.district === 'Warszawa' && d.active));
   const target = q.data.districts.find(d => !d.active);
   const buy = await api('POST', '/api/pro/boosts', { districts: [target.district], days: 3 }, ola);
   assert.equal(buy.status, 201, JSON.stringify(buy.data));
   assert.equal((await api('POST', '/api/pro/boosts', { districts: [target.district], days: 3 }, ola)).data.error.code, 'already_active');
-  assert.equal((await api('POST', '/api/pro/boosts', { districts: ['Warszawa/Bielany'], days: 7 }, ola)).data.error.code, 'outside_reach');
+  assert.equal((await api('POST', '/api/pro/boosts', { districts: ['Legionowo'], days: 7 }, ola)).data.error.code, 'outside_reach');
   const rest = q.data.districts.filter(d => !d.active && d.district !== target.district).map(d => d.district);
+  const left = (await api('GET', '/api/pro/boosts', undefined, ola)).data.creditZl; // zostawiamy 1 zł kredytu
+  db().run("INSERT INTO credit_ledger (id, provider_id, amount_gr, reason, created_at) SELECT 'crd_t', user_id, ?, 'test', datetime() FROM providers WHERE slug = 'ola-zielinska'", -Math.round((left - 1) * 100));
   const tooMuch = await api('POST', '/api/pro/boosts', { districts: rest, days: 14 }, ola);
   assert.equal(tooMuch.status, 402); assert.ok(tooMuch.data.error.missingZl > 0);
   // koniec wyróżnienia z małą liczbą wyświetleń → zwrot kredytu
@@ -275,17 +280,19 @@ test('lista oczekujących i powiadomienie, gdy ktoś zacznie dojeżdżać', asyn
   const out = await api('POST', '/api/addresses', { lat: 49.84, lng: 24.03, label: 'Lwów' }, u);
   assert.equal(out.status, 422); assert.equal(out.data.error.code, 'outside_area');
   const wl = await api('POST', '/api/waitlist', { lat: 52.2245, lng: 20.9055 }, u);
-  assert.equal(wl.status, 200); assert.equal(wl.data.area, 'Bemowo, Warszawa');
+  assert.equal(wl.status, 200); assert.equal(wl.data.area, 'Warszawa');
   const pro = await login('566777888', { name: 'Nowy Wykonawca' });
   await api('POST', '/api/pro/profile', { displayName: 'Nowy Wykonawca', services: ['dom'], rate: 40, baseLat: 52.226, baseLng: 20.91, radiusKm: 5 }, pro);
   assert.ok((await api('GET', '/api/notifications', undefined, u)).data.some(n => n.kind === 'waitlist'));
 });
 
-test('cała Polska: obszary, wyszukiwanie i rezerwacja w Krakowie, wyróżnienie w Gdańsku', async () => {
-  // obszar punktu: dzielnica dużego miasta, osobne miasto obok Warszawy, okolice mniejszego miasta
+test('cała Polska: miasta, wyszukiwanie i rezerwacja w Krakowie, wyróżnienie w Gdańsku', async () => {
+  // obszar punktu to całe miasto (bez dzielnic), osobne miasto obok Warszawy albo okolice najbliższego miasta
   const kr = await api('GET', '/api/geo/reverse?lat=50.0614&lng=19.9366');
-  assert.equal(kr.data.areaKey, 'Kraków/Stare Miasto'); assert.equal(kr.data.inArea, true); assert.ok(kr.data.stats.providers >= 1);
+  assert.equal(kr.data.areaKey, 'Kraków'); assert.equal(kr.data.inArea, true); assert.ok(kr.data.stats.providers >= 1);
   assert.equal((await api('GET', '/api/geo/reverse?lat=52.170&lng=20.800')).data.areaKey, 'Pruszków', 'Pruszków to osobne miasto, nie Warszawa');
+  assert.equal((await api('GET', '/api/geo/reverse?lat=52.195&lng=20.884')).data.areaKey, 'Warszawa', 'Ursus to Warszawa, bez podziału na dzielnice');
+  assert.equal((await api('GET', '/api/geo/reverse?lat=53.50&lng=20.00')).data.areaKey, 'Olsztyn/okolice', 'wieś należy do okolic najbliższego miasta');
   assert.equal((await api('GET', '/api/geo/reverse?lat=49.84&lng=24.03')).data.inArea, false, 'Lwów jest poza Polską');
   // obszary w okolicy z kształtami do mapy
   const areas = await api('GET', '/api/geo/areas?lat=54.37&lng=18.62&km=20');
@@ -294,7 +301,7 @@ test('cała Polska: obszary, wyszukiwanie i rezerwacja w Krakowie, wyróżnienie
   assert.equal(areas.data.shapes.features.length, areas.data.areas.length);
   // wyszukiwanie w Krakowie: tylko krakowscy wykonawcy, nikt z Warszawy
   const s = await api('GET', '/api/providers?lat=50.0614&lng=19.9366');
-  assert.equal(s.data.district, 'Kraków/Stare Miasto'); assert.ok(s.data.results.length >= 1);
+  assert.equal(s.data.district, 'Kraków'); assert.ok(s.data.results.length >= 1);
   assert.ok(s.data.results.every(p => p.city === 'Kraków'), JSON.stringify(s.data.results.map(p => p.city)));
   assert.ok(s.data.results.some(p => p.promoted), 'wyróżnienie w Krakowie działa');
   // rezerwacja pod krakowskim adresem
@@ -303,7 +310,7 @@ test('cała Polska: obszary, wyszukiwanie i rezerwacja w Krakowie, wyróżnienie
   assert.equal(adr.status, 200); assert.equal(adr.data.city, 'Kraków');
   const slot = await freeSlot('krakowska-iskra');
   const b = await api('POST', '/api/bookings', { provider: 'krakowska-iskra', service: 'dom', date: slot.date, time: slot.time, addressId: adr.data.id, payMethod: 'cash' }, u);
-  assert.equal(b.status, 201, JSON.stringify(b.data)); assert.equal(b.data.area, 'Stare Miasto, Kraków');
+  assert.equal(b.status, 201, JSON.stringify(b.data)); assert.equal(b.data.area, 'Kraków');
   // wykonawca z Gdańska: wycena wyróżnień w Trójmieście, nie w Warszawie
   const pro = await login('599222333', { name: 'Gdańska Firma' });
   const prof = await api('POST', '/api/pro/profile', { displayName: 'Gdańska Firma', services: ['dom'], rate: 45, baseLat: 54.40, baseLng: 18.58, radiusKm: 12 }, pro);
@@ -312,7 +319,7 @@ test('cała Polska: obszary, wyszukiwanie i rezerwacja w Krakowie, wyróżnienie
   assert.ok(q.data.districts.some(d => d.district === 'Sopot')); assert.ok(q.data.districts.every(d => !d.district.startsWith('Warszawa')));
   const buy = await api('POST', '/api/pro/boosts', { districts: ['Gdańsk'], days: 3 }, pro);
   assert.equal(buy.status, 201, JSON.stringify(buy.data)); assert.equal(buy.data.boosts[0].area, 'Gdańsk');
-  assert.equal((await api('POST', '/api/pro/boosts', { districts: ['Kraków/Krowodrza'], days: 3 }, pro)).data.error.code, 'outside_reach');
+  assert.equal((await api('POST', '/api/pro/boosts', { districts: ['Kraków'], days: 3 }, pro)).data.error.code, 'outside_reach');
   assert.equal((await api('POST', '/api/pro/profile', { baseLat: 49.84, baseLng: 24.03 }, pro)).data.error.code, 'outside_area');
 });
 

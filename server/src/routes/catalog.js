@@ -37,7 +37,7 @@ module.exports = function catalogRoutes(r, { db, domain, mapbox }) {
   r.get('/api/meta', () => ({ services: SERVICES.map(id => ({ id, name: SERVICE_NAMES[id] })), extras: Object.entries(EXTRAS).map(([id, h]) => ({ id, hours: h })), cities: geo.CITY_LIST.map(c => c.name) }));
 
   // ---------- geografia ----------
-  const withArea = x => { const a = geo.areaAt(x.lat, x.lng); return Object.assign(x, { district: a.name, areaKey: a.key, area: domain.areaView(a), inArea: x.inArea !== undefined ? x.inArea : geo.inPoland(x.lat, x.lng) }); };
+  const withArea = x => { const a = geo.areaAt(x.lat, x.lng); return Object.assign(x, { district: x.city || a.city, areaKey: a.key, area: domain.areaView(a), inArea: x.inArea !== undefined ? x.inArea : geo.inPoland(x.lat, x.lng) }); };
   // Wyszukiwanie prawdziwych adresów w całej Polsce (Mapbox), bez Mapboxa: miasta i lokalny słownik ulic.
   // near=lat,lng ustawia wyniki najbliżej użytkownika (np. „Długa” w Gdańsku, gdy klient jest w Gdańsku).
   r.get('/api/geo/search', async ({ query }) => {
@@ -55,7 +55,7 @@ module.exports = function catalogRoutes(r, { db, domain, mapbox }) {
     if (area.kind !== 'outskirts') out.stats = areaStats(area);
     return out;
   });
-  // Obszary w promieniu km od punktu: kształty (GeoJSON) i statystyki. Zastępuje stałą listę dzielnic Warszawy.
+  // Miasta w promieniu km od punktu: kształty (GeoJSON) i statystyki.
   r.get('/api/geo/areas', ({ query }) => {
     const lat = v.num(query.lat ?? 52.2297, 'lat', { min: 49, max: 55 }), lng = v.num(query.lng ?? 21.0122, 'lng', { min: 14, max: 25 });
     const km = v.num(query.km ?? 25, 'promień', { min: 1, max: 80 });

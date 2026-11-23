@@ -15,15 +15,15 @@ function createDomain(db) {
   const mustProvider = slug => providerBySlug(slug) || notFound('Nie ma takiego wykonawcy');
 
   // ---------- popyt: wyszukiwania z ostatnich 7 dni, nie mniej niż wartość startowa ----------
-  // Kolumna search_log.district (i boosts.district) przechowuje klucz obszaru, np. "Kraków/Krowodrza" albo "Gdańsk".
+  // Kolumna search_log.district (i boosts.district) przechowuje klucz obszaru: nazwę miasta, np. "Gdańsk", albo "Toruń/okolice".
   function demand(key) {
     const since = new Date(Date.now() - 7 * 86400e3).toISOString();
     const n = db.get('SELECT COUNT(*) c FROM search_log WHERE district = ? AND created_at > ?', key, since).c;
     const a = geo.areaByKey(key);
     return Math.max(a ? geo.demandFromPop(a.pop) : 5, Math.round(n / 7));
   }
-  const areaView = a => a && { key: a.key, name: a.name, city: a.city, region: a.region, kind: a.kind, label: geo.areaLabel(a) };
-  // Obszary, które wykonawca obsługuje (środek obszaru w zasięgu dojazdu), od najbliższego.
+  const areaView = a => a && { key: a.key, name: a.name, city: a.city, region: a.region, kind: a.kind, label: geo.areaLabel(a), radiusKm: Math.round(a.radius * 10) / 10 };
+  // Miasta, które wykonawca obsługuje (zasięg dojazdu sięga przynajmniej części miasta), od najbliższego.
   function coveredAreas(p) {
     const base = { lat: p.base_lat, lng: p.base_lng };
     return geo.areasNear(p.base_lat, p.base_lng, p.radius_km).filter(a => geo.servesArea(p, a)).sort((a, b) => geo.haversineKm(base, a) - geo.haversineKm(base, b));
@@ -64,7 +64,7 @@ function createDomain(db) {
   function providerView(p, point, { promoted = false, full = false, road = null } = {}) {
     const r = point ? reachWith(p, point, road) : null; const ns = nextSlot(p);
     const out = {
-      id: p.slug, name: p.display_name, ini: p.initials, tone: p.tone, kind: p.kind, area: geo.areaLabel(geo.areaAt(p.base_lat, p.base_lng)), city: geo.areaAt(p.base_lat, p.base_lng).city,
+      id: p.slug, name: p.display_name, ini: p.initials, tone: p.tone, kind: p.kind, area: geo.areaAt(p.base_lat, p.base_lng).city, city: geo.areaAt(p.base_lat, p.base_lng).city,
       tagline: p.tagline, services: json(p.services, []), langs: json(p.langs, []), rate: p.rate_gr / 100, minH: p.min_hours,
       fixed: !!p.fixed_price, perWindow: p.per_window_gr ? p.per_window_gr / 100 : 0, since: p.since, super: !!p.super,
       verified: p.id_status === 'verified', insured: !!p.insured, invoice: !!p.invoice, supplies: !!p.supplies, eco: !!p.eco, pets: !!p.pets,
@@ -122,7 +122,7 @@ function createDomain(db) {
     const out = {
       id: b.id, status: b.status, service: b.service, serviceName: SERVICE_NAMES[b.service], startsAt: b.starts_at, endsAt: addHours(b.starts_at, b.hours), hours: b.hours,
       m2: b.m2, rooms: b.rooms, baths: b.baths, extras: json(b.extras, []), freq: b.freq, totalZl: b.price_gr / 100, travelFeeZl: b.travel_fee_gr / 100, payMethod: b.pay_method,
-      address: b.address_text, area: geo.areaLabel(geo.areaAt(b.lat, b.lng)), addressId: b.address_id, lat: b.lat, lng: b.lng, onsite: b.onsite_name ? { name: b.onsite_name, phone: b.onsite_phone } : null,
+      address: b.address_text, area: geo.areaAt(b.lat, b.lng).city, addressId: b.address_id, lat: b.lat, lng: b.lng, onsite: b.onsite_name ? { name: b.onsite_name, phone: b.onsite_phone } : null,
       entry: b.entry, pets: b.pets, note: b.note, viaPromo: !!b.via_promo,
       provider: { id: p.slug, name: p.display_name, ini: p.initials, tone: p.tone, base: { lat: p.base_lat, lng: p.base_lng } },
       report: report ? { id: report.id, category: report.category, want: report.want, status: report.status, at: report.created_at, answeredAt: report.answered_at } : null,

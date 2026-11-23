@@ -28,7 +28,7 @@
 1. Publikacja profilu jest bezpłatna. Lśni nie pobiera prowizji od zleceń.
 2. Wykonawca odpowiada za prawdziwość danych w profilu, za jakość usług, za rozliczenia podatkowe oraz za szkody wyrządzone przy wykonywaniu usługi.
 3. Odznaki „Tożsamość potwierdzona” i „Polisa OC” są przyznawane po weryfikacji dokumentów i nie można ich kupić.
-4. Wykonawca może wykupić **wyróżnienie** profilu w wybranych obszarach (dzielnicach dużych miast albo miastach). Zasady wyróżnień, ceny i gwarancja wyświetleń są opisane w aplikacji oraz w dokumencie „Zasady ustalania kolejności wyników”.
+4. Wykonawca może wykupić **wyróżnienie** profilu w wybranych miastach. Zasady wyróżnień, ceny i gwarancja wyświetleń są opisane w aplikacji oraz w dokumencie „Zasady ustalania kolejności wyników”.
 5. Wykonawca otrzymuje kredyt na wyróżnienia: na start oraz za każdego nowego Klienta, który po raz pierwszy skorzysta z jego usługi po rejestracji przez link zaproszenia. Kredyt nie podlega wymianie na pieniądze.
 6. Wykonawca odpowiada na zgłoszenia problemów w ciągu 24 godzin. Zgłoszenia bez odpowiedzi trafiają do zespołu Lśni.
 

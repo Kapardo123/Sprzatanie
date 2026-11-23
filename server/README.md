@@ -39,7 +39,7 @@ W trybie deweloperskim wykonawcy z danych startowych sami potwierdzają rezerwac
 | **Nieobecności** | Wykonawca zgłasza je najwcześniej 15 minut po godzinie wizyty. Po 2 nieobecnościach klient nie może rezerwować. Zespół może zgłoszenie odrzucić. |
 | **Opinie** | Tylko po zakończonej wizycie, jedna na wizytę. Automatyczna moderacja: telefon, e-mail, link albo wulgaryzm kierują opinię do ręcznej moderacji. Wykonawca może raz odpowiedzieć publicznie. |
 | **Weryfikacja** | Wykonawca przesyła dowód z selfie albo polisę OC. Decyzję podejmuje zespół w panelu albo zewnętrzny dostawca przez webhook podpisany HMAC. |
-| **Wyróżnienia** | Cena zależna od popytu w obszarze (dzielnica dużego miasta albo miasto), tylko obszary w zasięgu, opłata z kredytu. Gwarancja wyświetleń: po zakończeniu kredyt wraca proporcjonalnie. Liczymy wyświetlenia, wejścia w profil i zapytania. |
+| **Wyróżnienia** | Cena zależna od popytu w mieście, tylko miasta w zasięgu, opłata z kredytu. Gwarancja wyświetleń: po zakończeniu kredyt wraca proporcjonalnie. Liczymy wyświetlenia, wejścia w profil i zapytania. |
 | **Kredyt i zaproszenia** | 50 zł na start, 20 zł za klienta z linku `/z/<kod>` po jego pierwszej zakończonej wizycie. |
 | **Lista oczekujących** | Zapis spoza obsługiwanego obszaru. Gdy wykonawca zacznie dojeżdżać w okolicę, osoba z listy dostaje powiadomienie. |
 | **Panel zespołu** | `/admin`: przegląd, zgłoszenia ze zdjęciami, nieobecności, weryfikacje z podglądem dokumentów, moderacja opinii, blokowanie kont, lista oczekujących, dziennik działań i wysłane SMS-y. Każda decyzja trafia do dziennika. |
@@ -67,7 +67,7 @@ Po ustawieniu `MAPBOX_TOKEN` aplikacja online pokazuje prawdziwą mapę Mapbox z
 | Wyniki, profil, wycena, rezerwacja | Odległość i czas dojazdu po prawdziwych drogach. Od nich zależy zasięg i dopłata za dojazd. | Matrix (do 24 wykonawców w jednym zapytaniu) |
 | Śledzenie dojazdu | Trasa po ulicach i auto przesuwające się po niej, czas do przyjazdu | Directions |
 | Trasa dnia wykonawcy | Kolejne wizyty po drogach, kilometry i czasy odcinków | Directions (do 25 punktów) |
-| Mapy w aplikacji | Mapa okolicy z warstwami dzielnic, wyszukiwarka z pinezkami i zasięgiem, „Szukaj w tym obszarze”, obszar pracy, wyróżnienia. Jasny i ciemny styl zależnie od motywu. | Mapbox GL JS v3, style `light-v11` / `dark-v11` |
+| Mapy w aplikacji | Mapa okolicy z warstwami miast, wyszukiwarka z pinezkami i zasięgiem, „Szukaj w tym obszarze”, obszar pracy, wyróżnienia. Jasny i ciemny styl zależnie od motywu. | Mapbox GL JS v3, style `light-v11` / `dark-v11` |
 | Podglądy na ekranie głównym i w ogłoszeniu | Lekki obrazek zamiast pełnej mapy | Static Images |
 
 **Jak to chroni limity i działa bez przerw:**
@@ -82,17 +82,16 @@ Po ustawieniu `MAPBOX_TOKEN` aplikacja online pokazuje prawdziwą mapę Mapbox z
 
 **Adresy w całej Polsce.** Wyszukiwanie obejmuje cały kraj (miasta, ulice, adresy). Wyniki są ustawiane najbliżej aktualnego adresu użytkownika (parametr `near`), więc „Długa 5” wpisana w Gdańsku pokaże najpierw Gdańsk. Adres spoza Polski jest oznaczony i nie da się go zapisać.
 
-## Cała Polska: obszary
+## Cała Polska: miasta
 
-Do popytu, statystyk i wyróżnień serwer dzieli kraj na **obszary** (`src/geo.js`, dane w `src/geo-pl.js`):
+Do popytu, statystyk i wyróżnień serwer dzieli kraj na **miasta**, bez dzielnic (`src/geo.js`, dane w `src/geo-pl.js`):
 
-- **dzielnice** w Warszawie (18), Krakowie (18), Łodzi, Wrocławiu i Poznaniu, klucz np. `Kraków/Krowodrza`,
-- **miasta**: ok. 115 miast i większych miejscowości, w tym te przy dużych miastach (Pruszków, Ząbki, Sopot, Gdynia), klucz np. `Gdańsk`,
-- **okolice**: punkt poza wszystkimi miastami należy do najbliższego, np. `Olsztyn/okolice`. Taki adres działa normalnie (wyszukiwanie, rezerwacje), tylko nie da się w nim kupić wyróżnienia.
+- **miasto**: ok. 115 miast i większych miejscowości, w tym te przy dużych miastach (Pruszków, Ząbki, Sopot, Gdynia), klucz = nazwa, np. `Gdańsk`,
+- **okolice**: punkt poza wszystkimi miastami należy do okolic najbliższego, np. `Olsztyn/okolice`. Taki adres działa normalnie (wyszukiwanie, rezerwacje), tylko nie da się w nim kupić wyróżnienia.
 
-Promień miasta rośnie z liczbą mieszkańców (od 4 km do ok. 22 km dla Warszawy). Punkt należy do miasta, do którego środka ma najbliżej względem jego promienia, więc centrum Pruszkowa to Pruszków, a Ursus to Warszawa. Popyt startowy wynika z liczby mieszkańców i rośnie z liczbą wyszukiwań z ostatnich 7 dni.
+Promień miasta rośnie z liczbą mieszkańców (od 4 km do 15 km dla Warszawy). Punkt należy do miasta, do którego środka ma najbliżej względem jego promienia, więc centrum Pruszkowa to Pruszków, a Ursus to Warszawa. Wykonawca obsługuje miasto, jeśli jego zasięg dojazdu sięga przynajmniej części miasta. Popyt startowy rośnie z pierwiastkiem z liczby mieszkańców (Warszawa ok. 95 wyszukiwań dziennie, miasto 60 tys. ok. 17) i z liczbą wyszukiwań z ostatnich 7 dni.
 
-Granice obszarów są przybliżone: komórki wokół środków dzielnic przycięte do koła miasta albo koło. Wystarczają do mapy cieplnej i wyboru obszaru do wyróżnienia. Dokładne granice gmin i dzielnic można później wczytać z PRG (Państwowy Rejestr Granic, dane otwarte GUGiK). Żeby dodać miasto albo podzielić je na dzielnice, wystarczy dopisać je w `src/geo-pl.js`.
+Granice miast są przybliżone (koło o promieniu miasta). Wystarczają do mapy cieplnej i wyboru miasta do wyróżnienia. Dokładne granice gmin można później wczytać z PRG (Państwowy Rejestr Granic, dane otwarte GUGiK). Nowe miasto dodaje się jednym wierszem w `src/geo-pl.js`.
 
 **Koszty.** Mapbox ma darmowe limity miesięczne dla każdego z tych API (szczegóły w cenniku Mapbox). Pamięć podręczna i jedno zapytanie Matrix na wyszukiwanie mocno ograniczają zużycie.
 

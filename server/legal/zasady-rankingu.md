@@ -16,7 +16,7 @@ Możesz też posortować wyniki po cenie, odległości lub ocenie. Wtedy nie pok
 
 ## Wyróżnienia („Promowane”)
 
-- Wykonawca może zapłacić za wyższą pozycję w wybranym obszarze (dzielnicy dużego miasta albo mieście). Taki profil oznaczamy etykietą **„Promowane”**.
+- Wykonawca może zapłacić za wyższą pozycję w wybranym mieście. Taki profil oznaczamy etykietą **„Promowane”**.
 - Na górze listy pokazujemy najwyżej **2** profile promowane. Jeśli wyróżnionych jest więcej, rotujemy je tak, żeby każdy był pokazywany podobnie często.
 - Wyróżniony Wykonawca musi dojeżdżać pod Twój adres.
 - Płatność za wyróżnienie **nie wpływa** na oceny, opinie ani odznaki weryfikacji.

@@ -129,14 +129,14 @@ To ważne przy starcie w całym kraju naraz, bo z listy oczekujących widać, w 
 - **Dodane: „Klient nie otworzył”** przy zleceniu w grafiku. Zgłoszenie ma instrukcję (odczekaj 15 minut, zadzwoń), zapisuje czas i odległość od adresu, a zlecenie dostaje oznaczenie.
 - Na później: blokada rezerwacji po dwóch nieobecnościach wymaga backendu.
 
-## 9. Wykonawca chce się wyróżnić w nowej dzielnicy
+## 9. Wykonawca chce się wyróżnić w mieście obok
 
-**Kto:** Ola chce więcej klientów w Wilanowie.
+**Kto:** Ola z Warszawy chce więcej klientów w Piasecznie.
 
-**Kroki:** otwiera Wyróżnienia i widzi, że Wilanów jest poza jej zasięgiem. Zmienia zasięg w Obszarze pracy, wraca i kupuje wyróżnienie z kredytu.
+**Kroki:** otwiera Wyróżnienia i widzi, że Piaseczno jest poza jej zasięgiem. Zmienia zasięg w Obszarze pracy, wraca i kupuje wyróżnienie z kredytu.
 
 **Status:**
-- Działało: komunikat o dzielnicy poza zasięgiem, edytor zasięgu, ceny zależne od popytu, kredyt i gwarancja wyświetleń.
+- Działało: komunikat o mieście poza zasięgiem, edytor zasięgu, ceny zależne od popytu, kredyt i gwarancja wyświetleń.
 
 ## 10. Biuro szuka stałej firmy sprzątającej
 
@@ -175,7 +175,7 @@ Pozycje, które makieta potrzebowała od serwera. Szczegóły są w [server/READ
 | Telefon | **Zrobione:** sesje z PIN-em i endpoint dla bramki telefonicznej. **Do podpięcia:** numer u operatora z IVR. |
 | Zgłoszenia | **Zrobione:** zgłoszenia ze zdjęciami, odpowiedź wykonawcy, eskalacja po 24 h, nieobecności i panel zespołu do ich obsługi. |
 | Opinie | **Zrobione:** automatyczna moderacja, moderacja w panelu, publiczne odpowiedzi wykonawców. |
-| Mapa | **Zrobione:** Mapbox (prawdziwa mapa, wyszukiwanie adresów, czasy dojazdu po drogach, trasy) w całej Polsce, z obszarami: dzielnice 5 największych miast i ok. 115 miast. **Do podpięcia:** dokładne granice z PRG. |
+| Mapa | **Zrobione:** Mapbox (prawdziwa mapa, wyszukiwanie adresów, czasy dojazdu po drogach, trasy) w całej Polsce, z podziałem na ok. 115 miast (bez dzielnic). **Do podpięcia:** dokładne granice z PRG. |
 | Prawo | **Projekty gotowe:** regulamin, polityka prywatności i zasady rankingu w `server/legal/`. **Wymagają sprawdzenia przez prawnika.** DAC7 do potwierdzenia z księgową. |
 | Płatności za wyróżnienia | **Do podpięcia:** zakup z kredytu działa. Dopłata ponad kredyt zwraca kwotę do zapłaty i czeka na operatora (Przelewy24 lub Stripe). |
 | Giełda zleceń z ofertami | **Na później:** w trybie online działa jeszcze lokalnie (dane demo). |
