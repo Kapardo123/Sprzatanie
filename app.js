@@ -197,11 +197,15 @@ const boostBase = n => Math.round(8 + DEMAND[n] * .6);
 const boostPrice = (n, days) => days === 3 ? Math.round(boostBase(n) * .5) : days === 14 ? Math.round(boostBase(n) * 1.8) : boostBase(n);
 const boostViews = (n, days) => Math.round(DEMAND[n] * 3 * days / 7);
 const searchers = n => DEMAND[n] * 7;
-const mixFill = (tok, pct) => `color-mix(in srgb, var(--${tok}) ${Math.round(pct)}%, var(--surface-2))`;
+const cssVar = name => getComputedStyle(document.documentElement).getPropertyValue('--' + name).trim();
+const hexRgb = h => { h = h.replace('#', ''); if (h.length === 3) h = h.split('').map(c => c + c).join(''); const n = parseInt(h.slice(0, 6), 16); return [n >> 16 & 255, n >> 8 & 255, n & 255]; };
+const mixFill = (tok, pct) => { try { const a = hexRgb(cssVar(tok)), b = hexRgb(cssVar('surface-2')), k = Math.max(0, Math.min(100, pct)) / 100; return `rgb(${a.map((v, i) => Math.round(v * k + b[i] * (1 - k))).join(',')})`; } catch (e) { return `color-mix(in srgb, var(--${tok}) ${Math.round(pct)}%, var(--surface-2))`; } };
+const resolveColor = c => { const m = /^var\(--([\w-]+)\)$/.exec(String(c || '')); return m ? cssVar(m[1]) : c; };
 
 /* ---------- komponent mapy: przesuwanie, pinch/kółko, markery HTML w stałym rozmiarze ---------- */
 const MAPCFG = {}; let mapDragAt = 0, mapTapAt = 0;
 function geoMap(id, o) {
+  if (S.mbx) return mbxMap(id, o);
   const c0 = o.center || [12.5, 13];
   if (!S.maps[id] || o.reset) S.maps[id] = { x: c0[0], y: c0[1], z: o.zoom || 13 };
   MAPCFG[id] = o; const C = cells();
@@ -263,12 +267,153 @@ class GeoMap {
     const loc = el.querySelector('[data-mloc]'); if (loc) loc.addEventListener('click', ev => { ev.stopPropagation(); const c = this.cfg.center; Object.assign(this.v, { x: c[0], y: c[1] }); this.layout(); this.moved(); });
   }
 }
-function initMaps() { document.querySelectorAll('#app .gmap').forEach(el => { if (!el._m) el._m = new GeoMap(el); }); }
+function initMaps() { document.querySelectorAll('#app .gmap').forEach(el => { if (el.classList.contains('mbx')) mountMapbox(el); else if (!el._m) el._m = new GeoMap(el); }); }
+
+/* ================= MAPBOX: prawdziwa mapa w trybie online ================= */
+// Włącza się, gdy serwer poda token Mapbox (/api/config). Pinezki zostają w stylu aplikacji (HTML),
+// zasięgi, dzielnice i trasy są warstwami mapy. Jedna instancja mapy na id: przy ponownym renderze ekranu
+// przenosimy istniejące płótno do nowego miejsca, więc mapa nie wczytuje się od nowa.
+const MBX = {}; let DISTRICT_SHAPES = null;
+if (/^(localhost|127\.)/.test(location.hostname)) window.__lsniMBX = MBX; // podgląd instancji map przy testach lokalnych
+const MBX_LOCALE = { 'ScrollZoomBlocker.CtrlMessage': 'Przytrzymaj Ctrl i przewiń, żeby przybliżyć mapę', 'ScrollZoomBlocker.CmdMessage': 'Przytrzymaj ⌘ i przewiń, żeby przybliżyć mapę', 'TouchPanBlocker.Message': 'Przesuń mapę dwoma palcami', 'TouchPanBlocker.OnboardingMessage': 'Przesuń mapę dwoma palcami' };
+const isDark = () => { const t = document.documentElement.getAttribute('data-theme'); return t ? t === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches; };
+const mbxStyle = () => isDark() ? S.mbx.styleDark : S.mbx.styleLight;
+const realOf = m => m.lat != null ? { lat: m.lat, lng: m.lng } : GEOFIT.toReal(m.x, m.y);
+const zoomFromGrid = z => Math.log2(156543.03 * Math.cos(52.23 * Math.PI / 180) * z / 1000);
+function circlePoly(lat, lng, km, n = 56) {
+  const pts = []; for (let i = 0; i < n; i++) { const a = i / n * Math.PI * 2; pts.push([lng + km / (111.32 * Math.cos(lat * Math.PI / 180)) * Math.cos(a), lat + km / 110.57 * Math.sin(a)]); }
+  pts.push(pts[0]); return pts;
+}
+const ROAD = 1.3;
+// Prostokąt obejmujący okrąg (do dopasowania widoku mapy)
+const circleBounds = (lat, lng, km) => { const dLat = km / 110.57, dLng = km / (111.32 * Math.cos(lat * Math.PI / 180)); return [[lng - dLng, lat - dLat], [lng + dLng, lat + dLat]]; }; // zasięg wykonawcy jest w km drogi; na mapie rysujemy odpowiadający mu promień w linii prostej
+function shapeAt(lat, lng) {
+  if (!DISTRICT_SHAPES) return null;
+  for (const f of DISTRICT_SHAPES.features) {
+    const ring = f.geometry.coordinates[0]; let inside = false;
+    for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) { const [xi, yi] = ring[i], [xj, yj] = ring[j]; if ((yi > lat) !== (yj > lat) && lng < (xj - xi) * (lat - yi) / (yj - yi) + xi) inside = !inside; }
+    if (inside) return f.properties.name;
+  }
+  return null;
+}
+const lineLenScale = Math.cos(52.23 * Math.PI / 180);
+function alongLngLat(coords, t) {
+  const seg = []; let tot = 0; for (let i = 1; i < coords.length; i++) { const l = Math.hypot((coords[i][0] - coords[i - 1][0]) * lineLenScale, coords[i][1] - coords[i - 1][1]); seg.push(l); tot += l; }
+  let d = t * tot; const done = [coords[0]];
+  for (let i = 0; i < seg.length; i++) { if (d <= seg[i]) { const k = seg[i] ? d / seg[i] : 0; const p = [coords[i][0] + (coords[i + 1][0] - coords[i][0]) * k, coords[i][1] + (coords[i + 1][1] - coords[i][1]) * k]; done.push(p); return { pos: p, done }; } d -= seg[i]; done.push(coords[i + 1]); }
+  return { pos: coords[coords.length - 1], done: coords };
+}
+// Kodowanie polilinii (precyzja 5) dla Static Images API
+function encodePolyline(pts) {
+  let out = '', pl = 0, pg = 0; const enc = v => { v = v < 0 ? ~(v << 1) : v << 1; let s = ''; while (v >= 0x20) { s += String.fromCharCode((0x20 | (v & 0x1f)) + 63); v >>= 5; } return s + String.fromCharCode(v + 63); };
+  pts.forEach(([lng, lat]) => { const a = Math.round(lat * 1e5), b = Math.round(lng * 1e5); out += enc(a - pl) + enc(b - pg); pl = a; pg = b; });
+  return out;
+}
+// Małe podglądy (ekran główny, ogłoszenie): statyczny obrazek z Mapbox Static Images, bez ładowania całej mapy
+function staticMapUrl(o) {
+  const style = mbxStyle().replace('mapbox://styles/', ''); const ov = [];
+  const hex = t => hexRgb(cssVar(t)).map(v => v.toString(16).padStart(2, '0')).join('');
+  ((o.mb && o.mb.circles) || []).forEach(c => ov.push(`path-2+${hex('cloth')}-0.7+${hex('cloth')}-0.12(${encodeURIComponent(encodePolyline(circlePoly(c.lat, c.lng, c.km, 36)))})`));
+  (o.markers || []).slice(0, 12).forEach(m => { const r = realOf(m); ov.push(`pin-s${m.cls === 'ghome-w' ? '-home' : ''}+${m.cls === 'ghome-w' ? hex('glove') : hex('cloth')}(${r.lng.toFixed(5)},${r.lat.toFixed(5)})`); });
+  const w = 640, h = Math.round(640 * (o.h || 150) / 350);
+  return `https://api.mapbox.com/styles/v1/${style}/static/${ov.join(',')}/auto/${w}x${h}@2x?padding=36&access_token=${encodeURIComponent(S.mbx.token)}`;
+}
+function mbxMap(id, o) {
+  MAPCFG[id] = o;
+  if (o.static) return `<img class="mbx-static" style="height:${o.h || 150}px" alt="Mapa okolicy" loading="lazy" src="${esc(staticMapUrl(o))}">`;
+  return `<div class="gmap mbx ${o.cls || ''}" id="gm-${id}" data-map="${id}" style="height:${o.h || 320}px">
+    <div class="mbx-slot"></div>
+    ${o.fixedPin ? `<div class="gm-center"><span class="gm-cpin">${ic('map-pin', 'l')}</span><i></i></div>` : ''}
+    <div class="gm-ctl"><button type="button" data-mz="1" aria-label="Przybliż">${ic('plus', 's')}</button><button type="button" data-mz="-1" aria-label="Oddal">${ic('minus', 's')}</button>${o.locate ? `<button type="button" data-mloc aria-label="Wyśrodkuj">${ic('locate-fixed', 's')}</button>` : ''}</div>
+    ${o.overlay || ''}
+  </div>`;
+}
+function mbxCenter(cfg) { const c = (cfg.mb && cfg.mb.center) || GEOFIT.toReal(...(cfg.center || [12.5, 13])); return [c.lng, c.lat]; }
+function mountMapbox(box) {
+  if (!window.mapboxgl) return;
+  const id = box.dataset.map, cfg = MAPCFG[id]; if (!cfg) return; let e = MBX[id];
+  const zoom = (cfg.mb && cfg.mb.zoom) || zoomFromGrid(cfg.zoom || 13);
+  if (!e) {
+    const el = document.createElement('div'); el.className = 'mbx-canvas'; box.querySelector('.mbx-slot').appendChild(el);
+    const map = new mapboxgl.Map({ container: el, style: mbxStyle(), center: mbxCenter(cfg), zoom, minZoom: 9, maxZoom: 18, maxBounds: [[20.55, 51.95], [21.55, 52.52]],
+      dragRotate: false, pitchWithRotate: false, touchPitch: false, cooperativeGestures: true, attributionControl: false, locale: MBX_LOCALE, fadeDuration: 150 });
+    map.touchZoomRotate.disableRotation();
+    map.addControl(new mapboxgl.AttributionControl({ compact: true }), 'bottom-right');
+    e = MBX[id] = { map, el, markers: {}, styleReady: false, style: mbxStyle() };
+    map.on('style.load', () => { e.styleReady = true; mbxSync(id); });
+    map.on('click', ev => {
+      const t = ev.originalEvent && ev.originalEvent.target; if (t && t.closest && t.closest('.mbx-m')) return;
+      const c = e.cfg; mapTapAt = Date.now();
+      if (c.mb && c.mb.onTapReal) c.mb.onTapReal(ev.lngLat.lat, ev.lngLat.lng);
+      else if (c.onTap) { const g = GEOFIT.toGrid(ev.lngLat.lat, ev.lngLat.lng); c.onTap(g.x, g.y); }
+    });
+    map.on('move', ev => { const c = e.cfg; if (!ev.originalEvent) return; const ct = map.getCenter(); if (c.mb && c.mb.onMoveReal) c.mb.onMoveReal(ct.lat, ct.lng, false); else if (c.onMove) c.onMove(); });
+    map.on('moveend', () => { const c = e.cfg; const ct = map.getCenter(); if (c.mb && c.mb.onMoveReal) c.mb.onMoveReal(ct.lat, ct.lng, true); });
+    map.on('dragstart', () => e.box && e.box.classList.add('dragging')); map.on('dragend', () => { if (e.box) e.box.classList.remove('dragging'); mapDragAt = Date.now(); });
+  } else {
+    box.querySelector('.mbx-slot').appendChild(e.el); requestAnimationFrame(() => e.map.resize());
+    if (cfg.mb && cfg.mb.recenter) e.map.jumpTo({ center: mbxCenter(cfg), zoom });
+  }
+  e.cfg = cfg; e.box = box;
+  if (cfg.mb && cfg.mb.fit && e.fitKey !== cfg.mb.fitKey) { e.fitKey = cfg.mb.fitKey; const b = cfg.mb.fit; e.map.fitBounds(b, { padding: { top: 30, bottom: 30, left: 30, right: 60 }, duration: e.fittedOnce ? 500 : 0, maxZoom: 15.5 }); e.fittedOnce = true; }
+  box.querySelectorAll('[data-mz]').forEach(b => { b.onclick = ev => { ev.stopPropagation(); b.dataset.mz === '1' ? e.map.zoomIn() : e.map.zoomOut(); }; });
+  const loc = box.querySelector('[data-mloc]'); if (loc) loc.onclick = ev => { ev.stopPropagation(); e.map.flyTo({ center: mbxCenter(e.cfg), zoom, essential: true }); };
+  mbxSync(id);
+}
+const fcol = features => ({ type: 'FeatureCollection', features });
+function setSource(map, id, data) { const src = map.getSource(id); if (src) src.setData(data); else map.addSource(id, { type: 'geojson', data }); }
+function ensureLayer(map, def, before) { if (!map.getLayer(def.id)) map.addLayer(def, before); }
+function mbxSync(id) {
+  const e = MBX[id]; if (!e || !e.styleReady) return;
+  const map = e.map, c = e.cfg, mb = c.mb || {};
+  const firstSymbol = (map.getStyle().layers.find(l => l.type === 'symbol') || {}).id;
+  // dzielnice (warstwa kolorów pod etykietami ulic)
+  const districts = c.fill && DISTRICT_SHAPES ? DISTRICT_SHAPES.features.map(f => { const st = c.fill(f.properties.name) || {}; return { type: 'Feature', geometry: f.geometry, properties: { name: f.properties.name, color: resolveColor(st.fill) || 'rgba(0,0,0,0)', sel: st.cls === 'sel' ? 1 : 0, off: st.cls === 'off' ? 1 : 0 } }; }) : [];
+  setSource(map, 'lsni-districts', fcol(districts));
+  ensureLayer(map, { id: 'lsni-districts-fill', type: 'fill', source: 'lsni-districts', paint: { 'fill-color': ['get', 'color'], 'fill-opacity': ['case', ['==', ['get', 'off'], 1], 0.25, 0.6] } }, firstSymbol);
+  ensureLayer(map, { id: 'lsni-districts-line', type: 'line', source: 'lsni-districts', paint: { 'line-color': ['case', ['==', ['get', 'sel'], 1], cssVar('ink'), cssVar('paper')], 'line-width': ['case', ['==', ['get', 'sel'], 1], 2.5, 1.2] } }, firstSymbol);
+  // zasięgi wykonawców
+  const circles = (mb.circles || []).map(ci => ({ type: 'Feature', properties: { kind: ci.kind || 'reach' }, geometry: { type: 'Polygon', coordinates: [circlePoly(ci.lat, ci.lng, ci.km)] } }));
+  setSource(map, 'lsni-circles', fcol(circles));
+  ensureLayer(map, { id: 'lsni-circles-fill', type: 'fill', source: 'lsni-circles', filter: ['!=', ['get', 'kind'], 'fee'], paint: { 'fill-color': cssVar('cloth'), 'fill-opacity': 0.12 } }, firstSymbol);
+  ensureLayer(map, { id: 'lsni-circles-line', type: 'line', source: 'lsni-circles', paint: { 'line-color': ['case', ['==', ['get', 'kind'], 'fee'], cssVar('sand'), cssVar('cloth')], 'line-width': 2, 'line-dasharray': ['case', ['==', ['get', 'kind'], 'fee'], ['literal', [2, 2]], ['literal', [1, 0]]] } });
+  // obszar wyszukiwania
+  const b = mb.bounds; setSource(map, 'lsni-bounds', fcol(b ? [{ type: 'Feature', properties: {}, geometry: { type: 'Polygon', coordinates: [[[b[0], b[1]], [b[2], b[1]], [b[2], b[3]], [b[0], b[3]], [b[0], b[1]]]] } }] : []));
+  ensureLayer(map, { id: 'lsni-bounds-line', type: 'line', source: 'lsni-bounds', paint: { 'line-color': cssVar('ink'), 'line-width': 2, 'line-dasharray': [2, 2] } });
+  // trasa
+  setSource(map, 'lsni-route', fcol(mb.route ? [{ type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: mb.route } }] : []));
+  setSource(map, 'lsni-route-done', fcol(mb.routeDone && mb.routeDone.length > 1 ? [{ type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: mb.routeDone } }] : []));
+  ensureLayer(map, { id: 'lsni-route-casing', type: 'line', source: 'lsni-route', layout: { 'line-join': 'round', 'line-cap': 'round' }, paint: { 'line-color': cssVar('surface'), 'line-width': 8 } });
+  ensureLayer(map, { id: 'lsni-route-line', type: 'line', source: 'lsni-route', layout: { 'line-join': 'round', 'line-cap': 'round' }, paint: { 'line-color': cssVar('ink-3'), 'line-width': 4 } });
+  ensureLayer(map, { id: 'lsni-route-done', type: 'line', source: 'lsni-route-done', layout: { 'line-join': 'round', 'line-cap': 'round' }, paint: { 'line-color': cssVar('cloth'), 'line-width': 5 } });
+  // pinezki (HTML w stylu aplikacji) i etykiety dzielnic
+  Object.values(e.markers).forEach(m => m.remove()); e.markers = {};
+  const labels = c.labelExtra ? Object.keys(REAL_CENTERS).map(n => ({ lat: REAL_CENTERS[n][0], lng: REAL_CENTERS[n][1], cls: 'gm-label', html: `${n}<em>${c.labelExtra(n)}</em>` })) : [];
+  labels.concat(c.markers || []).forEach((m, i) => {
+    const r = realOf(m); const el = document.createElement(m.act ? 'button' : 'div');
+    el.className = 'mbx-m ' + (m.cls || ''); if (m.act) { el.type = 'button'; el.dataset.act = m.act; el.dataset.a = m.a || ''; el.setAttribute('aria-label', m.label || ''); }
+    el.innerHTML = m.html;
+    e.markers[m.id || 'm' + i] = new mapboxgl.Marker({ element: el, anchor: m.bottom ? 'bottom' : 'center' }).setLngLat([r.lng, r.lat]).addTo(map);
+  });
+}
+function mbxRestyle() { Object.values(MBX).forEach(e => { const st = mbxStyle(); if (e.style !== st) { e.style = st; e.styleReady = false; e.map.setStyle(st, { diff: false }); } }); }
+async function loadMapbox() {
+  let cfg; try { cfg = await window.LsniAPI.call('GET', '/api/config'); } catch (e) { return false; }
+  if (!cfg.mapbox) return false;
+  const css = document.createElement('link'); css.rel = 'stylesheet'; css.href = cfg.mapbox.css; document.head.appendChild(css);
+  const ok = await new Promise(res => { const sc = document.createElement('script'); sc.src = cfg.mapbox.js; sc.onload = () => res(true); sc.onerror = () => res(false); document.head.appendChild(sc); setTimeout(() => res(!!window.mapboxgl), 8000); });
+  if (!ok || !window.mapboxgl || !mapboxgl.supported || (mapboxgl.supported && !mapboxgl.supported())) return false;
+  mapboxgl.accessToken = cfg.mapbox.token;
+  try { DISTRICT_SHAPES = await window.LsniAPI.call('GET', '/api/geo/districts/shapes'); } catch (e) { DISTRICT_SHAPES = null; }
+  S.mbx = cfg.mapbox;
+  matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => { mbxRestyle(); render(); });
+  return true;
+}
 const mapInst = id => { const el = document.getElementById('gm-' + id); return el && el._m; };
 const fitView = (pts, w = 340, h = 240) => { const xs = pts.map(q => q[0]), ys = pts.map(q => q[1]); const sx = Math.max(...xs) - Math.min(...xs) + 2.4, sy = Math.max(...ys) - Math.min(...ys) + 2.4; return { center: [(Math.max(...xs) + Math.min(...xs)) / 2, (Math.max(...ys) + Math.min(...ys)) / 2], zoom: Math.min(60, Math.min(w / sx, h / sy)) }; };
-const meMark = a => ({ x: a.x, y: a.y, cls: 'gme-w', html: `<span class="gme"><i></i></span>` });
-const homeMark = (a, label) => ({ x: a.x, y: a.y, bottom: true, cls: 'ghome-w', html: `<span class="ghome">${ic('house', 'xs')}${label ? `<b>${esc(label)}</b>` : ''}</span>` });
-const proPin = (p, on, i = 0, act = 'mapSel') => ({ x: p.x, y: p.y, bottom: true, act, a: p.id, label: p.name, html: `<span class="gpin ${on ? 'on' : ''} ${p.reach === 'out' ? 'far' : ''} ${p._promoted ? 'promo' : ''}" style="animation-delay:${i * 60}ms"><span class="avatar ${p.tone}">${esc(p.ini)}</span><b>${p.fixed || p.perWindow ? 'od ' + (p.perWindow || p.rate) : p.rate} zł</b></span>` });
+const meMark = a => ({ x: a.x, y: a.y, lat: a.lat, lng: a.lng, cls: 'gme-w', html: `<span class="gme"><i></i></span>` });
+const homeMark = (a, label) => ({ x: a.x, y: a.y, lat: a.lat, lng: a.lng, bottom: true, cls: 'ghome-w', html: `<span class="ghome">${ic('house', 'xs')}${label ? `<b>${esc(label)}</b>` : ''}</span>` });
+const proPin = (p, on, i = 0, act = 'mapSel') => ({ x: p.x, y: p.y, lat: p.lat, lng: p.lng, bottom: true, act, a: p.id, label: p.name, html: `<span class="gpin ${on ? 'on' : ''} ${p.reach === 'out' ? 'far' : ''} ${p._promoted ? 'promo' : ''}" style="animation-delay:${i * 60}ms"><span class="avatar ${p.tone}">${esc(p.ini)}</span><b>${p.fixed || p.perWindow ? 'od ' + (p.perWindow || p.rate) : p.rate} zł</b></span>` });
 const circleSVG = (x, y, r, cls = '', id = '') => `<circle ${id ? `id="${id}"` : ''} class="${cls}" cx="${x * U}" cy="${y * U}" r="${r * U}"/>`;
 
 
@@ -646,7 +791,7 @@ screens.home = () => {
 
       <div class="section-h"><h3>Twoja okolica</h3><button data-act="openExplore">Mapa</button></div>
       <button class="nearby" data-act="openExplore">
-        ${geoMap('home-mini', { h: 150, static: true, reset: true, center: [ha.x, ha.y], zoom: 19, labels: false,
+        ${geoMap('home-mini', { h: 150, static: true, reset: true, center: [ha.x, ha.y], zoom: 19, labels: false, mb: { circles: ha.lat != null ? [{ lat: ha.lat, lng: ha.lng, km: 3 / ROAD }] : [] },
           layer: circleSVG(ha.x, ha.y, 3, 'gm-reach faint'),
           markers: [homeMark(ha)].concat(PROS.filter(p => p.reach !== 'out').map(p => ({ x: p.x, y: p.y, html: `<span class="avatar xs ${p.tone}">${esc(p.ini)}</span>` }))) })}
         <div class="nearby-t"><b>${nearCnt} wykonawców dojeżdża pod ${esc(ha.street.split('/')[0])}</b><span>${nearFree} wolnych terminów dziś · najbliżej ${Math.min(...PROS.filter(p => p.reach !== 'out').map(p => p.eta))} min dojazdu</span></div>
@@ -685,7 +830,8 @@ function filteredPros() {
     for (const k of ['verified', 'insured', 'supplies', 'eco', 'pets', 'invoice']) if (f[k] && !p[k]) return false;
     if (f.today && !p.todayFree) return false;
     if (f.district && !serves(p, f.district)) return false;
-    if (f.bounds && !(p.x >= f.bounds[0] && p.x <= f.bounds[2] && p.y >= f.bounds[1] && p.y <= f.bounds[3])) return false;
+    if (f.boundsReal && p.lat != null) { if (!(p.lng >= f.boundsReal[0] && p.lng <= f.boundsReal[2] && p.lat >= f.boundsReal[1] && p.lat <= f.boundsReal[3])) return false; }
+    else if (f.bounds && !(p.x >= f.bounds[0] && p.x <= f.bounds[2] && p.y >= f.bounds[1] && p.y <= f.bounds[3])) return false;
     if (!f.district && !f.bounds) { if (p.reach === 'out' && !f.far) return false; if (f.maxDist < 15 && p.dist > f.maxDist) return false; }
     return true;
   });
@@ -808,7 +954,9 @@ screens.provider = ({ id }) => {
 function mapView(list) {
   const a = curAddr(); const sel = list.find(p => p.id === S.mapSel) || list[0];
   const layer = (sel ? circleSVG(sel.x, sel.y, sel.r, 'gm-reach') + (sel.fee ? circleSVG(sel.x, sel.y, sel.r + 5, 'gm-reach fee') : '') : '') + (S.filters.bounds ? (() => { const [x1, y1, x2, y2] = S.filters.bounds; return `<rect class="gm-bounds" x="${x1 * U}" y="${y1 * U}" width="${(x2 - x1) * U}" height="${(y2 - y1) * U}"/>`; })() : '');
+  const mbCircles = sel && sel.lat != null ? [{ lat: sel.lat, lng: sel.lng, km: sel.r / ROAD }].concat(sel.fee ? [{ lat: sel.lat, lng: sel.lng, km: (sel.r + 5) / ROAD, kind: 'fee' }] : []) : [];
   return `${geoMap('search', { h: 360, center: [a.x, a.y], zoom: 17, locate: true, layer, labelExtra: null,
+    mb: { center: a.lat != null ? { lat: a.lat, lng: a.lng } : null, zoom: 11.6, circles: mbCircles, bounds: S.filters.boundsReal },
     markers: [homeMark(a)].concat(list.map((p, i) => proPin(p, sel && sel.id === p.id, i))),
     overlay: `<button class="gm-over gm-area" id="searchAreaBtn" data-act="searchArea" ${S.mapMoved ? '' : 'hidden'}>${ic('scan-search', 's')}Szukaj w tym obszarze</button>`,
     onMove: () => { const b = document.getElementById('searchAreaBtn'); if (b) b.hidden = false; S.mapMoved = true; } })}
@@ -829,6 +977,7 @@ screens.location = () => {
     <div class="options">${S.addresses.map(ad => { const d = districtAt(ad.x, ad.y); return `<button class="opt ${ad.id === S.addrId ? 'on' : ''}" data-act="pickAddr" data-a="${ad.id}"><span class="radio"></span><div class="grow"><b class="small">${esc(ad.label)}</b><div class="tiny faint">${esc(ad.street)}, ${d}${ad.note ? ' · ' + esc(ad.note) : ''}</div></div><span class="tag ${countIn(ad) > 5 ? 'mint' : ''}">${countIn(ad)} wyk.</span></button>`; }).join('')}</div>
     <div class="section-h"><h3>Wskaż na mapie</h3><span class="tiny faint">przesuń mapę pod pinezkę</span></div>
     ${geoMap('loc', { h: 260, center: [a.x, a.y], zoom: 34, fixedPin: true, labels: true, locate: true,
+      mb: { center: S.locReal || (a.lat != null ? { lat: a.lat, lng: a.lng } : null), zoom: 15.5, onMoveReal: (lat, lng, end) => { S.locReal = { lat, lng }; if (end) liveLocReal(lat, lng); } },
       markers: S.addresses.map(ad => homeMark(ad)),
       onMove: m => liveLoc(m.v.x, m.v.y) })}
     <div class="card mt12" id="locCard">${locCardHTML(c[0], c[1])}</div>
@@ -853,6 +1002,27 @@ function locCardHTML(x, y) {
   return `<div class="row">${ic('map-pin', 's')}<div class="grow"><b class="small">${rg.street}</b><div class="tiny faint">${rg.district} · ${near.length} wykonawców dojeżdża · najbliżej ${near[0] ? near[0].eta + ' min' : '—'}</div></div></div>
     <div class="minis mt12"><div><b class="num">${st.avg || '—'} zł</b><span>śr. stawka</span></div><div><b class="num">${st.free}</b><span>wolne dziś</span></div><div><b class="num">${near.filter(r => r.reach === 'fee').length}</b><span>z dopłatą</span></div></div>`;
 }
+// Adres pod pinezką z serwera (Mapbox reverse geocoding), z krótką zwłoką, żeby nie pytać przy każdym ruchu.
+let locTimer = null, locSeq = 0;
+function liveLocReal(lat, lng) {
+  clearTimeout(locTimer); const seq = ++locSeq;
+  locTimer = setTimeout(async () => {
+    let rev; try { rev = await window.LsniAPI.call('GET', `/api/geo/reverse?lat=${lat.toFixed(6)}&lng=${lng.toFixed(6)}`); } catch (e) { return; }
+    if (seq !== locSeq) return;
+    const c = document.getElementById('locCard'); if (c) c.innerHTML = locCardReal(lat, lng, rev);
+    const b = document.getElementById('saveAddrBtn'); if (b) b.disabled = !rev.inArea;
+    S.locRev = rev;
+  }, 250);
+}
+function locCardReal(lat, lng, rev) {
+  if (!rev.inArea) return `<div class="row">${ic('map-pin-off', 's')}<div class="grow"><b class="small">${esc(rev.street || 'Poza Warszawą')}</b><div class="tiny faint">Na razie działamy w granicach Warszawy. Zostaw kontakt, a damy znać, gdy ruszymy w Twojej okolicy.</div>
+    ${S.waitlist.includes('out-' + lat.toFixed(2) + '-' + lng.toFixed(2)) ? `<span class="tag mint mt8">${ic('check', 'xs')}Jesteś na liście</span>` : `<button class="btn sm dark mt8" data-act="joinWaitlist" data-a="out-${lat.toFixed(2)}-${lng.toFixed(2)}">${ic('bell-plus', 's')}Daj znać, gdy ruszycie</button>`}</div></div>`;
+  const near = PROS.filter(p => p.lat != null).map(p => { const km = haversine(p.lat, p.lng, lat, lng) * ROAD; return { p, km, reach: km <= p.r ? 'in' : (p.fee && km <= p.r + 5) ? 'fee' : 'out' }; }).filter(x => x.reach !== 'out').sort((a, b) => a.km - b.km);
+  const g = GEOFIT.toGrid(lat, lng); const st = dstats(rev.district);
+  return `<div class="row">${ic('map-pin', 's')}<div class="grow"><b class="small">${esc(rev.street)}</b><div class="tiny faint">${rev.district} · ${near.length} wykonawców dojeżdża · najbliżej ok. ${near[0] ? driveMin(near[0].km) + ' min' : '—'}</div></div></div>
+    <div class="minis mt12"><div><b class="num">${st.avg || '—'} zł</b><span>śr. stawka</span></div><div><b class="num">${st.free}</b><span>wolne dziś</span></div><div><b class="num">${near.filter(r => r.reach === 'fee').length}</b><span>z dopłatą</span></div></div>`;
+}
+const haversine = (la1, ln1, la2, ln2) => { const r = Math.PI / 180, dLa = (la2 - la1) * r, dLn = (ln2 - ln1) * r; const h = Math.sin(dLa / 2) ** 2 + Math.cos(la1 * r) * Math.cos(la2 * r) * Math.sin(dLn / 2) ** 2; return 2 * 6371 * Math.asin(Math.sqrt(h)); };
 function liveLoc(x, y) {
   const c = document.getElementById('locCard'); if (c) c.innerHTML = locCardHTML(x, y);
   const b = document.getElementById('saveAddrBtn'); if (b) b.disabled = !inCity(x, y);
@@ -879,6 +1049,7 @@ screens.explore = () => {
       layer: S.exploreLayer === 'pros' ? PROS.filter(p => p.reach !== 'out').map(p => circleSVG(p.x, p.y, .5, 'gm-dot')).join('') : '',
       markers: [meMark(a)],
       overlay: `<div class="gm-over gm-legend"><span>${L.lo}</span><i style="background:linear-gradient(90deg, ${mixFill(L.tok, 12)}, ${mixFill(L.tok, 82)})"></i><span>${L.hi}</span></div>`,
+      mb: { center: a.lat != null ? { lat: a.lat - 0.02, lng: a.lng } : null, zoom: 10.4, onTapReal: (lat, lng) => { const n = shapeAt(lat, lng); if (!n) return; S.exploreSel = n; buzz(8); A.sheet('district', n); } },
       onTap: (x, y) => { if (!inCity(x, y)) return; const n = districtAt(x, y); S.exploreSel = n; buzz(8); A.sheet('district', n); } })}
     <div class="hint" style="text-align:center">Dotknij dzielnicy, żeby zobaczyć szczegóły. Przesuwaj i przybliżaj palcami.</div>
     <div class="card mt16">
@@ -1428,7 +1599,7 @@ screens.listing = () => {
 
     <div class="field"><span class="lbl">Obszar pracy</span>
       <button class="nearby" data-act="openArea">
-        ${geoMap('listing-mini', { h: 140, static: true, reset: true, center: [L.base.x, L.base.y], zoom: 120 / (L.radius + 1), labels: false,
+        ${geoMap('listing-mini', { h: 140, static: true, reset: true, center: [L.base.x, L.base.y], zoom: 120 / (L.radius + 1), labels: false, mb: { circles: L.base.lat != null ? [{ lat: L.base.lat, lng: L.base.lng, km: L.radius / ROAD }] : [] },
           fill: n => ({ fill: areaCovered(n) ? mixFill('cloth', 35) : 'var(--surface-2)' }), layer: circleSVG(L.base.x, L.base.y, L.radius, 'gm-reach strong'), markers: [homeMark(L.base)] })}
         <div class="nearby-t"><b>${L.radius} km od bazy (${districtAt(L.base.x, L.base.y)}) · ${coveredDistricts().length} ${dzielnic(coveredDistricts().length)}</b><span>${coveredDistricts().join(', ')}${L.feeOn ? ` · dalej +${L.fee} zł` : ''}</span></div>
       </button></div>
@@ -1488,6 +1659,10 @@ screens.area = () => {
       labelExtra: n => areaCovered(n) ? 'w zasięgu' : DEMAND[n] + ' zap.',
       layer: circleSVG(L.base.x, L.base.y, L.radius, 'gm-reach strong', 'areaCircle') + (L.feeOn ? circleSVG(L.base.x, L.base.y, L.radius + 5, 'gm-reach fee', 'areaFee') : ''),
       markers: [Object.assign(homeMark(L.base, 'Baza'), { id: 'areaBase' })],
+      mb: { center: L.base.lat != null ? { lat: L.base.lat, lng: L.base.lng } : null, zoom: 10.6,
+        fit: L.base.lat != null ? circleBounds(L.base.lat, L.base.lng, (L.radius + (L.feeOn ? 5 : 0)) / ROAD) : null, fitKey: `${L.base.lat},${L.base.lng},${L.radius},${L.feeOn}`,
+        circles: L.base.lat != null ? [{ lat: L.base.lat, lng: L.base.lng, km: L.radius / ROAD }].concat(L.feeOn ? [{ lat: L.base.lat, lng: L.base.lng, km: (L.radius + 5) / ROAD, kind: 'fee' }] : []) : [],
+        onTapReal: (lat, lng) => { if (!shapeAt(lat, lng)) return; const g = GEOFIT.toGrid(lat, lng); L.base = { x: g.x, y: g.y, lat, lng }; buzz(8); render(); } },
       onTap: (x, y) => { if (!inCity(x, y)) return; L.base = { x: Math.round(x * 10) / 10, y: Math.round(y * 10) / 10 }; buzz(8); render(); } })}
     <div class="legend-row"><span><i style="background:${mixFill('cloth', 38)}"></i>w zasięgu</span><span><i style="background:${mixFill('rose', 50)}"></i>duży popyt, mało wykonawców</span></div>
     <div class="field"><div class="row between"><span class="lbl" style="margin:0">Zasięg dojazdu</span><span class="big-val num" id="aradVal">${L.radius}<small>km</small></span></div>
@@ -1504,6 +1679,17 @@ screens.area = () => {
 };
 function dayRoute(jobs) {
   const L = S.pro.listing; if (!jobs.length) return '';
+  if (S.online && jobs[0].id) {
+    const date = ymd(addDays(S.pro.calDay)); const dg = (S.pro.dayGeo ||= {})[date];
+    if (!dg) { S.pro.dayGeo[date] = 'loading'; window.LsniAPI.call('GET', `/api/pro/day?date=${date}`).then(r => { S.pro.dayGeo[date] = r; render(); }).catch(() => { delete S.pro.dayGeo[date]; }); }
+    if (dg && dg !== 'loading' && S.mbx) {
+      const g = dg.geometry; const lngs = g.map(c => c[0]), lats = g.map(c => c[1]);
+      return `<div class="section-h"><h3>Trasa dnia</h3><span class="tiny faint">${kmf(dg.totalKm)} km · ok. ${dg.totalDriveMin} min jazdy${dg.source === 'mapbox' ? '' : ' (szacunek)'}</span></div>
+        ${geoMap('route-' + date, { h: 240, labels: false, mb: { route: g, fit: [[Math.min(...lngs), Math.min(...lats)], [Math.max(...lngs), Math.max(...lats)]], fitKey: date + g.length },
+          markers: [homeMark(L.base, 'Baza')].concat(dg.jobs.map((b, i) => ({ lat: b.lat, lng: b.lng, html: `<span class="gstop">${i + 1}</span>` }))) })}
+        <div class="legs">${dg.jobs.map((b, i) => `<div><span class="gstop sm">${i + 1}</span><span class="grow small">${b.startsAt.slice(11, 16)} · ${esc(b.client ? b.client.name : 'Klient')}, ${esc(b.address)}</span><span class="tiny faint">${dg.legs[i] ? dg.legs[i].min : '?'} min dojazdu</span></div>`).join('')}</div>`;
+    }
+  }
   const pts = [[L.base.x, L.base.y]].concat(jobs.map(j => [j.x, j.y])).concat([[L.base.x, L.base.y]]);
   let km = 0; const legs = []; for (let i = 1; i < pts.length; i++) { const d = Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]) * 1.3; km += d; legs.push(d); }
   const mins = legs.reduce((a, d) => a + driveMin(d), 0); const fv = fitView(pts, 340, 200);
@@ -1536,6 +1722,8 @@ screens.boost = () => {
     <p class="small muted">Klienci z wybranych dzielnic zobaczą Cię na górze wyników z oznaczeniem „Promowane”. Wyróżnione mogą być najwyżej 2 profile naraz, a opinie i odznaki zostają bez zmian.</p>
     ${geoMap('boost', { h: 300, center: [L.base.x, L.base.y], zoom: 13, fill, labelExtra: n => cov.includes(n) ? (activeD.includes(n) ? 'aktywne' : boostPrice(n, D.days) + ' zł') : '',
       layer: circleSVG(L.base.x, L.base.y, L.radius, 'gm-reach'), markers: [homeMark(L.base, 'Baza')],
+      mb: { center: L.base.lat != null ? { lat: L.base.lat, lng: L.base.lng } : null, zoom: 10.6, fit: L.base.lat != null ? circleBounds(L.base.lat, L.base.lng, L.radius / ROAD) : null, fitKey: `${L.base.lat},${L.radius}`,
+        circles: L.base.lat != null ? [{ lat: L.base.lat, lng: L.base.lng, km: L.radius / ROAD }] : [], onTapReal: (lat, lng) => { const n = shapeAt(lat, lng); if (n) A.boostToggle(n); } },
       onTap: (x, y) => { if (!inCity(x, y)) return; const n = districtAt(x, y); A.boostToggle(n); } })}
     <div class="legend-row"><span><i style="background:${mixFill('glove', 60)}"></i>im ciemniej, tym większy popyt</span><span><i style="background:${mixFill('mint', 55)}"></i>trwa wyróżnienie</span></div>
     <div class="field"><span class="lbl">Dzielnice w Twoim zasięgu</span>
@@ -1738,6 +1926,16 @@ function checklistFor(o) {
 function trackRoute(o, p) { const a = addrById(o.addrId) || S.addresses[0]; return { a, pts: [[p.x, p.y], [(p.x + a.x) / 2 + .7, (p.y + a.y) / 2 - .5], [a.x, a.y]] }; }
 function alongRoute(pts, t) { const segs = []; let tot = 0; for (let i = 1; i < pts.length; i++) { const l = Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]); segs.push(l); tot += l; } let d = t * tot; for (let i = 0; i < segs.length; i++) { if (d <= segs[i]) { const k = d / segs[i]; return [pts[i][0] + (pts[i + 1][0] - pts[i][0]) * k, pts[i][1] + (pts[i + 1][1] - pts[i][1]) * k]; } d -= segs[i]; } return pts[pts.length - 1]; }
 function trackBlock(o, p) {
+  if (S.mbx) {
+    if (!o.routeReal && !o.routeLoading) { o.routeLoading = true; window.LsniAPI.call('GET', `/api/bookings/${o.id}/route`).then(r => { o.routeReal = r; render(); }).catch(() => { o.routeLoading = false; }); }
+    const R = o.routeReal;
+    if (!R) return `<div class="mt16"><div class="mbx-wait" style="height:240px"><span class="tiny faint">Wczytujemy trasę…</span></div></div>`;
+    const { pos, done } = alongLngLat(R.coordinates, o.track || 0); const lngs = R.coordinates.map(c => c[0]), lats = R.coordinates.map(c => c[1]);
+    return `<div class="mt16">${geoMap('trk-' + o.id, { h: 240, labels: false,
+      mb: { route: R.coordinates, routeDone: done, fit: [[Math.min(...lngs), Math.min(...lats)], [Math.max(...lngs), Math.max(...lats)]], fitKey: o.id },
+      markers: [homeMark({ lat: R.to.lat, lng: R.to.lng }, 'Ty'), { lat: pos[1], lng: pos[0], id: 'trk-' + o.id, cls: 'gcar-w', html: `<span class="gcar">${ic('car', 's')}</span>` }] })}
+      <div class="note mt8" id="eta-${o.id}">${etaTextReal(o, p)}</div></div>`;
+  }
   const { a, pts } = trackRoute(o, p); const t = o.track || 0; const pos = alongRoute(pts, t); const d = roadKm(p, a);
   const fv = fitView(pts, 340, 200);
   const line = pts.map(q => `${q[0] * U},${q[1] * U}`).join(' ');
@@ -1746,6 +1944,7 @@ function trackBlock(o, p) {
     markers: [homeMark(a, 'Ty'), { x: pos[0], y: pos[1], id: 'trk-' + o.id, cls: 'gcar-w', html: `<span class="gcar">${ic('car', 's')}</span>` }] })}
     <div class="note mt8" id="eta-${o.id}">${etaText(o, p, t, d)}</div></div>`;
 }
+const etaTextReal = (o, p) => { const R = o.routeReal, t = o.track || 0; return `${ic('navigation', 's')}<span><b>${p.name.split(' ')[0]} jest w drodze</b>, dotrze za ok. ${Math.max(1, Math.round((1 - t) * R.min))} min · zostało ${kmf((1 - t) * R.km)} km${R.source === 'mapbox' ? '' : ' (szacunek)'}</span>`; };
 const etaText = (o, p, t, d) => `${ic('navigation', 's')}<span><b>${p.name.split(' ')[0]} jest w drodze</b>, dotrze za ok. ${Math.max(1, Math.round((1 - t) * driveMin(d)))} min · zostało ${kmf((1 - t) * d)} km</span>`;
 function liveBlock(o) {
   const list = checklistFor(o); const rooms = list.rooms; const done = o.prog || 0;
@@ -2115,15 +2314,24 @@ const A = {
   previewPro() { go('selfpreview'); },
 
   searchView(v) { S.searchView = v; S.mapMoved = false; render(); },
-  searchArea() { const v = S.maps.search; const hw = v.w / 2 / v.z, hh = v.h / 2 / v.z; S.filters.bounds = [v.x - hw, v.y - hh, v.x + hw, v.y + hh]; S.filters.district = null; S.mapMoved = false; buzz(8); toast(`W tym obszarze: ${filteredPros().length} wykonawców`, 'scan-search'); render(); },
-  clearGeo(k) { S.filters[k] = null; render(); },
-  openLocation() { delete S.maps.loc; S.newAddrLabel = 'Dom'; S.newAddrNote = ''; go('location'); },
+  searchArea() {
+    if (S.mbx && MBX.search) { const b = MBX.search.map.getBounds(); S.filters.boundsReal = [b.getWest(), b.getSouth(), b.getEast(), b.getNorth()]; S.filters.bounds = [0, 0, 0, 0]; S.filters.district = null; S.mapMoved = false; buzz(8); toast(`W tym obszarze: ${filteredPros().length} wykonawców`, 'scan-search'); render(); return; }
+    const v = S.maps.search; const hw = v.w / 2 / v.z, hh = v.h / 2 / v.z; S.filters.bounds = [v.x - hw, v.y - hh, v.x + hw, v.y + hh]; S.filters.district = null; S.mapMoved = false; buzz(8); toast(`W tym obszarze: ${filteredPros().length} wykonawców`, 'scan-search'); render(); },
+  clearGeo(k) { S.filters[k] = null; if (k === 'bounds') S.filters.boundsReal = null; render(); },
+  openLocation() {
+    delete S.maps.loc; S.locReal = null;
+    if (S.mbx) { const a = curAddr(); if (MBX.loc && a.lat != null) MBX.loc.map.jumpTo({ center: [a.lng, a.lat], zoom: 15.5 }); setTimeout(() => { if (a.lat != null) liveLocReal(a.lat, a.lng); }, 350); } S.newAddrLabel = 'Dom'; S.newAddrNote = ''; go('location'); },
   openExplore() { go('explore'); },
   exploreLayer(k) { S.exploreLayer = k; render(); },
   districtSearch(n) { S.sheet = null; S.filters.district = n; S.filters.bounds = null; S.searchView = 'list'; go('search'); },
   pickAddr(id) { S.addrId = id; updateGeo(); const ad = curAddr(); toast(`Szukamy dla: ${ad.label}, ${districtAt(ad.x, ad.y)}`, 'map-pin'); afterAddrChange(id); },
   newAddrLabel(l) { S.newAddrLabel = l; render(); },
   useGps() { S.maps.loc = { x: 12.7, y: 10.1, z: 40 }; toast('Lokalizacja symulowana: Centrum', 'locate-fixed'); render(); },
+  locPickReal(ll) {
+    const [lat, lng] = ll.split(',').map(Number); S.locReal = { lat, lng }; const q = document.getElementById('locq'); if (q) q.value = ''; const box = document.getElementById('locSug'); if (box) box.innerHTML = '';
+    if (S.mbx && MBX.loc) { MBX.loc.map.flyTo({ center: [lng, lat], zoom: 16.5, essential: true }); liveLocReal(lat, lng); return; }
+    const g = GEOFIT.toGrid(lat, lng); S.maps.loc = { x: g.x, y: g.y, z: 44 }; render();
+  },
   locPick(xy) { const [x, y] = xy.split(',').map(Number); S.maps.loc = { x, y, z: 44 }; const q = document.getElementById('locq'); if (q) q.value = ''; render(); },
   saveAddr() {
     const v = S.maps.loc; if (!v || !inCity(v.x, v.y)) return; const rg = reverseGeo(v.x, v.y);
@@ -2226,6 +2434,7 @@ const A = {
     render();
   },
   cycleTheme() {
+    setTimeout(() => { if (S.mbx) { mbxRestyle(); render(); } }, 0);
     const order = [null, 'light', 'dark']; const cur = document.documentElement.getAttribute('data-theme');
     const next = order[(order.indexOf(cur) + 1) % 3];
     if (next) document.documentElement.setAttribute('data-theme', next); else document.documentElement.removeAttribute('data-theme');
@@ -2294,11 +2503,23 @@ function liveUpdate(kind) {
   if (kind === 'ofp') { const d = S.pro.offerDraft; document.getElementById('ofPrice').innerHTML = `${d.price}<small>zł</small>`; document.getElementById('ofNet').textContent = 'Bez prowizji: całe ' + zl(d.price) + ' dla Ciebie'; }
   if (kind === 'maxDist') { const v = document.getElementById('maxDistVal'); if (v) v.textContent = S.filters.maxDist >= 15 ? 'dowolna' : 'do ' + S.filters.maxDist + ' km'; }
   if (kind === 'arad') {
-    const L = S.pro.listing; document.getElementById('aradVal').innerHTML = `${L.radius}<small>km</small>`;
+    const L = S.pro.listing;
+    if (S.mbx && MBX.area) { const c = MBX.area.cfg; if (c.mb && L.base.lat != null) c.mb.circles = [{ lat: L.base.lat, lng: L.base.lng, km: L.radius / ROAD }].concat(L.feeOn ? [{ lat: L.base.lat, lng: L.base.lng, km: (L.radius + 5) / ROAD, kind: 'fee' }] : []); mbxSync('area'); } document.getElementById('aradVal').innerHTML = `${L.radius}<small>km</small>`;
     const c = document.getElementById('areaCircle'); if (c) c.setAttribute('r', L.radius * U); const f = document.getElementById('areaFee'); if (f) f.setAttribute('r', (L.radius + 5) * U);
     document.querySelectorAll('#gm-area .gm-d').forEach(el => { const n = el.dataset.d; el.style.fill = areaCovered(n) ? mixFill('cloth', 38) : mixFill('rose', Math.min(60, dstats(n).pressure * 9)); });
     document.querySelectorAll('#gm-area .gm-label').forEach(el => { const n = el.firstChild.textContent; const em = el.querySelector('em'); if (em && SITES[n]) em.textContent = areaCovered(n) ? 'w zasięgu' : DEMAND[n] + ' zap.'; });
     document.getElementById('areaStats').innerHTML = areaStatsHTML();
+  }
+  if (kind === 'locq' && S.online) {
+    const q = (document.getElementById('locq').value || '').trim(); const box = document.getElementById('locSug'); if (!box) return;
+    clearTimeout(locTimer); if (q.length < 3) { box.innerHTML = ''; return; }
+    const seq = ++locSeq;
+    locTimer = setTimeout(async () => {
+      let r; try { r = await window.LsniAPI.call('GET', `/api/geo/search?q=${encodeURIComponent(q)}`); } catch (e) { return; }
+      if (seq !== locSeq) return;
+      box.innerHTML = r.results.length ? r.results.map(x => `<button class="sug" data-act="locPickReal" data-a="${x.lat},${x.lng}">${ic(x.inArea ? 'map-pin' : 'map-pin-off', 's')}<span class="grow"><b class="small">${esc(x.street)}</b><span class="tiny faint" style="display:block">${esc(x.full || x.district)}</span></span><span class="tiny faint">${x.inArea ? esc(x.district) : 'poza Warszawą'}</span></button>`).join('') : '<div class="tiny faint" style="padding:8px 4px">Nie znaleźliśmy takiego adresu. Wpisz ulicę i numer, np. Racławicka 99.</div>';
+    }, 250);
+    return;
   }
   if (kind === 'locq') {
     const q = (document.getElementById('locq').value || '').trim().toLowerCase(); const box = document.getElementById('locSug'); if (!box) return;
@@ -2356,6 +2577,13 @@ setInterval(() => {
   S.orders.forEach(o => {
     if (o.status !== 'enroute') return;
     const p = proById(o.pro); o.track = Math.min(S.online ? .95 : 1, (o.track || 0) + .06);
+    const mbe = MBX['trk-' + o.id];
+    if (S.mbx && mbe && o.routeReal) {
+      const { pos, done } = alongLngLat(o.routeReal.coordinates, o.track); const mk = mbe.markers['trk-' + o.id]; if (mk) mk.setLngLat(pos);
+      const src = mbe.map.getSource('lsni-route-done'); if (src) src.setData(fcol([{ type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: done } }]));
+      if (mbe.cfg.mb) mbe.cfg.mb.routeDone = done; if (mbe.cfg.markers) { const cm = mbe.cfg.markers.find(x => x.id === 'trk-' + o.id); if (cm) { cm.lat = pos[1]; cm.lng = pos[0]; } }
+      const et = document.getElementById('eta-' + o.id); if (et) et.innerHTML = etaTextReal(o, p);
+    }
     const m = mapInst('trk-' + o.id);
     if (m) { const { a, pts } = trackRoute(o, p); const pos = alongRoute(pts, o.track); const car = document.getElementById('trk-' + o.id); if (car) m.place(car, pos[0], pos[1]);
       const done = document.getElementById('trkdone-' + o.id); if (done) done.setAttribute('points', pts.filter((q, i) => i === 0 || (i === 1 && o.track > .5)).concat([pos]).map(q => `${q[0] * U},${q[1] * U}`).join(' '));
@@ -2421,7 +2649,7 @@ function mapProvider(v) {
   if (!p) { p = { id: v.id, repeat: 65, reviewsList: [] }; PROS.push(p); }
   Object.assign(p, { name: v.name, ini: v.ini, tone: v.tone, kind: v.kind, area: v.area, rating: v.rating, reviews: v.reviews, jobs: v.jobs, response: v.response, rate: v.rate, minH: v.minH, since: v.since,
     verified: v.verified, insured: v.insured, invoice: v.invoice, supplies: v.supplies, eco: v.eco, pets: v.pets, langs: v.langs, services: v.services, super: v.super, nextSlot: v.nextSlot, todayFree: v.todayFree,
-    fixed: v.fixed, perWindow: v.perWindow, tagline: v.tagline, x: g.x, y: g.y, r: v.radiusKm, fee: v.fee, _api: true });
+    fixed: v.fixed, perWindow: v.perWindow, tagline: v.tagline, x: g.x, y: g.y, lat: v.base.lat, lng: v.base.lng, r: v.radiusKm, fee: v.fee, _api: true });
   if (v.dist !== undefined) Object.assign(p, { dist: v.dist, eta: v.eta, reach: v.reach });
   if (v.bio !== undefined) p.bio = v.bio;
   if (v.reviewsList) p.reviewsList = v.reviewsList.map(r => ({ who: r.who, stars: r.stars, when: `${r.when.slice(8, 10)}.${r.when.slice(5, 7)}`, text: r.text + (r.reply ? `\n\nOdpowiedź: ${r.reply}` : ''), tags: r.tags }));
@@ -2436,7 +2664,7 @@ function mapOrder(b) {
     issue: b.report ? { cat: b.report.category, want: b.report.want, status: { open: 'sent', escalated: 'sent', answered: 'answered', resolved: 'resolved' }[b.report.status], at: relTime(b.report.at), answeredAt: b.report.answeredAt ? relTime(b.report.answeredAt) : '' } : null });
 }
 function mapNotif(n) { const [k, v] = String(n.link || '').split(':'); const act = k === 'booking' ? (S.role === 'pro' ? 'noop' : 'openOrder') : k === 'thread' ? (S.role === 'pro' ? 'openPChat' : 'openChat') : k === 'provider' ? 'openPro' : k === 'boosts' ? 'openBoost' : k === 'search' ? 'openSearch' : 'noop'; return { id: n.id, icon: NICON[n.kind] || 'bell', t: n.title, d: n.body, at: relTime(n.at), read: n.read, act, a: v || '' }; }
-function mapJob(b) { const g = GEOFIT.toGrid(b.lat, b.lng); return { id: b.id, day: dayOffset(b.startsAt), time: b.startsAt.slice(11, 16), end: b.endsAt.slice(11, 16), client: b.client ? b.client.name : 'Klient', service: b.service, area: districtAt(g.x, g.y), pay: b.totalZl, tone: b.status === 'confirmed' ? '' : 'y', x: g.x, y: g.y, thread: b.client ? b.client.id : '', noshow: b.status === 'noshow' }; }
+function mapJob(b) { const g = GEOFIT.toGrid(b.lat, b.lng); return { id: b.id, day: dayOffset(b.startsAt), time: b.startsAt.slice(11, 16), end: b.endsAt.slice(11, 16), client: b.client ? b.client.name : 'Klient', service: b.service, area: districtAt(g.x, g.y), pay: b.totalZl, tone: b.status === 'confirmed' ? '' : 'y', x: g.x, y: g.y, lat: b.lat, lng: b.lng, thread: b.client ? b.client.id : '', noshow: b.status === 'noshow' }; }
 function mapRequest(b) { const g = GEOFIT.toGrid(b.lat, b.lng); return { id: b.id, client: b.client.name, crating: { wysoka: 5, 'średnia': 4, niska: 3 }[b.client.reliability] || 5, service: b.service, m2: b.m2, rooms: b.rooms, baths: b.baths, day: dayOffset(b.startsAt), time: b.startsAt.slice(11, 16), h: b.hours, pay: b.totalZl, area: `${districtAt(g.x, g.y)}, ${b.address}`, note: b.note || 'Bez uwag.', freq: b.freq, expires: 60, x: g.x, y: g.y, payHow: (PAYL[b.payMethod] || 'gotówka').toLowerCase() }; }
 
 // ---------- pobieranie danych ----------
@@ -2467,7 +2695,7 @@ async function loadSlots(id) {
 async function refreshPro() {
   const [me, dash, jobs, boosts, invite] = await Promise.all([API.call('GET', '/api/pro/me'), API.call('GET', '/api/pro/dashboard'), API.call('GET', '/api/bookings?as=provider&scope=upcoming'), API.call('GET', '/api/pro/boosts'), API.call('GET', '/api/pro/invite')]);
   const L = S.pro.listing; const g = GEOFIT.toGrid(me.base.lat, me.base.lng);
-  Object.assign(L, { name: me.name, tagline: me.tagline, services: me.services, rate: me.rate, minH: me.minH, base: { x: g.x, y: g.y }, radius: me.radiusKm, fee: me.fee || 15, feeOn: me.fee > 0, supplies: me.supplies, eco: me.eco, pets: me.pets, invoice: me.invoice, bio: me.bio || '', idVerified: me.idStatus === 'verified', insured: me.insured, published: me.published });
+  Object.assign(L, { name: me.name, tagline: me.tagline, services: me.services, rate: me.rate, minH: me.minH, base: { x: g.x, y: g.y, lat: me.base.lat, lng: me.base.lng }, radius: me.radiusKm, fee: me.fee || 15, feeOn: me.fee > 0, supplies: me.supplies, eco: me.eco, pets: me.pets, invoice: me.invoice, bio: me.bio || '', idVerified: me.idStatus === 'verified', insured: me.insured, published: me.published });
   S.pro.online = me.online;
   S.pro.requests = dash.requests.map(mapRequest);
   S.pro.jobs = jobs.filter(b => b.status !== 'pending').map(mapJob);
@@ -2582,15 +2810,15 @@ const ON = {
   async notifPref(k) { try { const me = await API.call('PATCH', '/api/me', { prefs: { [k]: !S.notifPrefs[k] } }); S.notifPrefs = me.prefs; render(); } catch (e) { failToast(e); } },
   async pickAddr(id) { S.addrId = id; try { await refreshProviders(); } catch (e) { failToast(e); } const ad = curAddr(); toast(`Szukamy dla: ${ad.label}, ${districtAt(ad.x, ad.y)}`, 'map-pin'); afterAddrChange(id); },
   async saveAddr() {
-    const v = S.maps.loc; if (!v) return; const real = GEOFIT.toReal(v.x, v.y);
+    const v = S.maps.loc; if (!v && !S.locReal) return; const real = S.mbx && S.locReal ? S.locReal : GEOFIT.toReal(v.x, v.y);
     try {
-      const a = await API.call('POST', '/api/addresses', { label: S.newAddrLabel || 'Adres', lat: real.lat, lng: real.lng, note: S.newAddrNote || '' });
+      const a = await API.call('POST', '/api/addresses', { label: S.newAddrLabel || 'Adres', lat: real.lat, lng: real.lng, note: S.newAddrNote || '', street: S.mbx && S.locRev && S.locRev.street ? S.locRev.street : undefined });
       S.addresses = S.addresses.filter(x => !x.id.startsWith('_')).concat(mapAddress(a)); S.addrId = a.id; await refreshProviders();
       toast(`Zapisano: ${a.street}, ${a.district}`, 'map-pin-plus'); afterAddrChange(a.id);
     } catch (e) { failToast(e); }
   },
   async joinWaitlist(key) {
-    let pt; if (key.startsWith('addr-')) pt = curAddr(); else { const v = S.maps.loc; pt = GEOFIT.toReal(v.x, v.y); }
+    let pt; if (key.startsWith('addr-')) pt = curAddr(); else if (S.mbx && S.locReal) pt = S.locReal; else { const v = S.maps.loc; pt = GEOFIT.toReal(v.x, v.y); }
     try { await API.call('POST', '/api/waitlist', { lat: pt.lat, lng: pt.lng }); DEMO.joinWaitlist(key); } catch (e) { failToast(e); }
   },
   async acceptReq(id) { try { await API.call('POST', `/api/bookings/${id}/accept`, {}); await refreshPro(); toast('Przyjęte. Dodano do grafiku', 'calendar-check'); render(); } catch (e) { failToast(e); } },
@@ -2607,7 +2835,7 @@ const ON = {
   async openPChat(id, name) { if (!id) return toast('Ten klient nie ma jeszcze rozmowy', 'info'); try { await loadThread(id, true); } catch (e) { return failToast(e); } go('pchat', { id }); },
   async toggleOnline() { try { const me = await API.call('POST', '/api/pro/online', { online: !S.pro.online }); S.pro.online = me.online; toast(me.online ? 'Znów przyjmujesz zlecenia' : 'Nie pokazujemy Cię w wynikach do odwołania', me.online ? 'zap' : 'moon'); render(); } catch (e) { failToast(e); } },
   async publish() {
-    const L = S.pro.listing; const real = GEOFIT.toReal(L.base.x, L.base.y);
+    const L = S.pro.listing; const real = L.base.lat != null ? { lat: L.base.lat, lng: L.base.lng } : GEOFIT.toReal(L.base.x, L.base.y);
     try { await API.call('POST', '/api/pro/profile', { displayName: L.name, tagline: L.tagline, bio: L.bio, services: L.services, rate: L.rate, minHours: L.minH, baseLat: real.lat, baseLng: real.lng, radiusKm: L.radius, fee: L.feeOn ? L.fee : 0, supplies: L.supplies, eco: L.eco, pets: L.pets, invoice: L.invoice }); await refreshPro(); toast('Ogłoszenie zapisane i widoczne dla klientów', 'megaphone'); render(); }
     catch (e) { failToast(e); }
   },
@@ -2650,6 +2878,7 @@ async function bootOnline() {
   if (!API) return false;
   const ok = await API.detect(); if (!ok) return false;
   S.online = true; S.loggedIn = false; S.introSeen = true; PROS.length = 0;
+  await loadMapbox().catch(() => false);
   const ref = new URLSearchParams(location.search).get('invite');
   if (ref) { S.inviteRef = ref; try { const inv = await API.call('GET', `/api/invite/${encodeURIComponent(ref)}`); S.inviteFrom = inv.provider; } catch (e) { S.inviteRef = null; } }
   if (API.token) { try { await hydrate(); } catch (e) { S.loggedIn = false; } }

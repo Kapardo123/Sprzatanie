@@ -9,7 +9,7 @@ const { firstName } = require('../domain');
 const slugify = s => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/ł/g, 'l').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40) || 'wykonawca';
 const TONES = ['t-yellow', 't-blue', 't-mint', 't-rose', 't-lilac', 't-sand'];
 
-module.exports = function proRoutes(r, { db, domain, notifier, sms }) {
+module.exports = function proRoutes(r, { db, domain, notifier, sms, mapbox }) {
   const { notify, notifyAdmins } = notifier;
 
   // ---------- profil (tworzy konto wykonawcy przy pierwszym zapisie) ----------
@@ -100,13 +100,17 @@ module.exports = function proRoutes(r, { db, domain, notifier, sms }) {
     };
   });
   // Grafik dnia z trasą: kolejność wizyt, kilometry i czas jazdy od bazy.
-  r.get('/api/pro/day', { auth: 'pro' }, ({ user, query, now }) => {
+  r.get('/api/pro/day', { auth: 'pro' }, async ({ user, query, now }) => {
     const p = domain.providerById(user.id); const date = query.date ? v.date(query.date, 'data') : now.slice(0, 10);
     const jobs = db.all("SELECT * FROM bookings WHERE provider_id = ? AND substr(starts_at,1,10) = ? AND status IN ('confirmed','enroute','progress','done','noshow') ORDER BY starts_at", user.id, date);
     let prev = { lat: p.base_lat, lng: p.base_lng }, km = 0, min = 0;
     const legs = jobs.map(b => { const d = geo.roadKm(prev, b); prev = b; km += d; min += geo.driveMin(d); return { bookingId: b.id, km: Math.round(d * 10) / 10, min: geo.driveMin(d) }; });
     if (jobs.length) { const back = geo.roadKm(prev, { lat: p.base_lat, lng: p.base_lng }); km += back; min += geo.driveMin(back); }
-    return { date, base: { lat: p.base_lat, lng: p.base_lng }, jobs: jobs.map(b => domain.bookingView(b, user, now)), legs, totalKm: Math.round(km * 10) / 10, totalDriveMin: min };
+    const base = { lat: p.base_lat, lng: p.base_lng };
+    const rt = jobs.length ? await mapbox.route([base, ...jobs.map(b => ({ lat: b.lat, lng: b.lng })), base]) : null;
+    if (rt) rt.legs.slice(0, legs.length).forEach((l, i) => Object.assign(legs[i], l));
+    return { date, base, jobs: jobs.map(b => domain.bookingView(b, user, now)), legs, totalKm: rt ? rt.km : Math.round(km * 10) / 10, totalDriveMin: rt ? rt.min : min,
+      geometry: rt ? rt.coordinates : [base, ...jobs, base].map(x => [x.lng, x.lat]), source: rt ? 'mapbox' : 'estimate' };
   });
 
   // ---------- weryfikacja: dokument tożsamości / polisa OC ----------

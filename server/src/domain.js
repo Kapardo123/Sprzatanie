@@ -1,6 +1,7 @@
 'use strict';
 // Logika wspólna dla wielu endpointów: widoki wykonawców i rezerwacji, wolne terminy, ranking, kredyt, popyt.
 const geo = require('./geo');
+const { reachWith } = require('./services/mapbox');
 const { SLOT_HOURS, SERVICE_NAMES, boostPriceGr, boostGuaranteedViews } = require('./pricing');
 const { json, localNow, addDays, addHours, toMs, weekdayOf, hoursBetween, notFound } = require('./util');
 const { config } = require('./config');
@@ -52,8 +53,8 @@ function createDomain(db) {
   const countServing = n => db.all('SELECT * FROM providers WHERE published = 1').filter(x => geo.servesDistrict(x, n)).length;
 
   // ---------- widok wykonawcy dla klienta ----------
-  function providerView(p, point, { promoted = false, full = false } = {}) {
-    const r = point ? geo.reach(p, point) : null; const ns = nextSlot(p);
+  function providerView(p, point, { promoted = false, full = false, road = null } = {}) {
+    const r = point ? reachWith(p, point, road) : null; const ns = nextSlot(p);
     const out = {
       id: p.slug, name: p.display_name, ini: p.initials, tone: p.tone, kind: p.kind, area: geo.districtAt(p.base_lat, p.base_lng),
       tagline: p.tagline, services: json(p.services, []), langs: json(p.langs, []), rate: p.rate_gr / 100, minH: p.min_hours,
@@ -63,7 +64,7 @@ function createDomain(db) {
       response: `${p.response_min} min`, base: { lat: p.base_lat, lng: p.base_lng }, radiusKm: p.radius_km, fee: p.fee_gr / 100,
       nextSlot: ns ? ns.label : 'Brak wolnych terminów', todayFree: !!(ns && ns.today), promoted
     };
-    if (r) Object.assign(out, { dist: r.km, eta: r.eta, reach: r.reach });
+    if (r) Object.assign(out, { dist: r.km, eta: r.eta, reach: r.reach, distSource: r.source || 'estimate' });
     if (full) {
       out.bio = p.bio;
       out.reviewsList = db.all("SELECT r.*, u.name client_name FROM reviews r JOIN users u ON u.id = r.client_id WHERE r.provider_id = ? AND r.status = 'published' ORDER BY r.created_at DESC LIMIT 20", p.user_id)
@@ -74,12 +75,12 @@ function createDomain(db) {
   }
 
   // ---------- wyszukiwanie i ranking ----------
-  function search(q, point) {
+  function search(q, point, roads = null) {
     const district = q.district && geo.DISTRICTS[q.district] ? q.district : null;
     const where = district || geo.districtAt(point.lat, point.lng);
     db.run('INSERT INTO search_log (district, created_at) VALUES (?, ?)', where, new Date().toISOString());
     const text = String(q.q || '').trim().toLowerCase();
-    let list = db.all('SELECT * FROM providers WHERE published = 1 AND online = 1').map(p => ({ p, v: providerView(p, point) })).filter(({ p, v }) => {
+    let list = db.all('SELECT * FROM providers WHERE published = 1 AND online = 1').map(p => ({ p, v: providerView(p, point, { road: roads && roads.get(p.user_id) }) })).filter(({ p, v }) => {
       if (q.service && !v.services.includes(q.service)) return false;
       if (text && !(v.name + ' ' + v.tagline + ' ' + v.area + ' ' + v.services.map(s => SERVICE_NAMES[s]).join(' ')).toLowerCase().includes(text)) return false;
       if (q.maxPrice && !v.fixed && v.rate > Number(q.maxPrice)) return false;

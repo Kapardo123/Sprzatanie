@@ -249,6 +249,14 @@ const SCHEMA = [
     status TEXT NOT NULL,
     created_at TEXT NOT NULL
   );
+  `,
+  // 2: pamięć podręczna odpowiedzi Mapbox (geokodowanie, trasy, czasy dojazdu)
+  `
+  CREATE TABLE geo_cache (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL,
+    expires_at TEXT NOT NULL
+  );
   `
 ];
 

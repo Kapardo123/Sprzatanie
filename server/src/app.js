@@ -8,11 +8,12 @@ const { createSms } = require('./services/sms');
 const { createNotifier } = require('./services/notify');
 const { createDomain } = require('./domain');
 const { createScheduler } = require('./scheduler');
+const { createMapbox } = require('./services/mapbox');
 
 function createApp({ dbFile } = {}) {
   const database = db.open(dbFile);
   const sms = createSms(database);
-  const ctx = { db: database, sms, notifier: createNotifier(database, sms), domain: createDomain(database) };
+  const ctx = { db: database, sms, notifier: createNotifier(database, sms), domain: createDomain(database), mapbox: createMapbox(database) };
   const router = createRouter();
   require('./routes/account')(router, ctx);
   require('./routes/catalog')(router, ctx);
@@ -32,6 +33,9 @@ function statics(req, res, url) {
   if (req.method !== 'GET') return false;
   const p = url.pathname;
   if (APP_FILES[p]) return serveFile(res, path.join(config.publicDir, APP_FILES[p]));
+  // Biblioteka Mapbox GL JS z node_modules (bez zależności od zewnętrznego CDN)
+  const gl = /^\/vendor\/(mapbox-gl\.(js|css))$/.exec(p);
+  if (gl) return serveFile(res, path.join(__dirname, '..', 'node_modules', 'mapbox-gl', 'dist', gl[1]), 'public, max-age=86400');
   if (p === '/admin' || p === '/admin/') return serveFile(res, path.join(__dirname, '..', 'admin', 'index.html'));
   const inv = /^\/z\/([\w-]+)$/.exec(p);
   if (inv) { res.writeHead(302, { Location: `/?invite=${inv[1]}` }); res.end(); return true; }

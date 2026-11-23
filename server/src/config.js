@@ -39,6 +39,14 @@ const config = {
   simulateProviders: env.SIMULATE_PROVIDERS ? env.SIMULATE_PROVIDERS === '1' : !isProd,
   schedulerIntervalMs: Number(env.SCHEDULER_INTERVAL_MS || 60_000),
 
+  // Mapbox: token publiczny (pk.…) trafia do przeglądarki; serwerowy może być osobny, bez ograniczeń adresu URL
+  mapboxToken: env.MAPBOX_TOKEN || '',
+  mapboxServerToken: env.MAPBOX_SERVER_TOKEN || env.MAPBOX_TOKEN || '',
+  mapboxStyleLight: env.MAPBOX_STYLE_LIGHT || 'mapbox://styles/mapbox/light-v11',
+  mapboxStyleDark: env.MAPBOX_STYLE_DARK || 'mapbox://styles/mapbox/dark-v11',
+  mapboxApi: env.MAPBOX_API || 'https://api.mapbox.com',
+  mapboxTimeoutMs: Number(env.MAPBOX_TIMEOUT_MS || 2500),
+
   // Wyróżnienia
   inviteCreditGr: 2000, // 20 zł za klienta z linku po jego pierwszej wizycie
   startCreditGr: 5000,  // 50 zł na start

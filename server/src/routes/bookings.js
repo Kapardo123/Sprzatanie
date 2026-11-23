@@ -1,5 +1,6 @@
 'use strict';
 const geo = require('../geo');
+const { reachWith } = require('../services/mapbox');
 const { quote, SERVICE_NAMES } = require('../pricing');
 const { config } = require('../config');
 const calls = require('../services/calls');
@@ -11,7 +12,7 @@ const FREQ_STEP = { week: 7, biweek: 14, month: 28 };
 const PAY = ['cash', 'blikphone', 'transfer', 'invoice'];
 const when = at => `${at.slice(8, 10)}.${at.slice(5, 7)}, ${at.slice(11, 16)}`;
 
-module.exports = function bookingRoutes(r, { db, domain, notifier }) {
+module.exports = function bookingRoutes(r, { db, domain, notifier, mapbox }) {
   const { notify } = notifier;
   const getBooking = id => db.get('SELECT * FROM bookings WHERE id = ?', id) || notFound('Nie ma takiej rezerwacji');
   function participant(b, user) {
@@ -28,7 +29,7 @@ module.exports = function bookingRoutes(r, { db, domain, notifier }) {
     !db.get(`SELECT 1 FROM bookings WHERE provider_id = ? AND id != ? AND starts_at = ? AND status IN ('pending','confirmed','enroute','progress')`, p.user_id, ignoreId, at);
 
   // ---------- nowa rezerwacja ----------
-  r.post('/api/bookings', { auth: 'user' }, ({ user, body, now }) => {
+  r.post('/api/bookings', { auth: 'user' }, async ({ user, body, now }) => {
     if (user.noshow_count >= 2) fail(403, 'too_many_noshows', 'Po dwóch nieobecnościach rezerwacje są wstrzymane. Napisz do pomocy Lśni, żeby je odblokować.');
     const p = domain.mustProvider(v.str(body.provider, 'wykonawca'));
     if (p.user_id === user.id) badRequest('Nie możesz zarezerwować wizyty u siebie');
@@ -39,7 +40,8 @@ module.exports = function bookingRoutes(r, { db, domain, notifier }) {
     if (body.addressId) addr = db.get('SELECT * FROM addresses WHERE id = ? AND user_id = ?', body.addressId, user.id) || notFound('Nie ma takiego adresu');
     else addr = { id: null, lat: v.num(body.lat, 'lat', { min: 49, max: 55 }), lng: v.num(body.lng, 'lng', { min: 14, max: 25 }), street: v.str(body.street, 'adres', { max: 120 }) };
     if (!geo.inWarsaw(addr.lat, addr.lng)) fail(422, 'outside_area', 'Ten adres jest poza obszarem, w którym działamy');
-    const rc = geo.reach(p, addr);
+    const road = mapbox.enabled() ? await mapbox.matrix([{ id: p.user_id, lat: p.base_lat, lng: p.base_lng }], addr) : null;
+    const rc = reachWith(p, addr, road && road.get(p.user_id));
     if (rc.reach === 'out') fail(422, 'out_of_reach', `${p.display_name} nie dojeżdża pod ten adres`);
     const at = `${v.date(body.date, 'data')}T${v.time(body.time, 'godzina')}`;
     if (!isSlotFree(p, at)) conflict('Ten termin jest już zajęty albo niedostępny. Wybierz inny.', 'slot_taken');
@@ -164,6 +166,14 @@ module.exports = function bookingRoutes(r, { db, domain, notifier }) {
     });
     notify(b.client_id, { kind: 'noshow', title: 'Wykonawca nie zastał nikogo', body: `Wizyta ${when(b.starts_at)} została oznaczona jako nieobecność. Jeśli to pomyłka, odpowiedz w aplikacji.`, link: `booking:${b.id}`, sms: true });
     return domain.bookingView(getBooking(b.id), user, now);
+  });
+
+  // ---------- trasa dojazdu wykonawcy (do śledzenia na mapie) ----------
+  r.get('/api/bookings/:id/route', { auth: 'user' }, async ({ user, params }) => {
+    const b = getBooking(params.id); participant(b, user); const p = domain.providerById(b.provider_id);
+    const from = { lat: p.base_lat, lng: p.base_lng }, to = { lat: b.lat, lng: b.lng };
+    const rt = await mapbox.route([from, to]); const km = Math.round(geo.roadKm(from, to) * 10) / 10;
+    return Object.assign(rt || { coordinates: [[from.lng, from.lat], [to.lng, to.lat]], km, min: geo.driveMin(km) }, { from, to, source: rt ? 'mapbox' : 'estimate' });
   });
 
   // ---------- numer maskowany ----------

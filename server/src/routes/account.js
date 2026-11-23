@@ -4,7 +4,7 @@ const geo = require('../geo');
 const { config } = require('../config');
 const { newId, nowIso, sha256, v, fail, badRequest, notFound, rateLimiter, json } = require('../util');
 
-module.exports = function accountRoutes(r, { db, sms, domain }) {
+module.exports = function accountRoutes(r, { db, sms, domain, mapbox }) {
   const limit = rateLimiter();
   const codeHash = (phone, code) => sha256(`${config.otpPepper}:${phone}:${code}`);
 
@@ -89,10 +89,11 @@ module.exports = function accountRoutes(r, { db, sms, domain }) {
   });
 
   // ---------- adresy ----------
-  r.post('/api/addresses', { auth: 'user' }, ({ user, body }) => {
+  r.post('/api/addresses', { auth: 'user' }, async ({ user, body }) => {
     const lat = v.num(body.lat, 'szerokość', { min: 49, max: 55 }), lng = v.num(body.lng, 'długość', { min: 14, max: 25 });
     if (!geo.inWarsaw(lat, lng)) fail(422, 'outside_area', 'Na razie działamy tylko w Warszawie. Możesz zapisać się na listę oczekujących.');
     const id = newId('adr_'); const rev = geo.reverse(lat, lng);
+    if (!body.street && mapbox && mapbox.enabled()) { const mb = await mapbox.reverse(lat, lng); if (mb && mb.street) rev.street = mb.street; }
     db.run('INSERT INTO addresses (id, user_id, label, street, lat, lng, note, created_at) VALUES (?,?,?,?,?,?,?,?)', id, user.id,
       v.str(body.label, 'nazwa', { max: 40, optional: true }) || 'Adres', v.str(body.street, 'ulica', { max: 120, optional: true }) || rev.street, lat, lng, v.str(body.note, 'uwagi', { max: 200, optional: true }), nowIso());
     return Object.assign(db.get('SELECT id, label, street, lat, lng, note FROM addresses WHERE id = ?', id), { district: rev.district });

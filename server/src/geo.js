@@ -73,4 +73,35 @@ function searchStreets(q) {
   return STREETS.filter(x => x[0].toLowerCase().includes(s)).slice(0, 8).map(x => ({ street: x[0], lat: x[1], lng: x[2], district: districtAt(x[1], x[2]) }));
 }
 
-module.exports = { DISTRICTS, POPULATION, BASE_DEMAND, STREETS, haversineKm, roadKm, driveMin, districtAt, inWarsaw, reach, servesDistrict, reverse, searchStreets };
+// Kształty dzielnic jako GeoJSON. Jeśli w DATA_DIR leży plik dzielnice-warszawy.geojson (np. z PRG/OSM,
+// z właściwością "name"), używamy prawdziwych granic. Inaczej: komórki Woronoja wokół środków dzielnic przycięte do obrysu miasta.
+let SHAPES = null;
+function districtShapes() {
+  if (SHAPES) return SHAPES;
+  try {
+    const fs = require('node:fs'), path = require('node:path'); const { config } = require('./config');
+    const f = path.join(config.dataDir, 'dzielnice-warszawy.geojson');
+    if (fs.existsSync(f)) { SHAPES = JSON.parse(fs.readFileSync(f, 'utf8')); SHAPES.approximate = false; return SHAPES; }
+  } catch (e) { }
+  const K = Math.cos(52.23 * Math.PI / 180); // rzut: x = lng·cos(φ), y = lat
+  const P = ([lat, lng]) => [lng * K, lat];
+  const clip = (poly, a, b) => {
+    const mx = (a[0] + b[0]) / 2, my = (a[1] + b[1]) / 2, nx = b[0] - a[0], ny = b[1] - a[1];
+    const f = q => (q[0] - mx) * nx + (q[1] - my) * ny; const out = [];
+    for (let i = 0; i < poly.length; i++) {
+      const A = poly[i], B = poly[(i + 1) % poly.length], fa = f(A), fb = f(B);
+      if (fa <= 0) out.push(A);
+      if ((fa < 0 && fb > 0) || (fa > 0 && fb < 0)) { const t = fa / (fa - fb); out.push([A[0] + (B[0] - A[0]) * t, A[1] + (B[1] - A[1]) * t]); }
+    }
+    return out;
+  };
+  const city = CITY.map(P); const names = Object.keys(DISTRICTS);
+  SHAPES = { type: 'FeatureCollection', approximate: true, features: names.map(n => {
+    let poly = city; names.forEach(m => { if (m !== n) poly = clip(poly, P(DISTRICTS[n]), P(DISTRICTS[m])); });
+    const ring = poly.map(([x, y]) => [Math.round(x / K * 1e5) / 1e5, Math.round(y * 1e5) / 1e5]); ring.push(ring[0]);
+    return { type: 'Feature', properties: { name: n, center: [DISTRICTS[n][1], DISTRICTS[n][0]] }, geometry: { type: 'Polygon', coordinates: [ring] } };
+  }) };
+  return SHAPES;
+}
+
+module.exports = { districtShapes, DISTRICTS, POPULATION, BASE_DEMAND, STREETS, haversineKm, roadKm, driveMin, districtAt, inWarsaw, reach, servesDistrict, reverse, searchStreets };

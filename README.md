@@ -8,11 +8,12 @@ Marketplace usług sprzątania: klienci znajdują i rezerwują wykonawców w oko
 
 ```bash
 cd server
+npm install   # biblioteka mapy Mapbox GL JS
 npm start
 # aplikacja: http://localhost:8080   panel zespołu: http://localhost:8080/admin
 ```
 
-Logowanie kodem SMS. W trybie deweloperskim kod pojawia się w konsoli i sam wpisuje się w aplikacji. Konta testowe: klientka **500 100 200**, wykonawczyni **500 100 300**, zespół **500 100 999**. Szczegóły, integracje i wdrożenie opisuje [server/README.md](server/README.md).
+Logowanie kodem SMS. W trybie deweloperskim kod pojawia się w konsoli i sam wpisuje się w aplikacji. Konta testowe: klientka **500 100 200**, wykonawczyni **500 100 300**, zespół **500 100 999**. Prawdziwą mapę Mapbox (adresy, trasy, czasy dojazdu) włącza zmienna `MAPBOX_TOKEN`. Bez niej aplikacja używa schematycznej mapy. Szczegóły, integracje i wdrożenie opisuje [server/README.md](server/README.md).
 
 **Bez serwera (tryb demo):** otwórz `index.html` w przeglądarce. Dane są przykładowe i zapisują się tylko w przeglądarce.
 

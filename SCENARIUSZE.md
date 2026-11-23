@@ -175,7 +175,7 @@ Pozycje, które makieta potrzebowała od serwera. Szczegóły są w [server/READ
 | Telefon | **Zrobione:** sesje z PIN-em i endpoint dla bramki telefonicznej. **Do podpięcia:** numer u operatora z IVR. |
 | Zgłoszenia | **Zrobione:** zgłoszenia ze zdjęciami, odpowiedź wykonawcy, eskalacja po 24 h, nieobecności i panel zespołu do ich obsługi. |
 | Opinie | **Zrobione:** automatyczna moderacja, moderacja w panelu, publiczne odpowiedzi wykonawców. |
-| Mapa | **Częściowo:** prawdziwe współrzędne, odległości, zasięgi i dzielnice na serwerze. **Do zrobienia:** geokodowanie adresów i kafelki map (Mapbox lub Google). |
+| Mapa | **Zrobione:** Mapbox (prawdziwa mapa, wyszukiwanie adresów, czasy dojazdu po drogach, trasy). **Do podpięcia:** token Mapbox i opcjonalnie prawdziwe granice dzielnic. |
 | Prawo | **Projekty gotowe:** regulamin, polityka prywatności i zasady rankingu w `server/legal/`. **Wymagają sprawdzenia przez prawnika.** DAC7 do potwierdzenia z księgową. |
 | Płatności za wyróżnienia | **Do podpięcia:** zakup z kredytu działa. Dopłata ponad kredyt zwraca kwotę do zapłaty i czeka na operatora (Przelewy24 lub Stripe). |
 | Giełda zleceń z ofertami | **Na później:** w trybie online działa jeszcze lokalnie (dane demo). |

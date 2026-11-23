@@ -4,12 +4,13 @@ Backend aplikacji Lśni. Obsługuje konta, rezerwacje, powiadomienia, czat, zgł
 
 ## Uruchomienie
 
-Wymagany Node.js 22.5 lub nowszy. Serwer nie ma zależności z npm: używa wbudowanego `node:sqlite`.
+Wymagany Node.js 22.5 lub nowszy. Baza to wbudowany `node:sqlite`. Jedyna zależność z npm to `mapbox-gl` (pliki biblioteki mapy dla przeglądarki).
 
 ```bash
 cd server
+npm install        # tylko biblioteka Mapbox GL JS
 npm start          # http://localhost:8080
-npm test           # 18 testów całych ścieżek na bazie w pamięci
+npm test           # 24 testy całych ścieżek, w tym integracja z Mapbox na udawanym API
 npm run seed       # wyczyść bazę i wgraj dane startowe od nowa
 ```
 
@@ -54,7 +55,36 @@ W trybie deweloperskim wykonawcy z danych startowych sami potwierdzają rezerwac
 | Powiadomienia push | Zapis w aplikacji działa. Kanał push nie jest podpięty. | Po przejściu na aplikację natywną: Firebase Cloud Messaging lub APNs w `src/services/notify.js`. |
 | E-mail | Nie podpięty | Np. Postmark lub Amazon SES w `src/services/notify.js`. |
 | Płatność za wyróżnienia ponad kredyt | API zwraca `402 payment_required` z brakującą kwotą | Podpiąć Przelewy24 albo Stripe i dopisywać wpłatę do `credit_ledger`. |
-| Mapy | Geometria Warszawy uproszczona (środki dzielnic, obrys miasta, słownik ulic) | Geokodowanie adresów (Google, Mapbox lub Nominatim na własnym serwerze), granice dzielnic z PRG, kafelki map w aplikacji. |
+| Mapy | Gotowa integracja z Mapbox (opis niżej) | Założyć konto Mapbox i ustawić `MAPBOX_TOKEN`. Opcjonalnie: prawdziwe granice dzielnic w `DATA_DIR/dzielnice-warszawy.geojson`. |
+
+## Mapy (Mapbox)
+
+Po ustawieniu `MAPBOX_TOKEN` aplikacja online pokazuje prawdziwą mapę Mapbox zamiast schematu, a serwer używa API Mapbox:
+
+| Gdzie | Co daje | API Mapbox |
+|---|---|---|
+| Wybór adresu | Podpowiedzi prawdziwych adresów z numerami, adres pod pinezką przy przesuwaniu mapy, zapis z dokładnymi współrzędnymi | Search / Geocoding v6 (forward, reverse) |
+| Wyniki, profil, wycena, rezerwacja | Odległość i czas dojazdu po prawdziwych drogach. Od nich zależy zasięg i dopłata za dojazd. | Matrix (do 24 wykonawców w jednym zapytaniu) |
+| Śledzenie dojazdu | Trasa po ulicach i auto przesuwające się po niej, czas do przyjazdu | Directions |
+| Trasa dnia wykonawcy | Kolejne wizyty po drogach, kilometry i czasy odcinków | Directions (do 25 punktów) |
+| Mapy w aplikacji | Mapa okolicy z warstwami dzielnic, wyszukiwarka z pinezkami i zasięgiem, „Szukaj w tym obszarze”, obszar pracy, wyróżnienia. Jasny i ciemny styl zależnie od motywu. | Mapbox GL JS v3, style `light-v11` / `dark-v11` |
+| Podglądy na ekranie głównym i w ogłoszeniu | Lekki obrazek zamiast pełnej mapy | Static Images |
+
+**Jak to chroni limity i działa bez przerw:**
+- Każda odpowiedź Mapbox trafia do pamięci podręcznej w bazie: adresy na 30 dni, trasy na godzinę, czasy dojazdu na 10 minut.
+- Każde zapytanie ma limit czasu `MAPBOX_TIMEOUT_MS` (domyślnie 2,5 s). Gdy Mapbox nie odpowie, serwer liczy odległość w linii prostej × 1,3, a aplikacja oznacza wynik jako szacunek.
+- Trasy są dostępne tylko dla zalogowanych.
+- Bez tokenu wszystko działa jak wcześniej, na schematycznej mapie.
+
+**Tokeny.** Utwórz w panelu Mapbox dwa tokeny:
+- `MAPBOX_TOKEN`: publiczny (`pk.…`) z ograniczeniem do adresu Twojej domeny (URL restrictions). Trafia do przeglądarki.
+- `MAPBOX_SERVER_TOKEN`: osobny, bez ograniczenia adresu, z zakresami do geokodowania i tras. Używa go tylko serwer. Jeśli go nie ustawisz, serwer użyje `MAPBOX_TOKEN`.
+
+**Granice dzielnic.** Domyślnie są przybliżone: obszary wokół środków dzielnic przycięte do obrysu miasta. Żeby mieć prawdziwe granice, zapisz plik GeoJSON dzielnic Warszawy (np. z PRG lub OpenStreetMap, z właściwością `name` taką jak w aplikacji, np. „Praga-Płd.”) jako `DATA_DIR/dzielnice-warszawy.geojson`.
+
+**Koszty.** Mapbox ma darmowe limity miesięczne dla każdego z tych API (szczegóły w cenniku Mapbox). Pamięć podręczna i jedno zapytanie Matrix na wyszukiwanie mocno ograniczają zużycie.
+
+Biblioteka Mapbox GL JS jest serwowana z `node_modules` pod `/vendor/`. Gdy jej nie ma, aplikacja pobiera ją z oficjalnego CDN Mapbox.
 
 ## Konfiguracja
 
@@ -82,7 +112,9 @@ Wszystkie odpowiedzi są w JSON. Błędy mają postać `{ "error": { "code", "me
 | `POST /api/addresses` · `DELETE /api/addresses/:id` | zalogowany | Adresy (tylko w Warszawie) |
 | `GET /api/providers` · `GET /api/providers/:id` · `GET /api/providers/:id/slots` | wszyscy | Wyszukiwanie, profil, wolne terminy |
 | `POST /api/quote` | wszyscy | Wycena z dopłatą za dojazd |
-| `GET /api/geo/streets` · `/reverse` · `/districts` | wszyscy | Podpowiedzi ulic, adres z punktu, statystyki dzielnic |
+| `GET /api/config` | wszyscy | Token publiczny Mapbox i style map |
+| `GET /api/geo/search` · `/reverse` · `/districts` · `/districts/shapes` | wszyscy | Wyszukiwanie adresów, adres z punktu, statystyki i granice dzielnic |
+| `GET /api/geo/route` · `GET /api/bookings/:id/route` | zalogowany | Trasa po drogach |
 | `POST /api/bookings` · `GET /api/bookings` · `GET /api/bookings/:id` | zalogowany | Rezerwacje (`?as=provider` dla wykonawcy) |
 | `POST /api/bookings/:id/cancel` · `/reschedule` · `/skip` · `/call` | klient | Odwołanie, zmiana terminu, pominięcie, numer maskowany |
 | `POST /api/bookings/:id/accept` · `/decline` · `/status` · `/noshow` | wykonawca | Obsługa zlecenia |
