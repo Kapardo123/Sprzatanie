@@ -406,9 +406,18 @@ const stack = () => (S.stacks[stackKey()] ||= [{ name: S.tab }]);
 const top = () => stack()[stack().length - 1];
 let anim = ''; let popHeart = null;
 const buzz = ms => { try { navigator.vibrate && navigator.vibrate(ms); } catch (e) { } };
-function go(name, p = {}) { stack().push({ name, p }); anim = 'enter'; S.sheet = null; render(); }
-function back() { if (stack().length > 1) { stack().pop(); anim = 'fade'; render(); } }
-function setTab(t) { if (S.tab === t) { S.stacks[stackKey()] = [{ name: t }]; } S.tab = t; anim = 'fade'; render(); }
+const canVT = () => !!document.startViewTransition && !matchMedia('(prefers-reduced-motion: reduce)').matches;
+function nav(kind, mutate) {
+  if (canVT() && !navBusy) {
+    navBusy = true; document.documentElement.dataset.nav = kind;
+    const t = document.startViewTransition(() => { mutate(); anim = ''; render(); });
+    t.finished.finally(() => { navBusy = false; delete document.documentElement.dataset.nav; });
+  } else { mutate(); anim = kind === 'fwd' ? 'enter' : 'fade'; render(); }
+}
+let navBusy = false;
+function go(name, p = {}) { nav('fwd', () => { stack().push({ name, p }); S.sheet = null; }); }
+function back() { if (stack().length > 1) nav('back', () => { stack().pop(); }); }
+function setTab(t) { nav('tab', () => { if (S.tab === t) { S.stacks[stackKey()] = [{ name: t }]; } S.tab = t; }); }
 function replace(name, p = {}) { stack()[stack().length - 1] = { name, p }; anim = 'fade'; render(); }
 
 let toastTimer;
@@ -435,7 +444,7 @@ function proCard(p) {
   if (p.invoice) feats.push(`<span class="tag blue">${ic('receipt', 'xs')}Faktura</span>`);
   if (p.insured) feats.push(`<span class="tag">${ic('shield-check', 'xs')}OC</span>`);
   return `<div class="pcard" role="button" tabindex="0" data-act="openPro" data-a="${p.id}">
-    ${avatar(p)}
+    ${avatar(p).replace('<div class="avatar', `<div style="view-transition-name:av-${p.id}" class="avatar`)}
     <div class="grow">
       <div class="row between" style="gap:8px;align-items:flex-start">
         <div class="grow">
@@ -468,14 +477,61 @@ const ILLO = {
 };
 const illo = (id, cls = '') => { const art = ILLO[id] || ILLO.dom; const shadow = art.replace(/(fill|stroke)="var\(--[a-z-]+\)"/g, '$1="var(--ink)"'); return `<svg class="illo ${cls}" viewBox="0 0 64 64" aria-hidden="true"><g transform="translate(2.2 2.6)" opacity=".13">${shadow}</g>${art}</svg>`; };
 
-/* panorama za szybą: dachy Warszawy z Pałacem Kultury */
+/* pora dnia: powitanie, nagłówek i panorama za szybą zmieniają się z zegarem */
+const DAYPARTS = { morning: { hello: 'Dzień dobry', icon: 'sunrise', when: 'dziś', sky: ['#FFC9A0', '#FFE9D2', '#FDF6EC'], bld: '#3E4A66', sun: [62, 70, 18, '#FFB347'] },
+  day: { hello: 'Dzień dobry', icon: 'sun', when: 'dziś', sky: ['#8EC5FF', '#CFE6FF', '#EEF6FF'], bld: '#1D2840', sun: [268, 34, 16, '#FFC72C'] },
+  evening: { hello: 'Dobry wieczór', icon: 'sunset', when: 'jutro', sky: ['#5B3F8C', '#E0708A', '#FFB37A'], bld: '#24183A', sun: [250, 86, 26, '#FF7A45'] },
+  night: { hello: 'Dobry wieczór', icon: 'moon', when: 'jutro', sky: ['#060B1E', '#13224A', '#26386A'], bld: '#050913', sun: null } };
+function daypart() { if (S.daypart && S.daypart !== 'auto') return S.daypart; const h = new Date().getHours(); return h >= 5 && h < 11 ? 'morning' : h >= 11 && h < 17 ? 'day' : h >= 17 && h < 21 ? 'evening' : 'night'; }
 function skyline() {
+  const dpk = daypart(), D = DAYPARTS[dpk]; const lit = dpk === 'night' || dpk === 'evening';
   const b = [[0, 22, 28], [24, 16, 40], [42, 26, 22], [88, 20, 34], [112, 30, 24], [146, 18, 46], [250, 22, 36], [274, 16, 54], [292, 28, 26]];
+  let seed = 3; const rnd = () => (seed = (seed * 9301 + 49297) % 233280) / 233280;
+  const windows = lit ? b.map(([x, w, h]) => { let o = ''; for (let yy = 90 - h + 4; yy < 86; yy += 6) for (let xx = x + 3; xx < x + w - 3; xx += 5) if (rnd() < (dpk === 'night' ? .32 : .18)) o += `<rect x="${xx}" y="${yy}" width="2.2" height="2.6" fill="#FFD66B" opacity="${.6 + rnd() * .4}"/>`; return o; }).join('') + `<rect x="209" y="-2" width="2" height="2" fill="#FF5A5A"><animate attributeName="opacity" values="1;.1;1" dur="1.6s" repeatCount="indefinite"/></rect>` : '';
+  const stars = dpk === 'night' ? Array.from({ length: 26 }, () => `<circle cx="${(rnd() * 320).toFixed(0)}" cy="${(rnd() * 60).toFixed(0)}" r="${(.4 + rnd() * .9).toFixed(1)}" fill="#fff" opacity="${(.4 + rnd() * .6).toFixed(2)}"/>`).join('') : '';
+  const sun = D.sun ? `<circle cx="${D.sun[0]}" cy="${D.sun[1]}" r="${D.sun[2]}" fill="${D.sun[3]}"/>${dpk === 'evening' ? `<circle cx="${D.sun[0]}" cy="${D.sun[1]}" r="${D.sun[2] + 12}" fill="${D.sun[3]}" opacity=".18"/>` : ''}`
+    : `<circle cx="262" cy="30" r="12" fill="#F3EFD8"/><circle cx="268" cy="26" r="11" fill="${D.sky[1]}"/>`;
+  const clouds = dpk === 'night' ? '' : `<path d="M30 40q10-8 22 0q8-6 16 2" fill="none" stroke="#fff" stroke-width="5" stroke-linecap="round" opacity="${dpk === 'evening' ? .35 : .8}"/><path d="M150 26q7-6 15 0q6-4 11 1" fill="none" stroke="#fff" stroke-width="4" stroke-linecap="round" opacity="${dpk === 'evening' ? .25 : .6}"/>`;
   return `<svg class="sky" viewBox="0 0 320 120" preserveAspectRatio="xMidYMax slice" aria-hidden="true">
-    <circle cx="268" cy="34" r="16" fill="var(--glove)"/>
-    <path d="M30 40q10-8 22 0q8-6 16 2" fill="none" stroke="var(--surface)" stroke-width="5" stroke-linecap="round" opacity=".8"/>
-    <g fill="var(--ink)" opacity=".88" transform="translate(0 30)">${b.map(([x, w, h]) => `<rect x="${x}" y="${90 - h}" width="${w}" height="${h}"/>`).join('')}
-      <path d="M70 90V40l14-8v58z"/><path d="M180 90V66h8V54h7V42h5V30h4V20h3v-8h2.2V0h1.6v12H213v8h3v10h4v12h5v12h7v12h8v24z"/></g></svg>`;
+    <defs><linearGradient id="skyg" x1="0" y1="0" x2="0" y2="1">${D.sky.map((c, i) => `<stop offset="${i / (D.sky.length - 1)}" stop-color="${c}"/>`).join('')}</linearGradient></defs>
+    <rect width="320" height="120" fill="url(#skyg)"/>${stars}${sun}${clouds}
+    <g fill="${D.bld}" transform="translate(0 30)">${b.map(([x, w, h]) => `<rect x="${x}" y="${90 - h}" width="${w}" height="${h}"/>`).join('')}
+      <path d="M70 90V40l14-8v58z"/><path d="M180 90V66h8V54h7V42h5V30h4V20h3v-8h2.2V0h1.6v12H213v8h3v10h4v12h5v12h7v12h8v24z"/></g>
+    <g transform="translate(0 30)">${windows}</g></svg>`;
+}
+
+/* bańki mydlane do przekłuwania (canvas) */
+function initBubbles() {
+  const c = document.getElementById('bubbles'); if (!c || c.dataset.ready) return; c.dataset.ready = '1';
+  const host = c.parentElement; const dpr = Math.min(2, devicePixelRatio || 1);
+  const fit = () => { c.width = c.clientWidth * dpr; c.height = c.clientHeight * dpr; }; fit();
+  const g = c.getContext('2d'); const W = () => c.clientWidth, H = () => c.clientHeight;
+  const still = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const mk = (y) => ({ x: Math.random() * W(), y: y ?? H() + 40, r: 10 + Math.random() * 26, vy: .35 + Math.random() * .8, ph: Math.random() * 6, hue: Math.random() * 360 });
+  const bs = Array.from({ length: 12 }, () => mk(H() * (.3 + Math.random() * .9))); const drops = []; let popped = 0;
+  const draw = () => {
+    g.setTransform(dpr, 0, 0, dpr, 0, 0); g.clearRect(0, 0, W(), H());
+    bs.forEach(b => {
+      const gr = g.createRadialGradient(b.x - b.r * .3, b.y - b.r * .3, b.r * .1, b.x, b.y, b.r);
+      gr.addColorStop(0, `hsla(${b.hue},90%,85%,.04)`); gr.addColorStop(.7, `hsla(${b.hue},85%,70%,.12)`); gr.addColorStop(.88, `hsla(${b.hue + 60},85%,62%,.5)`); gr.addColorStop(1, `hsla(${b.hue + 140},85%,70%,.85)`);
+      g.fillStyle = gr; g.beginPath(); g.arc(b.x, b.y, b.r, 0, 7); g.fill();
+      g.fillStyle = 'rgba(255,255,255,.75)'; g.beginPath(); g.ellipse(b.x - b.r * .38, b.y - b.r * .42, b.r * .18, b.r * .09, -.7, 0, 7); g.fill();
+    });
+    drops.forEach(d => { g.fillStyle = `hsla(${d.hue},80%,70%,${d.a})`; g.beginPath(); g.arc(d.x, d.y, 2, 0, 7); g.fill(); });
+  };
+  const step = () => {
+    if (!c.isConnected) return;
+    bs.forEach(b => { b.y -= b.vy; b.ph += .03; b.x += Math.sin(b.ph) * .35; b.hue += .4; if (b.y < -b.r - 10) Object.assign(b, mk()); });
+    for (let i = drops.length - 1; i >= 0; i--) { const d = drops[i]; d.x += d.vx; d.y += d.vy; d.vy += .12; d.a -= .03; if (d.a <= 0) drops.splice(i, 1); }
+    draw(); requestAnimationFrame(step);
+  };
+  host.addEventListener('pointerdown', e => {
+    const r = c.getBoundingClientRect(); const x = e.clientX - r.left, y = e.clientY - r.top;
+    const i = bs.findIndex(b => Math.hypot(b.x - x, b.y - y) < b.r + 6); if (i < 0) return;
+    const b = bs[i]; for (let k = 0; k < 10; k++) { const a = k / 10 * Math.PI * 2; drops.push({ x: b.x + Math.cos(a) * b.r, y: b.y + Math.sin(a) * b.r, vx: Math.cos(a) * 2.2, vy: Math.sin(a) * 2.2 - 1, a: 1, hue: b.hue + k * 20 }); }
+    bs[i] = mk(); buzz(10); popped++; if (popped === 7) toast('Siedem baniek. Czysta robota', 'sparkles'); if (still) draw();
+  });
+  if (still) draw(); else step();
 }
 
 /* przed / po: ta sama kuchnia, raz zapuszczona, raz po wizycie */
@@ -518,13 +574,15 @@ screens.home = () => {
   const ha = curAddr(); const nearCnt = PROS.filter(p => p.reach !== 'out').length; const nearFree = PROS.filter(p => p.reach !== 'out').reduce((x, p) => x + SLOTS.filter(t => !slotTaken(p.id, 0, t)).length, 0);
   const qEst = estimate({ service: 'dom', m2: 54, rooms: 2, baths: 1, extras: [], freq: 'once' }, quick);
   const featured = PROS.filter(p => (p.super || p.rating > 4.85) && p.reach !== 'out').sort((a, b) => a.dist - b.dist);
-  return `<div class="scroll">
+  return `<div class="ptr" id="ptr"><span class="ptr-drop"><svg viewBox="0 0 24 32" aria-hidden="true"><path d="M12 2C12 2 3 13 3 20a9 9 0 0 0 18 0C21 13 12 2 12 2z"/></svg></span><span class="ptr-t">Pociągnij, żeby odświeżyć</span></div>
+  <div class="scroll" id="homeScroll"><div class="ptr-inner">
     <div class="hello">
       <button class="loc" data-act="openLocation">${ic('map-pin', 's')}${esc(curAddr().street.split('/')[0])}, ${districtAt(curAddr().x, curAddr().y)} ${ic('chevron-down', 'xs')}</button>
       <button class="iconbtn" data-act="toast" data-a="Brak nowych powiadomień" aria-label="Powiadomienia">${ic('bell', 's')}</button>
     </div>
     <div class="pad">
-      <h1 class="hero-h">Kto dziś u&nbsp;Ciebie posprząta?</h1>
+      <div class="greet">${ic(DAYPARTS[daypart()].icon, 's')}${DAYPARTS[daypart()].hello}, Kasiu</div>
+      <h1 class="hero-h">Kto ${DAYPARTS[daypart()].when} u&nbsp;Ciebie posprząta?</h1>
       <form class="searchbox" data-form="search">
         ${ic('search', 's faint')}
         <input id="homeSearch" name="q" placeholder="np. mycie okien, po remoncie, Olena" autocomplete="off">
@@ -533,7 +591,7 @@ screens.home = () => {
       <div class="cats">
         ${CATS.map(c => `<button class="cat" data-act="openCat" data-a="${c.id}"><span class="tile ${c.tone}">${illo(c.id)}</span>${c.short}</button>`).join('')}
       </div>
-      <div class="glass ${S.wiped ? 'clean' : ''}" id="glass">
+      <div class="glass ${S.wiped ? 'clean' : ''} dp-${daypart()}" id="glass">
         <div class="behind">${skyline()}
           <div class="coupon"><span class="eyebrow">Szyba czysta</span><b>−20% na mycie okien</b>
             <button class="code" data-act="copyCode">SZYBA20 ${ic('copy', 'xs')}</button></div></div>
@@ -573,7 +631,7 @@ screens.home = () => {
     </div>
     <div class="pad"><div class="hscroll">
       ${featured.map(p => `<div class="feat" role="button" tabindex="0" data-act="openPro" data-a="${p.id}">
-        <div class="cover ${p.tone}"><span class="cover-illo">${illo(p.services[0])}</span>${avatar(p)}<span class="heart">${heart(p.id)}</span></div>
+        <div class="cover ${p.tone}"><span class="cover-illo">${illo(p.services[0])}</span>${avatar(p).replace('<div class="avatar', `<div style="view-transition-name:av-${p.id}" class="avatar`)}<span class="heart">${heart(p.id)}</span></div>
         <div class="body">
           <div class="row" style="gap:5px"><span class="name">${esc(p.name)}</span>${ic('badge-check', 'verified')}</div>
           <div class="tiny faint mt8" style="margin-top:2px">${stars(p.rating)} (${p.reviews}) · ${p.jobs} zleceń</div>
@@ -590,7 +648,7 @@ screens.home = () => {
       </div>
       <div class="sp"></div>
     </div>
-  </div>`;
+  </div></div>`;
 };
 
 function filteredPros() {
@@ -650,6 +708,7 @@ screens.search = () => {
 
 screens.provider = ({ id }) => {
   const p = proById(id);
+  const pbar = `<div class="pbar" id="pbar">${backBtn()}<b>${esc(p.name)}</b>${stars(p.rating)}</div>`;
   const week = Array.from({ length: 7 }, (_, i) => { const d = addDays(i); const free = SLOTS.filter(s => !slotTaken(p.id, i, s)).length; return { d, free }; });
   const included = ['Odkurzanie i mycie podłóg', 'Kurze na dostępnych powierzchniach', 'Łazienka: wanna, prysznic, WC, lustra', 'Kuchnia: blaty, zlew, front szafek', 'Wyniesienie śmieci', 'Ścielenie łóżek'];
   const svcPrices = p.services.map(s => {
@@ -659,10 +718,10 @@ screens.provider = ({ id }) => {
     const mul = s === 'generalne' ? 1.2 : s === 'remont' ? 1.3 : 1;
     return [c.name, `${Math.round(p.rate * mul)} zł / h`];
   });
-  return `<div class="scroll">
+  return `${pbar}<div class="scroll" id="proScroll">
     <div class="phead">
       <div class="pcover ${p.tone}"><span class="cover-illo">${illo(p.services[0])}</span><div class="topbtns">${backBtn()}<div class="r"><button class="iconbtn" data-act="share" aria-label="Udostępnij">${ic('share', 's')}</button>${heart(p.id).replace('heartbtn', 'heartbtn iconbtn')}</div></div></div>
-      ${avatar(p, 'lg')}
+      ${avatar(p, 'lg').replace('<div class="avatar', `<div style="view-transition-name:av-${p.id}" class="avatar`)}
       <h1>${esc(p.name)} ${p.verified ? ic('badge-check', 'verified') : ''}</h1>
       <div class="small muted">${p.kind} · ${p.area} · na Lśni od ${p.since}</div>
       <div class="chips mt12">${p.super ? '<span class="tag yellow">' + ic('award', 'xs') + 'Superwykonawca</span>' : ''}${p.langs.map(l => `<span class="tag">${l}</span>`).join('')}${p.todayFree ? '<span class="tag mint">Wolne dziś</span>' : ''}</div>
@@ -901,7 +960,7 @@ function bookStep4(b, p, e) {
 
 screens.booked = ({ id }) => {
   const o = S.orders.find(x => x.id === id); const p = proById(o.pro); const d = addDays(o.date);
-  return `<div class="scroll"><div class="done">
+  return `<canvas class="bubbles" id="bubbles" aria-hidden="true"></canvas><div class="scroll"><div class="done">
     <div class="ring">${ic('check')}</div>
     <h1>${o.fromOffer ? 'Termin potwierdzony' : 'Rezerwacja wysłana'}</h1>
     <p class="muted" style="margin:0;max-width:30ch">${o.fromOffer ? `Wybrałaś ofertę: ${esc(p.name)}. Pozostałym wykonawcom podziękowaliśmy w Twoim imieniu.` : `${p.name.split(' ')[0]} potwierdzi ją zwykle w ${p.response}. Dostaniesz powiadomienie.`}</p>
@@ -911,6 +970,7 @@ screens.booked = ({ id }) => {
       <div class="ln"><span>Adres</span><b>${o.addr}</b></div>
       <div class="ln"><span>Zablokowano</span><b>${zl(o.total)}</b></div>
     </div>
+    <div class="tiny faint mt16">Przekłuj kilka baniek, jeśli masz ochotę.</div>
   </div></div>
   <div class="footer" style="flex-direction:column;align-items:stretch;gap:8px">
     <button class="btn primary block" data-act="openOrderFromDone" data-a="${o.id}">Zobacz zlecenie</button>
@@ -1576,7 +1636,7 @@ function render() {
     const s = sheets[S.sheet.name](S.sheet.p);
     sheetHTML = `<div class="sheet-wrap"><div class="sheet-bg" data-act="closeSheet"></div><div class="sheet" role="dialog" aria-label="${s.title}"><div class="grab"></div><div class="sh-h"><h3>${s.title}</h3><button class="iconbtn ghost" data-act="closeSheet" aria-label="Zamknij">${ic('x', 's')}</button></div><div class="sh-b">${s.body}</div>${s.foot ? `<div class="sh-f">${s.foot}</div>` : ''}</div></div>`;
   }
-  $app.innerHTML = `<div class="view ${anim}">${html}</div>${showTabs ? `<nav class="tabbar">${tabs.map(tb => `<button class="tab ${S.tab === tb.id ? 'on' : ''}" data-act="setTab" data-a="${tb.id}"><span class="pill">${ic(tb.icon)}</span>${tb.label}${(tb.id === 'inbox' && unread && S.role === 'client') || (tb.id === 'orders' && needRate) || (tb.id === 'dash' && S.pro.requests.length) ? '<span class="dot"></span>' : ''}</button>`).join('')}</nav>` : ''}${sheetHTML}`;
+  $app.innerHTML = `<div class="view ${anim}">${html}</div>${S.introSeen ? '' : introHTML()}${showTabs ? `<nav class="tabbar">${tabs.map(tb => `<button class="tab ${S.tab === tb.id ? 'on' : ''}" data-act="setTab" data-a="${tb.id}"><span class="pill">${ic(tb.icon)}</span>${tb.label}${(tb.id === 'inbox' && unread && S.role === 'client') || (tb.id === 'orders' && needRate) || (tb.id === 'dash' && S.pro.requests.length) ? '<span class="dot"></span>' : ''}</button>`).join('')}</nav>` : ''}${sheetHTML}`;
   anim = '';
   const nsc = $app.querySelector('.view .scroll');
   if (nsc && key === lastKey && scrollMemo[key]) nsc.scrollTop = scrollMemo[key];
@@ -1588,8 +1648,25 @@ function render() {
   afterRender();
 }
 
+/* ================= intro przy pierwszym uruchomieniu ================= */
+function introHTML() {
+  return `<div class="intro" id="intro" role="dialog" aria-label="Witaj w Lśni">
+    <div class="intro-stage">
+      <div class="intro-logo">lśni<span class="dot"></span></div>
+      <div class="intro-grime" aria-hidden="true"><span>lśni.</span></div>
+      <svg class="intro-sq" viewBox="0 0 40 200" aria-hidden="true"><rect x="16" y="0" width="10" height="200" rx="5" fill="var(--ink)"/><rect x="4" y="80" width="34" height="40" rx="8" fill="var(--cloth)"/><rect x="26" y="6" width="5" height="188" rx="2.5" fill="var(--paper)" opacity=".35"/></svg>
+    </div>
+    <p class="intro-tag">Sprawdzeni ludzie od sprzątania w Twojej okolicy. Płacisz dopiero, gdy jest czysto.</p>
+    <div class="intro-roles">
+      <button class="role" data-act="introRole" data-a="client"><span class="role-illo">${illo('dom')}</span><b>Szukam sprzątania</b><span>Rezerwacja w 2 minuty, płatność BLIK-iem</span></button>
+      <button class="role" data-act="introRole" data-a="pro"><span class="role-illo">${illo('generalne')}</span><b>Sprzątam zawodowo</b><span>Zlecenia z okolicy, wypłata co piątek</span></button>
+    </div>
+    <button class="intro-skip" data-act="introRole" data-a="client">Pomiń</button>
+  </div>`;
+}
+
 /* ================= interakcje dotykowe ================= */
-function afterRender() { initMaps(); initGrime(); initBA(); document.querySelectorAll('#app .slide').forEach(initSlide); initSheetDrag(); }
+function afterRender() { initMaps(); initBubbles(); initParallax(); initPullRefresh(); initGrime(); initBA(); document.querySelectorAll('#app .slide').forEach(initSlide); initSheetDrag(); }
 
 // szyba: brud na canvasie, ścierany palcem (destination-out)
 function initGrime() {
@@ -1629,6 +1706,34 @@ function initGrime() {
   c.addEventListener('pointermove', e => { if (!last) return; const p2 = pt(e); wipe(last, p2); last = p2; if (++moves % 8 === 0) check(); });
   const up = () => { if (last) check(); last = null; };
   c.addEventListener('pointerup', up); c.addEventListener('pointercancel', up);
+}
+
+// profil: paralaksa okładki i zwijany pasek z nazwą
+function initParallax() {
+  const sc = document.getElementById('proScroll'); if (!sc || sc.dataset.ready) return; sc.dataset.ready = '1';
+  const bar = document.getElementById('pbar'); const ill = sc.querySelector('.pcover .cover-illo'); const cov = sc.querySelector('.pcover');
+  const upd = () => { const y = sc.scrollTop; if (ill) ill.style.transform = `translateY(${y * .45}px) rotate(${-8 + y * .03}deg) scale(${1 + Math.min(y, 200) / 900})`; if (cov) cov.style.setProperty('--fade', Math.max(0, 1 - y / 160)); if (bar) bar.classList.toggle('on', y > 150); };
+  sc.addEventListener('scroll', upd, { passive: true }); upd();
+}
+// ekran główny: pociągnij w dół, żeby odświeżyć (dotyk i mysz)
+function initPullRefresh() {
+  const sc = document.getElementById('homeScroll'); if (!sc || sc.dataset.ready) return; sc.dataset.ready = '1';
+  const ptr = document.getElementById('ptr'); const inner = sc.querySelector('.ptr-inner'); let y0 = null, d = 0, busy = false;
+  const set = v => { d = v; inner.style.transform = v ? `translateY(${v}px)` : ''; ptr.style.setProperty('--p', Math.min(1, v / 70)); ptr.classList.toggle('ready', v > 70); ptr.querySelector('.ptr-t').textContent = v > 70 ? 'Puść, żeby odświeżyć' : 'Pociągnij, żeby odświeżyć'; };
+  const startOk = t => !busy && sc.scrollTop <= 0 && !t.closest('button, input, canvas, .gmap, .hscroll, form, a, [data-act]');
+  const move = (y, ev) => { if (y0 === null) return; const dy = y - y0; if (dy <= 0) { set(0); return; } if (ev && ev.cancelable) ev.preventDefault(); inner.style.transition = 'none'; set(Math.min(110, dy * .5)); };
+  const end = () => {
+    if (y0 === null) return; y0 = null; inner.style.transition = 'transform .35s cubic-bezier(.2,.8,.2,1)';
+    if (d > 70) { busy = true; set(56); ptr.classList.add('busy'); ptr.querySelector('.ptr-t').textContent = 'Sprawdzamy wolne terminy…'; buzz(10);
+      setTimeout(() => { busy = false; ptr.classList.remove('busy'); set(0); const n = 1 + Math.floor(Math.random() * 3); toast(`Odświeżono: ${n} ${n === 1 ? 'nowy wolny termin' : 'nowe wolne terminy'} w okolicy`, 'refresh-cw'); }, 1100); }
+    else set(0);
+  };
+  sc.addEventListener('touchstart', e => { if (startOk(e.target)) y0 = e.touches[0].clientY; }, { passive: true });
+  sc.addEventListener('touchmove', e => move(e.touches[0].clientY, e), { passive: false });
+  sc.addEventListener('touchend', end); sc.addEventListener('touchcancel', end);
+  sc.addEventListener('pointerdown', e => { if (e.pointerType === 'mouse' && startOk(e.target)) { y0 = e.clientY; } });
+  window.addEventListener('pointermove', e => { if (e.pointerType === 'mouse' && y0 !== null) move(e.clientY); });
+  window.addEventListener('pointerup', e => { if (e.pointerType === 'mouse') end(); });
 }
 
 // suwak przed/po
@@ -1809,6 +1914,17 @@ const A = {
   },
   ofDay(i) { S.pro.offerDraft.day = Number(i); render(); },
   submitOffer(id) { const m = S.pro.market.find(y => y.id === id); m.sent = S.pro.offerDraft.price; S.sheet = null; toast(`Oferta wysłana. ${m.client} dostanie powiadomienie`, 'send'); render(); },
+  introRole(r) {
+    const el = document.getElementById('intro'); if (el) el.classList.add('leaving'); buzz(8);
+    setTimeout(() => { S.introSeen = true; if (r !== S.role) { S.role = r; S.tab = r === 'pro' ? 'dash' : 'home'; S.stacks = {}; } anim = 'fade'; render(); }, 380);
+  },
+  showIntro() { S.introSeen = false; render(); },
+  cyclePart() {
+    const order = ['auto', 'morning', 'day', 'evening', 'night']; S.daypart = order[(order.indexOf(S.daypart || 'auto') + 1) % order.length];
+    document.getElementById('partBtn').textContent = 'Pora dnia: ' + { auto: 'jak zegar', morning: 'rano', day: 'dzień', evening: 'wieczór', night: 'noc' }[S.daypart];
+    if (S.role !== 'client') { S.role = 'client'; S.tab = 'home'; S.stacks = {}; } else if (S.tab !== 'home' || stack().length > 1) { S.tab = 'home'; S.stacks[stackKey()] = [{ name: 'home' }]; }
+    render();
+  },
   cycleTheme() {
     const order = [null, 'light', 'dark']; const cur = document.documentElement.getAttribute('data-theme');
     const next = order[(order.indexOf(cur) + 1) % 3];

@@ -53,6 +53,12 @@ Aplikacja ma uproszczony model Warszawy w kilometrach: 12 dzielnic (komórki Wor
 ## Interakcje
 
 - Brudna szyba na ekranie głównym: przetrzyj ją palcem, a pod spodem jest kod rabatowy
+- Intro przy pierwszym uruchomieniu: ściągaczka zgarnia brud z logo, potem wybór roli (link „Pokaż intro” w panelu bocznym)
+- Pora dnia: powitanie, nagłówek i panorama za szybą zmieniają się rano, w dzień, wieczorem i w nocy (podgląd: „Pora dnia” w panelu bocznym)
+- Płynne przejścia między ekranami (View Transitions), awatar przelatuje z karty do profilu
+- Profil wykonawcy z paralaksą okładki i zwijanym paskiem z nazwą
+- Pociągnij w dół na ekranie głównym, żeby odświeżyć
+- Bańki mydlane do przekłuwania po rezerwacji
 - Suwak „przed i po” na profilu wykonawcy
 - Płatność i zwolnienie płatności przeciągnięciem ściągaczki
 - Mapa wykonawców w wyszukiwarce (przełącznik Lista / Mapa)
