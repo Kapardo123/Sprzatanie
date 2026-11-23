@@ -34,6 +34,22 @@ Na komputerze aplikacja wyświetla się w ramce telefonu, a na telefonie na peł
 
 Dane są przykładowe i zapisują się w `localStorage` przeglądarki. Link „Zresetuj dane demo” przywraca stan początkowy.
 
+## Lokalizacja
+
+Aplikacja ma uproszczony model Warszawy w kilometrach: 12 dzielnic (komórki Woronoja przycięte do granic miasta), Wisłę, główne ulice i parki. Mapy są rysowane w SVG, bez zewnętrznych usług. Można je przesuwać, przybliżać kółkiem albo dwoma palcami.
+
+**Klient**
+- Wybór adresu: wyszukiwarka ulic, zapisane adresy i wskazywanie miejsca pinezką na mapie. Przy każdym adresie widać, ilu wykonawców tam dojeżdża.
+- Odległość i czas dojazdu każdego wykonawcy liczone od wybranego adresu. Wykonawcy poza zasięgiem są ukryci, a ci tuż za granicą zasięgu pokazują dopłatę za dojazd, która trafia do wyceny.
+- Mapa okolicy z warstwami: wykonawcy, ceny, wolne terminy dziś i popyt. Po dotknięciu dzielnicy widać jej statystyki i najlepiej ocenianych wykonawców.
+- Wyszukiwarka z mapą: zasięg wybranego wykonawcy, „Szukaj w tym obszarze”, filtr odległości.
+- Śledzenie dojazdu wykonawcy na mapie z odliczaniem czasu. Po dojeździe zlecenie samo przechodzi w „W trakcie”.
+
+**Wykonawca**
+- Edytor obszaru pracy: baza (dotknij mapy), promień dojazdu, dopłata za dalsze zlecenia, dzielnice w zasięgu, liczba mieszkańców, zapytania, konkurencja, szacowany potencjał i podpowiedź, gdzie warto się rozszerzyć.
+- Odległość od bazy przy zapytaniach i zleceniach z giełdy.
+- Trasa dnia w grafiku: kolejność wizyt, kilometry i czas jazdy między zleceniami.
+
 ## Interakcje
 
 - Brudna szyba na ekranie głównym: przetrzyj ją palcem, a pod spodem jest kod rabatowy

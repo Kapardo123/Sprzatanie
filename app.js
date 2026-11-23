@@ -127,6 +127,144 @@ const PROS = [
 ];
 const proById = id => PROS.find(p => p.id === id);
 
+/* ================= GEO: uproszczona mapa Warszawy w kilometrach (x na wschód, y na południe) ================= */
+const mkPro = (o) => Object.assign({ verified: true, minH: 3, jobs: Math.round(o.reviews * 2.2), repeat: 60, response: '12 min', langs: ['PL'], super: false, todayFree: false, insured: false, invoice: false, supplies: true, eco: false, pets: true, kind: 'Osoba prywatna' }, o);
+PROS.push(
+  mkPro({ id: 'kinga', name: 'Kinga Lis', ini: 'KL', tone: 't-sand', area: 'Ursynów', rating: 4.86, reviews: 74, rate: 40, since: 2022, services: ['dom', 'prasowanie'], nextSlot: 'Dziś 16:00', todayFree: true, response: '10 min', tagline: 'Ursynów i Kabaty. Mop parowy i własne środki', bio: 'Mieszkam na Kabatach, więc na Ursynowie jestem w kwadrans. Sprzątam mieszkania i prasuję, mam mop parowy do podłóg i fug.', reviewsList: [{ who: 'Monika, Kabaty', stars: 5, when: '10 lis', text: 'Szybko i dokładnie, fugi w łazience wreszcie białe.', tags: ['Fugi', 'Szybko'] }] }),
+  mkPro({ id: 'tomasz', name: 'Tomasz Wójcik', ini: 'TW', tone: 't-blue', area: 'Praga-Płn.', rating: 4.81, reviews: 58, rate: 44, since: 2021, services: ['dom', 'generalne'], nextSlot: 'Jutro 12:00', tagline: 'Praga i Śródmieście. Generalne porządki w kamienicach', bio: 'Sprzątam głównie mieszkania w kamienicach na Pradze: wysokie sufity, stare parkiety i okna skrzynkowe to moja specjalność.', reviewsList: [{ who: 'Ola, Praga', stars: 5, when: '7 lis', text: 'Parkiet w kamienicy odświeżony, okna skrzynkowe umyte w środku.', tags: ['Kamienica'] }] }),
+  mkPro({ id: 'eko', name: 'EkoLśnienie', ini: 'EL', tone: 't-mint', kind: 'Firma · zespół 5 osób', area: 'Wilanów', rating: 4.9, reviews: 189, rate: 52, since: 2018, services: ['dom', 'generalne', 'biuro'], nextSlot: 'Śr 9:00', super: true, insured: true, invoice: true, eco: true, response: '9 min', tagline: 'Wilanów, Mokotów, Ursynów. Tylko środki z certyfikatem Ecolabel', bio: 'Pracujemy wyłącznie na środkach z certyfikatem Ecolabel i ściereczkach z mikrofibry. Obsługujemy domy i małe biura, wystawiamy faktury.', reviewsList: [{ who: 'Paweł, Wilanów', stars: 5, when: '14 lis', text: 'Dom 180 m², dwie osoby, pięć godzin. Bez chemicznego zapachu.', tags: ['Eco', 'Dom'] }] }),
+  mkPro({ id: 'iryna', name: 'Iryna Bondar', ini: 'IB', tone: 't-rose', area: 'Bemowo', rating: 4.88, reviews: 102, rate: 41, since: 2020, services: ['dom', 'najem'], nextSlot: 'Dziś 12:00', todayFree: true, langs: ['PL', 'UA'], tagline: 'Bemowo, Wola, Bielany. Mieszkania i wynajem krótkoterminowy', bio: 'Obsługuję mieszkania na wynajem na Woli i Bemowie oraz zwykłe sprzątanie. Zawsze wysyłam zdjęcia po zakończeniu.', reviewsList: [{ who: 'Host, Wola', stars: 5, when: '2 lis', text: 'Niezawodna przy rotacji gości, zdjęcia po każdym sprzątaniu.', tags: ['Najem'] }] }),
+  mkPro({ id: 'kasia', name: 'Katarzyna Mazur', ini: 'KM', tone: 't-lilac', area: 'Bielany', rating: 4.95, reviews: 131, rate: 43, since: 2019, services: ['dom', 'okna'], nextSlot: 'Jutro 8:00', super: true, insured: true, response: '7 min', tagline: 'Bielany i Żoliborz. Mieszkania i okna w jednej wizycie', bio: 'Łączę sprzątanie mieszkania z myciem okien, więc wszystko załatwiasz jedną wizytą. Na Bielanach i Żoliborzu dojeżdżam rowerem.', reviewsList: [{ who: 'Jacek, Żoliborz', stars: 5, when: '11 lis', text: 'Mieszkanie i sześć okien w jeden dzień, bez smug.', tags: ['Okna'] }] }),
+  mkPro({ id: 'blysk', name: 'Błysk Serwis', ini: 'BS', tone: 't-yellow', kind: 'Firma', area: 'Targówek', rating: 4.74, reviews: 264, rate: 55, minH: 4, since: 2015, services: ['remont', 'biuro', 'okna'], nextSlot: 'Pt 7:00', insured: true, invoice: true, response: '25 min', tagline: 'Praga, Targówek, Białołęka. Remonty, biura, witryny', bio: 'Sprzątamy po remontach i budowach oraz obsługujemy biura i lokale usługowe. Mamy podnośnik do witryn i przemysłowe odkurzacze.', reviewsList: [{ who: 'Sklep Okrąglak', stars: 5, when: '30 paź', text: 'Witryny myte co tydzień, zawsze przed otwarciem.', tags: ['Witryny'] }] })
+);
+const PRO_GEO = { marta: [13.5, 15.2, 6, 15], czysto: [8.6, 9.8, 14, 0], olena: [13.9, 16.6, 4, 10], pawel: [10.6, 5.2, 10, 20], babel: [19.8, 13, 16, 0], agnieszka: [12.4, 10.8, 6, 20], kinga: [11.4, 22, 7, 15], tomasz: [16.2, 8.2, 8, 15], eko: [16.4, 21, 10, 20], iryna: [3.6, 9.2, 7, 15], kasia: [6.2, 3.2, 6, 15], blysk: [19.6, 5, 13, 25] };
+PROS.forEach(p => { const g = PRO_GEO[p.id]; Object.assign(p, { x: g[0], y: g[1], r: g[2], fee: g[3] }); });
+
+const U = 10; // jednostek SVG na kilometr
+const SITES = { 'Bielany': [6, 3], 'Żoliborz': [10.6, 5.6], 'Bemowo': [3, 9.5], 'Wola': [8.4, 10], 'Śródmieście': [12.4, 10.4], 'Ochota': [8.8, 14.4], 'Mokotów': [13, 16.2], 'Ursynów': [11.6, 22.6], 'Wilanów': [16, 21.6], 'Praga-Płn.': [16.2, 8.4], 'Targówek': [19.6, 4.8], 'Praga-Płd.': [19.8, 13] };
+const DPOP = { 'Bielany': 131, 'Żoliborz': 54, 'Bemowo': 126, 'Wola': 140, 'Śródmieście': 103, 'Ochota': 84, 'Mokotów': 217, 'Ursynów': 150, 'Wilanów': 47, 'Praga-Płn.': 62, 'Targówek': 123, 'Praga-Płd.': 180 };
+const DEMAND = { 'Bielany': 19, 'Żoliborz': 14, 'Bemowo': 16, 'Wola': 31, 'Śródmieście': 42, 'Ochota': 17, 'Mokotów': 48, 'Ursynów': 27, 'Wilanów': 23, 'Praga-Płn.': 12, 'Targówek': 9, 'Praga-Płd.': 25 };
+const DTOP = { 'Śródmieście': ['najem', 'dom'], 'Mokotów': ['dom', 'generalne'], 'Wola': ['biuro', 'najem'], 'Wilanów': ['dom', 'okna'], 'Ursynów': ['dom', 'prasowanie'], 'Praga-Płd.': ['remont', 'dom'], 'Bielany': ['dom', 'okna'] };
+const CITY = [[3, .6], [8.5, -.4], [13.5, .4], [18.5, .2], [23, 2.2], [24.6, 7.5], [24.2, 13.5], [22.8, 18.2], [20.4, 22], [18.8, 26], [13.5, 26.6], [9.4, 25.2], [8, 20.5], [5.4, 17.2], [1.6, 14.2], [0, 9.4], [.6, 4.2]];
+const RIVER = [[10.2, -1], [12.6, 3], [14.3, 7], [15.2, 10.5], [15.8, 13.6], [17, 17], [18.5, 20.6], [19.8, 27]];
+const ROADS = [[[12.6, 11], [13, 15], [12.6, 19], [12.2, 26]], [[1, 12.6], [8, 11.6], [12.6, 11], [15.4, 11], [20, 10.8], [24, 10.2]], [[12, 5], [12.4, 8], [12.6, 11]], [[11.6, 9], [11.8, 13], [12, 17], [11.4, 22.6]], [[15.6, 11], [19, 12.6], [24, 14.5]], [[.4, 8], [6, 6.4], [10, 4.6], [16, 4.2], [23, 3.4]], [[.4, 9.2], [8, 9.8], [11.6, 10]], [[13.6, 15], [15, 18.5], [16.2, 21]], [[16, 8.6], [19.6, 5], [22, 2.8]], [[5, 17], [9, 14], [11.8, 13]]];
+const PARKS = [[11.2, 13, 1.4, .8, 'Pole Mokotowskie'], [12.8, 25, 2.2, 1.1, 'Las Kabacki'], [17, 11.2, .8, .6, 'Park Skaryszewski'], [8.4, 1.6, 1.2, .8, 'Las Bielański'], [16.8, 23.4, 1.4, .8, ''], [1.8, 7, 1.2, 1, '']];
+const STREETS = [['ul. Puławska', 13, 15.6], ['ul. Odyńca', 12.6, 17.4], ['ul. Marszałkowska', 12.3, 9.6], ['ul. Nowy Świat', 13.4, 10.4], ['ul. Grójecka', 9.6, 13.4], ['ul. Racławicka', 10.8, 15.2], ['ul. Wołoska', 11.6, 17.2], ['al. KEN', 11.8, 22.4], ['ul. Wiertnicza', 15.2, 20.2], ['ul. Sobieskiego', 14.6, 17.8], ['ul. Targowa', 15.8, 8.4], ['ul. Grochowska', 19, 12.6], ['ul. Ostrobramska', 21.4, 14.2], ['ul. Kondratowicza', 19.6, 4.6], ['ul. Słowackiego', 10.6, 5.2], ['ul. Marymoncka', 7, 3.2], ['ul. Górczewska', 5, 9.4], ['ul. Wolska', 6.6, 11], ['ul. Prosta', 10.4, 10.6], ['ul. Żelazna', 11, 10.2], ['ul. Saska', 18, 12], ['ul. Francuska', 17.6, 12.8], ['ul. Belwederska', 13.8, 14], ['ul. Dolina Służewiecka', 13.2, 19.4], ['ul. Powsińska', 15, 18.6], ['ul. Radiowa', 3.2, 9.2], ['ul. Broniewskiego', 8, 4.8], ['ul. Kopernika', 13, 9.8], ['ul. Hoża', 12.6, 10.8], ['ul. Rakowiecka', 12, 13.6], ['ul. Branickiego', 15.8, 21.8], ['ul. Kasprowicza', 7.6, 3.6], ['ul. Ząbkowska', 16.4, 8.6], ['ul. Bora-Komorowskiego', 20.4, 11.6]];
+
+function clipHalf(poly, a, b) {
+  const mx = (a[0] + b[0]) / 2, my = (a[1] + b[1]) / 2, nx = b[0] - a[0], ny = b[1] - a[1];
+  const f = q => (q[0] - mx) * nx + (q[1] - my) * ny; const out = [];
+  for (let i = 0; i < poly.length; i++) {
+    const P = poly[i], Q = poly[(i + 1) % poly.length], fp = f(P), fq = f(Q);
+    if (fp <= 0) out.push(P);
+    if ((fp < 0 && fq > 0) || (fp > 0 && fq < 0)) { const t = fp / (fp - fq); out.push([P[0] + (Q[0] - P[0]) * t, P[1] + (Q[1] - P[1]) * t]); }
+  }
+  return out;
+}
+let CELLS = null;
+function cells() { // dzielnice jako komórki Woronoja przycięte do granic miasta
+  if (CELLS) return CELLS; CELLS = {}; const names = Object.keys(SITES);
+  names.forEach(n => { let poly = CITY; names.forEach(m => { if (m !== n) poly = clipHalf(poly, SITES[n], SITES[m]); }); CELLS[n] = poly; });
+  return CELLS;
+}
+const districtAt = (x, y) => Object.keys(SITES).reduce((b, n) => { const d = (SITES[n][0] - x) ** 2 + (SITES[n][1] - y) ** 2; return d < b[1] ? [n, d] : b; }, ['', 1e9])[0];
+function inCity(x, y) { let c = false; for (let i = 0, j = CITY.length - 1; i < CITY.length; j = i++) { const [xi, yi] = CITY[i], [xj, yj] = CITY[j]; if ((yi > y) !== (yj > y) && x < (xj - xi) * (y - yi) / (yj - yi) + xi) c = !c; } return c; }
+const polyD = poly => 'M' + poly.map(q => (q[0] * U).toFixed(1) + ' ' + (q[1] * U).toFixed(1)).join('L') + 'Z';
+const smoothD = pts => { let d = `M${pts[0][0] * U} ${pts[0][1] * U}`; for (let i = 1; i < pts.length - 1; i++) { const mx = (pts[i][0] + pts[i + 1][0]) / 2, my = (pts[i][1] + pts[i + 1][1]) / 2; d += `Q${pts[i][0] * U} ${pts[i][1] * U} ${mx * U} ${my * U}`; } const l = pts[pts.length - 1]; return d + `L${l[0] * U} ${l[1] * U}`; };
+const dzielnic = n => n === 1 ? 'dzielnica' : n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 10 || n % 100 >= 20) ? 'dzielnice' : 'dzielnic';
+const kmf = d => (Math.round(d * 10) / 10).toLocaleString('pl-PL');
+const roadKm = (a, b) => Math.hypot(a.x - b.x, a.y - b.y) * 1.3;
+const driveMin = d => Math.round(d / 22 * 60 + 4);
+function reverseGeo(x, y) {
+  const st = STREETS.reduce((b, s2) => { const d = (s2[1] - x) ** 2 + (s2[2] - y) ** 2; return d < b[1] ? [s2, d] : b; }, [null, 1e9])[0];
+  return { street: `${st[0]} ${Math.abs(Math.round(x * 37 + y * 53)) % 140 + 1}`, district: districtAt(x, y) };
+}
+const addrById = id => S.addresses.find(a => a.id === id);
+const curAddr = () => addrById(S.addrId) || S.addresses[0];
+function reachFor(p, a) { const d = roadKm(p, a); return { d, eta: driveMin(d), reach: d <= p.r ? 'in' : (p.fee && d <= p.r + 5) ? 'fee' : 'out' }; }
+function updateGeo() { const a = curAddr(); PROS.forEach(p => { const r = reachFor(p, a); p.dist = Math.round(r.d * 10) / 10; p.eta = r.eta; p.reach = r.reach; }); }
+const serves = (p, n) => Math.hypot(p.x - SITES[n][0], p.y - SITES[n][1]) * 1.3 <= p.r;
+function dstats(n) {
+  const sv = PROS.filter(p => serves(p, n)); const hourly = sv.filter(p => !p.fixed && !p.perWindow);
+  const avg = hourly.length ? Math.round(hourly.reduce((a, p) => a + p.rate, 0) / hourly.length) : 0;
+  const free = sv.reduce((a, p) => a + SLOTS.filter(t => !slotTaken(p.id, 0, t)).length, 0);
+  return { sv, avg, free, demand: DEMAND[n], pop: DPOP[n], pressure: DEMAND[n] / (sv.length + 1) };
+}
+const mixFill = (tok, pct) => `color-mix(in srgb, var(--${tok}) ${Math.round(pct)}%, var(--surface-2))`;
+
+/* ---------- komponent mapy: przesuwanie, pinch/kółko, markery HTML w stałym rozmiarze ---------- */
+const MAPCFG = {}; let mapDragAt = 0, mapTapAt = 0;
+function geoMap(id, o) {
+  const c0 = o.center || [12.5, 13];
+  if (!S.maps[id] || o.reset) S.maps[id] = { x: c0[0], y: c0[1], z: o.zoom || 13 };
+  MAPCFG[id] = o; const C = cells();
+  const parks = PARKS.map(([x, y, rx, ry]) => `<ellipse cx="${x * U}" cy="${y * U}" rx="${rx * U}" ry="${ry * U}" fill="var(--mint-soft)"/>`).join('');
+  const base = `<path d="${polyD(CITY)}" fill="var(--surface)"/>
+    ${Object.keys(C).map(n => { const st = o.fill ? o.fill(n) : {}; return `<path class="gm-d ${st.cls || ''}" data-d="${n}" d="${polyD(C[n])}" style="fill:${st.fill || 'var(--surface-2)'}"/>`; }).join('')}
+    ${parks}<g fill="none" stroke="var(--surface)" stroke-linecap="round" stroke-linejoin="round" opacity=".9">${ROADS.map(r => `<path d="${smoothD(r)}" stroke-width="2.6"/>`).join('')}</g>
+    <path d="${smoothD(RIVER)}" fill="none" stroke="var(--cloth-soft)" stroke-width="9" stroke-linecap="round"/><path d="${smoothD(RIVER)}" fill="none" stroke="var(--cloth)" stroke-width="1" opacity=".35" stroke-linecap="round"/>
+    <path d="${polyD(CITY)}" fill="none" stroke="var(--ink-3)" stroke-width="1.2" stroke-dasharray="4 4" opacity=".6"/>`;
+  const labels = o.labels === false ? [] : Object.keys(SITES).map(n => ({ x: SITES[n][0], y: SITES[n][1], cls: 'gm-label', html: `${n}${o.labelExtra ? `<em>${o.labelExtra(n)}</em>` : ''}` }));
+  const marks = labels.concat(o.markers || []);
+  return `<div class="gmap ${o.static ? 'static' : ''} ${o.cls || ''}" id="gm-${id}" data-map="${id}" style="height:${o.h || 320}px">
+    <svg class="gm-svg" preserveAspectRatio="xMidYMid meet" aria-hidden="true">${base}<g class="gm-layer">${o.layer || ''}</g></svg>
+    <div class="gm-marks">${marks.map(m => { const tag = m.act ? 'button' : 'div'; return `<${tag} class="gm-m ${m.cls || ''}" data-x="${m.x}" data-y="${m.y}" ${m.bottom ? 'data-b="1"' : ''} ${m.id ? `id="${m.id}"` : ''} ${m.act ? `data-act="${m.act}" data-a="${m.a || ''}" aria-label="${esc(m.label || '')}"` : ''}>${m.html}</${tag}>`; }).join('')}</div>
+    ${o.fixedPin ? `<div class="gm-center"><span class="gm-cpin">${ic('map-pin', 'l')}</span><i></i></div>` : ''}
+    ${o.static ? '' : `<div class="gm-ctl"><button type="button" data-mz="1" aria-label="Przybliż">${ic('plus', 's')}</button><button type="button" data-mz="-1" aria-label="Oddal">${ic('minus', 's')}</button>${o.locate ? `<button type="button" data-mloc aria-label="Wyśrodkuj">${ic('locate-fixed', 's')}</button>` : ''}</div>`}
+    ${o.overlay || ''}
+  </div>`;
+}
+class GeoMap {
+  constructor(el) { this.el = el; this.id = el.dataset.map; this.cfg = MAPCFG[this.id] || {}; this.v = S.maps[this.id]; this.svg = el.querySelector('svg'); this.marks = [...el.querySelectorAll('.gm-m')]; this.layout(); if (!this.cfg.static) this.bind(); }
+  get w() { return this.el.clientWidth; } get h() { return this.el.clientHeight; }
+  layout() {
+    const { x, y, z } = this.v, w = this.w, h = this.h; if (!w) return;
+    this.svg.setAttribute('viewBox', `${(x - w / 2 / z) * U} ${(y - h / 2 / z) * U} ${w / z * U} ${h / z * U}`);
+    this.v.w = w; this.v.h = h; this.el.dataset.zl = z < 11 ? 0 : z < 20 ? 1 : 2;
+    this.marks.forEach(m => this.place(m, +m.dataset.x, +m.dataset.y));
+  }
+  toScreen(X, Y) { return [(X - this.v.x) * this.v.z + this.w / 2, (Y - this.v.y) * this.v.z + this.h / 2]; }
+  toWorld(px, py) { return [(px - this.w / 2) / this.v.z + this.v.x, (py - this.h / 2) / this.v.z + this.v.y]; }
+  place(m, X, Y) { m.dataset.x = X; m.dataset.y = Y; const [sx, sy] = this.toScreen(X, Y); m.style.transform = `translate(${sx.toFixed(1)}px,${sy.toFixed(1)}px) translate(-50%,${m.dataset.b ? '-100%' : '-50%'})`; }
+  clamp() { this.v.x = Math.max(-1, Math.min(26, this.v.x)); this.v.y = Math.max(-1, Math.min(28, this.v.y)); }
+  zoomAt(f, px, py) { const [wx, wy] = this.toWorld(px, py); const z = Math.max(8, Math.min(80, this.v.z * f)); this.v.z = z; this.v.x = wx - (px - this.w / 2) / z; this.v.y = wy - (py - this.h / 2) / z; this.clamp(); this.layout(); }
+  moved() { this.cfg.onMove && this.cfg.onMove(this); }
+  bind() {
+    const el = this.el, pts = new Map(); let start = null, moved = false, pinch = null;
+    el.addEventListener('pointerdown', e => {
+      if (e.target.closest('.gm-ctl')) return; pts.set(e.pointerId, [e.clientX, e.clientY]);
+      if (pts.size === 1) { start = { x: e.clientX, y: e.clientY, vx: this.v.x, vy: this.v.y }; moved = false; }
+      if (pts.size === 2) { const [a, b] = [...pts.values()]; pinch = { d: Math.hypot(a[0] - b[0], a[1] - b[1]), z: this.v.z }; moved = true; }
+    });
+    el.addEventListener('pointermove', e => {
+      if (!pts.has(e.pointerId)) return; pts.set(e.pointerId, [e.clientX, e.clientY]);
+      if (pts.size === 2 && pinch) { const [a, b] = [...pts.values()]; const r = el.getBoundingClientRect(); this.zoomAt(pinch.z * Math.hypot(a[0] - b[0], a[1] - b[1]) / pinch.d / this.v.z, (a[0] + b[0]) / 2 - r.left, (a[1] + b[1]) / 2 - r.top); this.moved(); return; }
+      if (!start) return; const dx = e.clientX - start.x, dy = e.clientY - start.y;
+      if (!moved && Math.hypot(dx, dy) > 6) { moved = true; try { el.setPointerCapture(e.pointerId); } catch (er) { } el.classList.add('dragging'); }
+      if (moved) { this.v.x = start.vx - dx / this.v.z; this.v.y = start.vy - dy / this.v.z; this.clamp(); this.layout(); this.moved(); }
+    });
+    const end = e => {
+      if (!pts.has(e.pointerId)) return; pts.delete(e.pointerId); if (pts.size < 2) pinch = null;
+      if (pts.size) return; el.classList.remove('dragging');
+      if (moved) { mapDragAt = Date.now(); persist(); this.cfg.onMoveEnd && this.cfg.onMoveEnd(this); }
+      else if (start && !e.target.closest('.gm-m[data-act], .gm-ctl, .gm-over') && this.cfg.onTap) { const r = el.getBoundingClientRect(); const [wx, wy] = this.toWorld(e.clientX - r.left, e.clientY - r.top); mapTapAt = Date.now(); this.cfg.onTap(wx, wy, this); }
+      start = null;
+    };
+    el.addEventListener('pointerup', end); el.addEventListener('pointercancel', end);
+    el.addEventListener('wheel', e => { e.preventDefault(); const r = el.getBoundingClientRect(); this.zoomAt(Math.exp(-e.deltaY * .0018), e.clientX - r.left, e.clientY - r.top); this.moved(); }, { passive: false });
+    el.querySelectorAll('[data-mz]').forEach(b => b.addEventListener('click', ev => { ev.stopPropagation(); this.zoomAt(b.dataset.mz === '1' ? 1.5 : 1 / 1.5, this.w / 2, this.h / 2); this.moved(); persist(); }));
+    const loc = el.querySelector('[data-mloc]'); if (loc) loc.addEventListener('click', ev => { ev.stopPropagation(); const c = this.cfg.center; Object.assign(this.v, { x: c[0], y: c[1] }); this.layout(); this.moved(); });
+  }
+}
+function initMaps() { document.querySelectorAll('#app .gmap').forEach(el => { if (!el._m) el._m = new GeoMap(el); }); }
+const mapInst = id => { const el = document.getElementById('gm-' + id); return el && el._m; };
+const fitView = (pts, w = 340, h = 240) => { const xs = pts.map(q => q[0]), ys = pts.map(q => q[1]); const sx = Math.max(...xs) - Math.min(...xs) + 2.4, sy = Math.max(...ys) - Math.min(...ys) + 2.4; return { center: [(Math.max(...xs) + Math.min(...xs)) / 2, (Math.max(...ys) + Math.min(...ys)) / 2], zoom: Math.min(60, Math.min(w / sx, h / sy)) }; };
+const meMark = a => ({ x: a.x, y: a.y, cls: 'gme-w', html: `<span class="gme"><i></i></span>` });
+const homeMark = (a, label) => ({ x: a.x, y: a.y, bottom: true, cls: 'ghome-w', html: `<span class="ghome">${ic('house', 'xs')}${label ? `<b>${esc(label)}</b>` : ''}</span>` });
+const proPin = (p, on, i = 0, act = 'mapSel') => ({ x: p.x, y: p.y, bottom: true, act, a: p.id, label: p.name, html: `<span class="gpin ${on ? 'on' : ''} ${p.reach === 'out' ? 'far' : ''}" style="animation-delay:${i * 60}ms"><span class="avatar ${p.tone}">${esc(p.ini)}</span><b>${p.fixed || p.perWindow ? 'od ' + (p.perWindow || p.rate) : p.rate} zł</b></span>` });
+const circleSVG = (x, y, r, cls = '', id = '') => `<circle ${id ? `id="${id}"` : ''} class="${cls}" cx="${x * U}" cy="${y * U}" r="${r * U}"/>`;
+
+
 const EXTRAS = [
   { id: 'lodowka', name: 'Wnętrze lodówki', icon: 'refrigerator', h: 0.5 },
   { id: 'piekarnik', name: 'Piekarnik', icon: 'flame', h: 0.75 },
@@ -161,15 +299,22 @@ function estimate(b, pro) {
   const disc = (FREQ.find(f => f.id === b.freq) || FREQ[0]).disc;
   const discount = work * disc;
   const ownSupplies = b.supplies === 'pro' && pro.supplies ? 0 : 0;
-  const total = work - discount + SERVICE_FEE + ownSupplies;
-  return { h, baseH: Math.max(0, h - extraH), extraH, work, disc, discount, total };
+  const rf = reachFor(pro, addrById(b.addr) || curAddr()); const travel = rf.reach === 'fee' ? pro.fee : 0;
+  const total = work - discount + SERVICE_FEE + ownSupplies + travel;
+  return { h, baseH: Math.max(0, h - extraH), extraH, work, disc, discount, total, travel, km: rf.d, reach: rf.reach };
 }
 
 function seed() {
   return {
     role: 'client', tab: 'home', stacks: {},
     favs: ['marta', 'olena'],
-    filters: { cat: null, q: '', maxPrice: 100, minRating: 0, verified: false, insured: false, supplies: false, eco: false, pets: false, invoice: false, today: false, sort: 'rec' },
+    filters: { cat: null, q: '', maxPrice: 100, minRating: 0, verified: false, insured: false, supplies: false, eco: false, pets: false, invoice: false, today: false, sort: 'rec', maxDist: 15, far: false, district: null, bounds: null },
+    addresses: [
+      { id: 'home', label: 'Dom', street: 'ul. Puławska 112/14', x: 13.2, y: 15.8, note: '4 piętro, winda' },
+      { id: 'mama', label: 'Mieszkanie mamy', street: 'ul. Odyńca 27/3', x: 12.6, y: 17.4, note: 'parter' },
+      { id: 'office', label: 'Biuro', street: 'Rondo Daszyńskiego 2', x: 9.4, y: 10.4, note: 'recepcja, 12 piętro' }
+    ],
+    addrId: 'home', maps: {}, exploreLayer: 'pros',
     ordersSeg: 'up',
     orders: [
       { id: 'o1', pro: 'marta', service: 'dom', date: 1, time: '10:00', h: 3.5, m2: 54, total: 138.88, freq: 'biweek', status: 'confirmed', extras: ['lodowka'], addr: 'ul. Puławska 112/14', pay: 'BLIK' },
@@ -195,25 +340,27 @@ function seed() {
     pro: {
       online: true,
       requests: [
-        { id: 'r1', client: 'Tomasz', crating: 4.9, service: 'dom', m2: 54, rooms: 2, baths: 1, day: 2, time: '10:00', h: 3.5, pay: 157.5, dist: 1.8, area: 'Mokotów, Stary Mokotów', note: 'Mam psa, jest przyjazny. Najważniejsza kuchnia i łazienka.', freq: 'biweek', expires: 42 },
-        { id: 'r2', client: 'Joanna', crating: 5.0, service: 'najem', m2: 38, rooms: 1, baths: 1, day: 1, time: '12:00', h: 2.5, pay: 112.5, dist: 3.1, area: 'Śródmieście, Powiśle', note: 'Między gośćmi: pościel w szafie, raport zdjęciowy po sprzątaniu.', freq: 'week', expires: 18 },
-        { id: 'r3', client: 'Firma Kwadrat', crating: 4.7, service: 'biuro', m2: 120, rooms: 4, baths: 2, day: 4, time: '18:00', h: 5, pay: 225, dist: 5.6, area: 'Wola, Rondo Daszyńskiego', note: 'Po godzinach pracy. Potrzebna faktura.', freq: 'week', expires: 95 }
+        { id: 'r1', x: 12.9, y: 15.4, client: 'Tomasz', crating: 4.9, service: 'dom', m2: 54, rooms: 2, baths: 1, day: 2, time: '10:00', h: 3.5, pay: 157.5, dist: 1.8, area: 'Mokotów, Stary Mokotów', note: 'Mam psa, jest przyjazny. Najważniejsza kuchnia i łazienka.', freq: 'biweek', expires: 42 },
+        { id: 'r2', x: 13.6, y: 10.2, client: 'Joanna', crating: 5.0, service: 'najem', m2: 38, rooms: 1, baths: 1, day: 1, time: '12:00', h: 2.5, pay: 112.5, dist: 3.1, area: 'Śródmieście, Powiśle', note: 'Między gośćmi: pościel w szafie, raport zdjęciowy po sprzątaniu.', freq: 'week', expires: 18 },
+        { id: 'r3', x: 9.4, y: 10.4, client: 'Firma Kwadrat', crating: 4.7, service: 'biuro', m2: 120, rooms: 4, baths: 2, day: 4, time: '18:00', h: 5, pay: 225, dist: 5.6, area: 'Wola, Rondo Daszyńskiego', note: 'Po godzinach pracy. Potrzebna faktura.', freq: 'week', expires: 95 }
       ],
       jobs: [
-        { day: 0, time: '14:00', end: '17:00', client: 'Ewa M.', service: 'dom', area: 'Ursynów', pay: 135, tone: '' },
-        { day: 1, time: '09:00', end: '12:00', client: 'Krzysztof', service: 'generalne', area: 'Mokotów', pay: 202.5, tone: 'y' },
-        { day: 3, time: '10:00', end: '13:30', client: 'Ania K.', service: 'dom', area: 'Wilanów', pay: 157.5, tone: 'm' }
+        { day: 0, time: '09:00', end: '11:30', client: 'Pan Marek', service: 'dom', area: 'Mokotów', pay: 112.5, tone: 'y', x: 12.2, y: 14.6 },
+        { day: 0, time: '14:00', end: '17:00', client: 'Ewa M.', service: 'dom', area: 'Ursynów', pay: 135, tone: '', x: 11.8, y: 21.6 },
+        { day: 1, time: '09:00', end: '12:00', client: 'Krzysztof', service: 'generalne', area: 'Mokotów', pay: 202.5, tone: 'y', x: 12.4, y: 15 },
+        { day: 1, time: '13:30', end: '16:00', client: 'Basia', service: 'dom', area: 'Ochota', pay: 112.5, tone: 'm', x: 9.6, y: 14 },
+        { day: 3, time: '10:00', end: '13:30', client: 'Ania K.', service: 'dom', area: 'Wilanów', pay: 157.5, tone: 'm', x: 15.6, y: 20.8 }
       ],
       market: [
-        { id: 'm1', client: 'Paulina', crating: 4.8, cat: 'remont', desc: 'Mieszkanie po malowaniu i wymianie paneli. Dużo pyłu, również w szafkach kuchennych. 2 pokoje, kuchnia, łazienka.', m2: 48, when: 'w tym tygodniu, elastycznie', dist: 2.4, area: 'Mokotów, Wierzbno', offers: 4, budget: 400, photos: 3, sent: 0 },
-        { id: 'm2', client: 'Marek', crating: 5.0, cat: 'okna', desc: '8 okien dwuskrzydłowych i drzwi balkonowe. 3 piętro, bez windy. Rolety do umycia.', m2: 0, when: 'sobota, od 9:00', dist: 4.1, area: 'Ochota, Szczęśliwice', offers: 2, budget: 0, photos: 1, sent: 0 }
+        { id: 'm1', x: 12.2, y: 16.8, client: 'Paulina', crating: 4.8, cat: 'remont', desc: 'Mieszkanie po malowaniu i wymianie paneli. Dużo pyłu, również w szafkach kuchennych. 2 pokoje, kuchnia, łazienka.', m2: 48, when: 'w tym tygodniu, elastycznie', dist: 2.4, area: 'Mokotów, Wierzbno', offers: 4, budget: 400, photos: 3, sent: 0 },
+        { id: 'm2', x: 9.2, y: 13.6, client: 'Marek', crating: 5.0, cat: 'okna', desc: '8 okien dwuskrzydłowych i drzwi balkonowe. 3 piętro, bez windy. Rolety do umycia.', m2: 0, when: 'sobota, od 9:00', dist: 4.1, area: 'Ochota, Szczęśliwice', offers: 2, budget: 0, photos: 1, sent: 0 }
       ],
       offerDraft: null,
       avail: { 1: true, 2: true, 3: true, 4: true, 5: true, 6: false, 0: false },
       calDay: 0,
       listing: {
         name: 'Ola Zielińska', tagline: 'Dokładne sprzątanie mieszkań, ekologiczne środki',
-        services: ['dom', 'generalne'], rate: 45, minH: 3, areas: ['Mokotów', 'Ursynów', 'Wilanów'],
+        services: ['dom', 'generalne'], rate: 45, minH: 3, areas: ['Mokotów', 'Ursynów', 'Wilanów'], base: { x: 12.8, y: 16.8 }, radius: 8, fee: 15, feeOn: true,
         supplies: true, eco: true, pets: true, invoice: false, langs: ['PL', 'EN'],
         bio: 'Sprzątam od 3 lat. Pracuję według checklisty pokój po pokoju, przynoszę własne środki.', photos: [],
         idVerified: true, insured: false, published: true
@@ -226,7 +373,13 @@ let S = Object.assign(seed(), store.get('state', {}));
 // zawsze zaczynaj od świeżych stosów nawigacji
 S.stacks = {}; S.sheet = null;
 // stan zapisany przez starszą wersję makiety może nie mieć nowych pól
-(() => { const d = seed(); S.posts ||= []; S.pro = Object.assign(d.pro, S.pro); S.pro.market ||= d.pro.market; S.offerSort ||= 'rec'; })();
+(() => {
+  const d = seed(); S.posts ||= []; S.pro = Object.assign(d.pro, S.pro); S.pro.market ||= d.pro.market; S.offerSort ||= 'rec';
+  S.filters = Object.assign(d.filters, S.filters); S.addresses ||= d.addresses; S.addrId ||= 'home'; S.maps ||= {}; S.exploreLayer ||= 'pros';
+  S.pro.listing = Object.assign(d.pro.listing, S.pro.listing, S.pro.listing.base ? {} : { base: d.pro.listing.base, radius: 8, fee: 15, feeOn: true });
+  if (!S.pro.jobs.every(j => 'x' in j)) S.pro.jobs = d.pro.jobs; if (!S.pro.requests.every(r => 'x' in r)) S.pro.requests = d.pro.requests; if (!S.pro.market.every(m => 'x' in m)) S.pro.market = d.pro.market;
+})();
+updateGeo();
 const persist = () => {
   const { sheet, stacks, booking, ...rest } = S;
   store.set('state', rest);
@@ -287,12 +440,12 @@ function proCard(p) {
       <div class="row between" style="gap:8px;align-items:flex-start">
         <div class="grow">
           <div class="row" style="gap:5px"><span class="name">${esc(p.name)}</span>${p.verified ? ic('badge-check', 'verified') : ''}</div>
-          <div class="tiny faint">${stars(p.rating)} <span>(${p.reviews})</span> · ${p.area}${p.dist ? ' · ' + String(p.dist).replace('.', ',') + ' km' : ''}</div>
+          <div class="tiny faint">${stars(p.rating)} <span>(${p.reviews})</span> · ${p.area}${p.dist ? ` · ${kmf(p.dist)} km · ${p.eta} min` : ''}</div>
         </div>
         ${heart(p.id)}
       </div>
       <div class="small muted mt8" style="line-height:1.35">${esc(p.tagline)}</div>
-      <div class="meta">${feats.slice(0, 3).join('')}</div>
+      <div class="meta">${p.reach === 'fee' ? `<span class="tag yellow">${ic('car', 'xs')}Dojazd +${p.fee} zł</span>` : p.reach === 'out' ? `<span class="tag rose">${ic('map-pin-off', 'xs')}Poza zasięgiem</span>` : ''}${feats.slice(0, p.reach && p.reach !== 'in' ? 2 : 3).join('')}</div>
       <div class="row between mt12">
         <span class="price">${priceLabel(p)}</span>
         <span class="${p.todayFree ? 'free' : 'tiny faint'}">${p.todayFree ? '' : 'Najbliżej: '}${p.nextSlot}</span>
@@ -352,22 +505,6 @@ function kitchen(dirty) {
     ${dirty ? dirt : clean}</svg>`;
 }
 
-/* ilustrowana mapa okolicy (bez zewnętrznych map) */
-const PIN_XY = { marta: [47, 55], olena: [64, 70], czysto: [20, 26], pawel: [30, 9], babel: [86, 44], agnieszka: [54, 30] };
-function mapSVG() {
-  return `<svg class="mapsvg" viewBox="0 0 360 420" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
-    <rect width="360" height="420" fill="var(--surface-2)"/>
-    <path d="M20 150q30-40 90-20q30 20 10 60q-40 30-90 10q-30-20-10-50z" fill="var(--mint-soft)"/>
-    <path d="M210 250q30-20 50 10q10 30-20 40q-40 0-30-50z" fill="var(--mint-soft)"/>
-    <path d="M300 -10q-30 80 10 150q50 80 10 160q-20 60 20 140h40V-10z" fill="var(--cloth-soft)"/>
-    <g stroke="var(--surface)" stroke-width="7" stroke-linecap="round" fill="none">
-      <path d="M0 70h300M0 200h290M0 330h300M60 0v420M150 0v420M240 0v420M0 270q100-30 200 10"/></g>
-    <path d="M120 -10L210 430" stroke="var(--surface)" stroke-width="13" stroke-linecap="round"/>
-    <text x="0" y="0" transform="translate(186 352) rotate(77)" font-size="10" font-weight="700" fill="var(--ink-3)" letter-spacing="2">PUŁAWSKA</text>
-    <g font-size="10" font-weight="700" letter-spacing="3" fill="var(--ink-3)" opacity=".8"><text x="72" y="244">MOKOTÓW</text><text x="20" y="44">OCHOTA</text><text x="170" y="40">ŚRÓDMIEŚCIE</text><text x="318" y="210" transform="rotate(90 318 210)">WISŁA</text></g>
-    <text x="44" y="166" font-size="9" fill="var(--mint)" font-weight="600">Pole Mokotowskie</text><text x="214" y="276" font-size="9" fill="var(--mint)" font-weight="600">Morskie Oko</text>
-  </svg>`;
-}
 const swipeBtn = (act, arg, label, off) => `<div class="slide ${off ? 'off' : ''}" data-done="${act}" data-a="${arg || ''}" id="slide-${act}">
   <div class="slide-fill"></div><span class="slide-label">${label}</span>
   <button class="slide-knob" type="button" aria-label="${label}">${illo('okna', 'knob-illo')}</button></div>`;
@@ -377,12 +514,13 @@ const screens = {};
 
 screens.home = () => {
   const next = S.orders.filter(o => o.date >= 0 && !['done', 'cancel'].includes(o.status)).sort((a, b) => a.date - b.date)[0];
-  const quick = PROS.filter(p => p.todayFree).sort((a, b) => a.dist - b.dist)[0];
+  const quick = PROS.filter(p => p.todayFree && p.reach !== 'out').sort((a, b) => a.dist - b.dist)[0] || PROS.filter(p => p.todayFree)[0];
+  const ha = curAddr(); const nearCnt = PROS.filter(p => p.reach !== 'out').length; const nearFree = PROS.filter(p => p.reach !== 'out').reduce((x, p) => x + SLOTS.filter(t => !slotTaken(p.id, 0, t)).length, 0);
   const qEst = estimate({ service: 'dom', m2: 54, rooms: 2, baths: 1, extras: [], freq: 'once' }, quick);
-  const featured = PROS.filter(p => p.super || p.rating > 4.9);
+  const featured = PROS.filter(p => (p.super || p.rating > 4.85) && p.reach !== 'out').sort((a, b) => a.dist - b.dist);
   return `<div class="scroll">
     <div class="hello">
-      <button class="loc" data-act="toast" data-a="Zmiana adresu w pełnej wersji">${ic('map-pin', 's')}ul. Puławska 112, Mokotów ${ic('chevron-down', 'xs')}</button>
+      <button class="loc" data-act="openLocation">${ic('map-pin', 's')}${esc(curAddr().street.split('/')[0])}, ${districtAt(curAddr().x, curAddr().y)} ${ic('chevron-down', 'xs')}</button>
       <button class="iconbtn" data-act="toast" data-a="Brak nowych powiadomień" aria-label="Powiadomienia">${ic('bell', 's')}</button>
     </div>
     <div class="pad">
@@ -424,6 +562,13 @@ screens.home = () => {
         <button class="btn sm" data-act="startBooking" data-a="${quick.id}" data-b="today">Zarezerwuj ten termin ${ic('arrow-right', 's')}</button>
       </div>
 
+      <div class="section-h"><h3>Twoja okolica</h3><button data-act="openExplore">Mapa</button></div>
+      <button class="nearby" data-act="openExplore">
+        ${geoMap('home-mini', { h: 150, static: true, reset: true, center: [ha.x, ha.y], zoom: 19, labels: false,
+          layer: circleSVG(ha.x, ha.y, 3, 'gm-reach faint'),
+          markers: [homeMark(ha)].concat(PROS.filter(p => p.reach !== 'out').map(p => ({ x: p.x, y: p.y, html: `<span class="avatar xs ${p.tone}">${esc(p.ini)}</span>` }))) })}
+        <div class="nearby-t"><b>${nearCnt} wykonawców dojeżdża pod ${esc(ha.street.split('/')[0])}</b><span>${nearFree} wolnych terminów dziś · najbliżej ${Math.min(...PROS.filter(p => p.reach !== 'out').map(p => p.eta))} min dojazdu</span></div>
+      </button>
       <div class="section-h"><h3>Polecani w okolicy</h3><button data-act="openSearch">Wszyscy</button></div>
     </div>
     <div class="pad"><div class="hscroll">
@@ -457,6 +602,9 @@ function filteredPros() {
     if (p.rating < f.minRating) return false;
     for (const k of ['verified', 'insured', 'supplies', 'eco', 'pets', 'invoice']) if (f[k] && !p[k]) return false;
     if (f.today && !p.todayFree) return false;
+    if (f.district && !serves(p, f.district)) return false;
+    if (f.bounds && !(p.x >= f.bounds[0] && p.x <= f.bounds[2] && p.y >= f.bounds[1] && p.y <= f.bounds[3])) return false;
+    if (!f.district && !f.bounds) { if (p.reach === 'out' && !f.far) return false; if (f.maxDist < 15 && p.dist > f.maxDist) return false; }
     return true;
   });
   const sorters = { rec: (a, b) => (b.rating * Math.log(b.reviews)) - (a.rating * Math.log(a.reviews)), price: (a, b) => a.rate - b.rate, dist: (a, b) => a.dist - b.dist, rating: (a, b) => b.rating - a.rating };
@@ -464,7 +612,7 @@ function filteredPros() {
 }
 function activeFilterCount() {
   const f = S.filters; let n = 0;
-  if (f.maxPrice < 100) n++; if (f.minRating) n++;
+  if (f.maxPrice < 100) n++; if (f.minRating) n++; if (f.maxDist < 15) n++; if (f.far) n++;
   ['verified', 'insured', 'supplies', 'eco', 'pets', 'invoice', 'today'].forEach(k => f[k] && n++);
   return n;
 }
@@ -481,13 +629,16 @@ screens.search = () => {
     </div></div>
     <div class="scroll"><div class="pad">
       <div class="hscroll" style="padding-bottom:4px">
+        <button class="chip geo" data-act="openLocation">${ic('map-pin', 'xs')}${esc(curAddr().label)}</button>
+        ${f.district ? `<button class="chip on" data-act="clearGeo" data-a="district">${f.district} ${ic('x', 'xs')}</button>` : ''}
+        ${f.bounds ? `<button class="chip on" data-act="clearGeo" data-a="bounds">Obszar z mapy ${ic('x', 'xs')}</button>` : ''}
         <button class="chip ${f.today ? 'on' : ''}" data-act="toggleF" data-a="today">${ic('zap', 'xs')}Wolne dziś</button>
         <button class="chip ${f.supplies ? 'on' : ''}" data-act="toggleF" data-a="supplies">Własne środki</button>
         <button class="chip ${f.invoice ? 'on' : ''}" data-act="toggleF" data-a="invoice">Faktura VAT</button>
         <button class="chip ${f.pets ? 'on' : ''}" data-act="toggleF" data-a="pets">Zwierzęta OK</button>
         <button class="chip ${f.eco ? 'on' : ''}" data-act="toggleF" data-a="eco">Eco</button>
       </div>
-      <div class="resultbar"><span>${list.length} ${list.length === 1 ? 'wykonawca' : list.length < 5 && list.length > 1 ? 'wykonawców' : 'wykonawców'} · Mokotów i okolice</span>
+      <div class="resultbar"><span>${list.length} ${list.length === 1 ? 'wykonawca' : list.length < 5 && list.length > 1 ? 'wykonawców' : 'wykonawców'} ${f.district ? '· obsługuje: ' + f.district : f.bounds ? 'w zaznaczonym obszarze' : 'dojeżdża pod adres: ' + esc(curAddr().label)}</span>
         <label class="row" style="gap:4px">Sortuj:<select id="sort" data-model="filters.sort" data-rr="1">
           ${[['rec', 'polecane'], ['price', 'cena'], ['dist', 'odległość'], ['rating', 'ocena']].map(([v, l]) => `<option value="${v}" ${f.sort === v ? 'selected' : ''}>${l}</option>`).join('')}
         </select></label></div>
@@ -563,13 +714,81 @@ screens.provider = ({ id }) => {
 };
 
 function mapView(list) {
-  const sel = list.find(p => p.id === S.mapSel) || list[0];
-  return `<div class="map">${mapSVG()}
-    <span class="me-pin" style="left:50%;top:58%"><i></i></span>
-    ${list.map((p, i) => { const [x, y] = PIN_XY[p.id]; return `<button class="pin ${sel && sel.id === p.id ? 'on' : ''}" style="left:${x}%;top:${y}%;animation-delay:${i * 70}ms" data-act="mapSel" data-a="${p.id}" aria-label="${esc(p.name)}"><span class="avatar ${p.tone}">${esc(p.ini)}</span><b>${p.fixed || p.perWindow ? 'od ' + (p.perWindow || p.rate) : p.rate} zł</b></button>`; }).join('')}
-  </div>
-  ${sel ? `<div class="mt12">${proCard(sel)}</div>` : '<div class="empty">Nikt nie pasuje do filtrów</div>'}`;
+  const a = curAddr(); const sel = list.find(p => p.id === S.mapSel) || list[0];
+  const layer = (sel ? circleSVG(sel.x, sel.y, sel.r, 'gm-reach') + (sel.fee ? circleSVG(sel.x, sel.y, sel.r + 5, 'gm-reach fee') : '') : '') + (S.filters.bounds ? (() => { const [x1, y1, x2, y2] = S.filters.bounds; return `<rect class="gm-bounds" x="${x1 * U}" y="${y1 * U}" width="${(x2 - x1) * U}" height="${(y2 - y1) * U}"/>`; })() : '');
+  return `${geoMap('search', { h: 360, center: [a.x, a.y], zoom: 17, locate: true, layer, labelExtra: null,
+    markers: [homeMark(a)].concat(list.map((p, i) => proPin(p, sel && sel.id === p.id, i))),
+    overlay: `<button class="gm-over gm-area" id="searchAreaBtn" data-act="searchArea" ${S.mapMoved ? '' : 'hidden'}>${ic('scan-search', 's')}Szukaj w tym obszarze</button>`,
+    onMove: () => { const b = document.getElementById('searchAreaBtn'); if (b) b.hidden = false; S.mapMoved = true; } })}
+  ${sel ? `<div class="reachnote">${sel.reach === 'in' ? `${ic('circle-check', 's')}<span>${sel.name.split(' ')[0]} dojeżdża do Ciebie: ${kmf(sel.dist)} km, ok. ${sel.eta} min.</span>` : sel.reach === 'fee' ? `${ic('car', 's')}<span>Jesteś ${kmf(sel.dist - sel.r)} km poza strefą. Dopłata za dojazd: ${sel.fee} zł.</span>` : `${ic('map-pin-off', 's')}<span>Poza zasięgiem dojazdu (${sel.r} km od bazy).</span>`}</div>
+  <div class="mt8">${proCard(sel)}</div>` : '<div class="empty">Nikt nie pasuje do filtrów</div>'}`;
 }
+
+/* ---------- lokalizacja: adres klienta ---------- */
+screens.location = () => {
+  const a = curAddr(); const v = S.maps.loc; const c = v ? [v.x, v.y] : [a.x, a.y]; const rg = reverseGeo(c[0], c[1]);
+  const countIn = ad => PROS.filter(p => reachFor(p, ad).reach !== 'out').length;
+  return `${topbar('Gdzie sprzątamy?')}
+  <div class="scroll"><div class="pad">
+    <form class="searchbox" data-form="loc" style="height:48px;box-shadow:none">${ic('search', 's faint')}<input id="locq" name="q" placeholder="Wpisz ulicę, np. Racławicka" autocomplete="off" data-live="locq"></form>
+    <div class="sugg" id="locSug"></div>
+    <button class="opt mt8" data-act="useGps">${ic('locate-fixed', 's')}<div class="grow"><b class="small">Użyj mojej lokalizacji</b><div class="tiny faint">W makiecie lokalizacja jest symulowana</div></div></button>
+    <div class="section-h"><h3>Zapisane adresy</h3></div>
+    <div class="options">${S.addresses.map(ad => { const d = districtAt(ad.x, ad.y); return `<button class="opt ${ad.id === S.addrId ? 'on' : ''}" data-act="pickAddr" data-a="${ad.id}"><span class="radio"></span><div class="grow"><b class="small">${esc(ad.label)}</b><div class="tiny faint">${esc(ad.street)}, ${d}${ad.note ? ' · ' + esc(ad.note) : ''}</div></div><span class="tag ${countIn(ad) > 5 ? 'mint' : ''}">${countIn(ad)} wyk.</span></button>`; }).join('')}</div>
+    <div class="section-h"><h3>Wskaż na mapie</h3><span class="tiny faint">przesuń mapę pod pinezkę</span></div>
+    ${geoMap('loc', { h: 260, center: [a.x, a.y], zoom: 34, fixedPin: true, labels: true, locate: true,
+      markers: S.addresses.map(ad => homeMark(ad)),
+      onMove: m => liveLoc(m.v.x, m.v.y) })}
+    <div class="card mt12" id="locCard">${locCardHTML(c[0], c[1])}</div>
+    <div class="field"><span class="lbl">Nazwa adresu</span><div class="chips">${['Dom', 'Praca', 'Rodzice', 'Mieszkanie na wynajem'].map(l => `<button class="chip ${S.newAddrLabel === l ? 'on' : ''}" data-act="newAddrLabel" data-a="${l}">${l}</button>`).join('')}</div></div>
+    <div class="field"><label for="anote">Piętro, kod, wskazówki dojazdu</label><input class="input" id="anote" placeholder="np. 3 piętro, bez windy, parking od podwórza" data-model="newAddrNote" value="${esc(S.newAddrNote || '')}"></div>
+    <div class="sp"></div>
+  </div></div>
+  <div class="footer"><button class="btn primary block" data-act="saveAddr" id="saveAddrBtn" ${inCity(c[0], c[1]) ? '' : 'disabled'}>${ic('map-pin-plus', 's')}Zapisz i szukaj tutaj</button></div>`;
+};
+function locCardHTML(x, y) {
+  if (!inCity(x, y)) return `<div class="row">${ic('map-pin-off', 's')}<div class="grow"><b class="small">Poza Warszawą</b><div class="tiny faint">Na razie działamy w granicach miasta. Przesuń pinezkę bliżej.</div></div></div>`;
+  const rg = reverseGeo(x, y); const pt = { x, y };
+  const near = PROS.map(p => Object.assign({ p }, reachFor(p, pt))).filter(r => r.reach !== 'out').sort((a, b) => a.d - b.d);
+  const st = dstats(rg.district);
+  return `<div class="row">${ic('map-pin', 's')}<div class="grow"><b class="small">${rg.street}</b><div class="tiny faint">${rg.district} · ${near.length} wykonawców dojeżdża · najbliżej ${near[0] ? near[0].eta + ' min' : '—'}</div></div></div>
+    <div class="minis mt12"><div><b class="num">${st.avg || '—'} zł</b><span>śr. stawka</span></div><div><b class="num">${st.free}</b><span>wolne dziś</span></div><div><b class="num">${near.filter(r => r.reach === 'fee').length}</b><span>z dopłatą</span></div></div>`;
+}
+function liveLoc(x, y) {
+  const c = document.getElementById('locCard'); if (c) c.innerHTML = locCardHTML(x, y);
+  const b = document.getElementById('saveAddrBtn'); if (b) b.disabled = !inCity(x, y);
+}
+
+/* ---------- mapa okolicy z warstwami ---------- */
+const LAYERS = {
+  pros: { name: 'Wykonawcy', tok: 'cloth', val: st => st.sv.length, fmt: v => v + ' wyk.', lo: 'mniej', hi: 'więcej wykonawców' },
+  price: { name: 'Ceny', tok: 'glove', val: st => st.avg, fmt: v => v + ' zł/h', lo: 'taniej', hi: 'drożej' },
+  free: { name: 'Wolne dziś', tok: 'mint', val: st => st.free, fmt: v => v + ' wolnych', lo: 'mało', hi: 'dużo terminów' },
+  demand: { name: 'Popyt', tok: 'rose', val: st => Math.round(st.pressure * 10) / 10, fmt: (v, st) => st.demand + ' zapytań', lo: 'spokojnie', hi: 'brakuje wykonawców' }
+};
+screens.explore = () => {
+  const a = curAddr(); const L = LAYERS[S.exploreLayer]; const names = Object.keys(SITES);
+  const stats = Object.fromEntries(names.map(n => [n, dstats(n)])); const vals = names.map(n => L.val(stats[n]));
+  const lo = Math.min(...vals), hi = Math.max(...vals);
+  const fill = n => ({ fill: mixFill(L.tok, 12 + (L.val(stats[n]) - lo) / ((hi - lo) || 1) * 70), cls: S.exploreSel === n ? 'sel' : '' });
+  const myD = districtAt(a.x, a.y); const mySt = stats[myD]; const cityAvg = Math.round(names.reduce((x, n) => x + stats[n].avg, 0) / names.length);
+  return `${topbar('Mapa okolicy', `<button class="iconbtn" data-act="openLocation" aria-label="Zmień adres">${ic('map-pin', 's')}</button>`)}
+  <div class="scroll"><div class="pad">
+    <div class="hscroll" style="padding-bottom:10px">${Object.entries(LAYERS).map(([k, l]) => `<button class="chip ${S.exploreLayer === k ? 'on' : ''}" data-act="exploreLayer" data-a="${k}">${l.name}</button>`).join('')}</div>
+    ${geoMap('explore', { h: 400, center: [a.x, a.y - 2], zoom: 13, locate: true, fill,
+      labelExtra: n => L.fmt(L.val(stats[n]), stats[n]),
+      layer: S.exploreLayer === 'pros' ? PROS.filter(p => p.reach !== 'out').map(p => circleSVG(p.x, p.y, .5, 'gm-dot')).join('') : '',
+      markers: [meMark(a)],
+      overlay: `<div class="gm-over gm-legend"><span>${L.lo}</span><i style="background:linear-gradient(90deg, ${mixFill(L.tok, 12)}, ${mixFill(L.tok, 82)})"></i><span>${L.hi}</span></div>`,
+      onTap: (x, y) => { if (!inCity(x, y)) return; const n = districtAt(x, y); S.exploreSel = n; buzz(8); A.sheet('district', n); } })}
+    <div class="hint" style="text-align:center">Dotknij dzielnicy, żeby zobaczyć szczegóły. Przesuwaj i przybliżaj palcami.</div>
+    <div class="card mt16">
+      <div class="row between"><div><div class="eyebrow">Twoja okolica</div><b style="font-family:var(--f-display);font-size:20px">${myD}</b></div><button class="btn sm line" data-act="sheet" data-a="district" data-b="${myD}">Szczegóły</button></div>
+      <div class="minis mt12"><div><b class="num">${mySt.sv.length}</b><span>wykonawców</span></div><div><b class="num">${mySt.avg} zł</b><span>${mySt.avg > cityAvg ? '+' : ''}${mySt.avg - cityAvg} zł vs miasto</span></div><div><b class="num">${mySt.free}</b><span>wolne dziś</span></div></div>
+    </div>
+    <div class="sp"></div>
+  </div></div>`;
+};
 
 /* ---------- booking ---------- */
 function newBooking(proId, preset) {
@@ -577,7 +796,7 @@ function newBooking(proId, preset) {
   const svc = S.filters.cat && p.services.includes(S.filters.cat) ? S.filters.cat : p.services[0];
   let day = 1, time = null;
   if (preset === 'today') { day = 0; time = p.nextSlot.split(' ')[1]; }
-  return { pro: proId, step: 1, service: svc, m2: 54, rooms: 2, baths: 1, extras: [], supplies: p.supplies ? 'pro' : 'mine', freq: 'once', day, time, addr: 'home', entry: 'home', code: '', pets: 'none', note: '', focus: [], pay: 'blik', blik: '' };
+  return { pro: proId, step: 1, service: svc, m2: 54, rooms: 2, baths: 1, extras: [], supplies: p.supplies ? 'pro' : 'mine', freq: 'once', day, time, addr: S.addrId, entry: 'home', code: '', pets: 'none', note: '', focus: [], pay: 'blik', blik: '' };
 }
 const STEP_TITLES = ['Zakres sprzątania', 'Termin', 'Adres i wejście', 'Płatność'];
 
@@ -640,9 +859,9 @@ function bookStep3(b, p) {
   return `
   <div class="field"><span class="lbl">Adres</span>
     <div class="options">
-      <button class="opt ${b.addr === 'home' ? 'on' : ''}" data-act="bset" data-a="addr" data-b="home"><span class="radio"></span><div class="grow"><b class="small">Dom</b><div class="tiny faint">ul. Puławska 112/14, Mokotów · 4 piętro, winda</div></div></button>
-      <button class="opt ${b.addr === 'mama' ? 'on' : ''}" data-act="bset" data-a="addr" data-b="mama"><span class="radio"></span><div class="grow"><b class="small">Mieszkanie mamy</b><div class="tiny faint">ul. Odyńca 27/3, Mokotów · parter</div></div></button>
-      <button class="opt" data-act="toast" data-a="Dodawanie adresu w pełnej wersji">${ic('plus', 's')}<b class="small">Dodaj nowy adres</b></button>
+      ${S.addresses.map(ad => { const r = reachFor(p, ad); return `<button class="opt ${b.addr === ad.id ? 'on' : ''}" data-act="bset" data-a="addr" data-b="${ad.id}" ${r.reach === 'out' ? 'disabled style="opacity:.5"' : ''}><span class="radio"></span><div class="grow"><b class="small">${esc(ad.label)}</b><div class="tiny faint">${esc(ad.street)}, ${districtAt(ad.x, ad.y)}${ad.note ? ' · ' + esc(ad.note) : ''}</div></div>
+        <span class="tag ${r.reach === 'in' ? 'mint' : r.reach === 'fee' ? 'yellow' : 'rose'}">${r.reach === 'in' ? r.eta + ' min' : r.reach === 'fee' ? '+' + p.fee + ' zł' : 'za daleko'}</span></button>`; }).join('')}
+      <button class="opt" data-act="openLocation">${ic('plus', 's')}<b class="small">Dodaj nowy adres na mapie</b></button>
     </div></div>
   <div class="field"><span class="lbl">Jak wykonawca wejdzie?</span>
     <div class="chips">${[['home', 'Będę w domu'], ['concierge', 'Klucz u portiera'], ['lockbox', 'Skrytka na klucz']].map(([v, l]) => `<button class="chip ${b.entry === v ? 'on' : ''}" data-act="bset" data-a="entry" data-b="${v}">${l}</button>`).join('')}</div>
@@ -666,6 +885,7 @@ function bookStep4(b, p, e) {
     ${b.extras.map(id => { const x = EXTRAS.find(y => y.id === id); return `<div class="ln"><span>${x.name}</span><b>${zl(x.h * p.rate)}</b></div>`; }).join('')}
     ${e.disc ? `<div class="ln disc"><span>Rabat: ${f.name.toLowerCase()}</span><b>−${zl(e.discount)}</b></div>` : ''}
     <div class="ln"><span>Opłata serwisowa i ubezpieczenie</span><b>${zl(SERVICE_FEE)}</b></div>
+    ${e.travel ? `<div class="ln"><span>Dojazd spoza strefy (${kmf(e.km)} km)</span><b>${zl(e.travel)}</b></div>` : ''}
     <div class="tot"><span class="muted small">Razem${b.freq !== 'once' ? ' za wizytę' : ''}</span><b class="num">${zl(e.total)}</b></div>
   </div>
   <div class="field"><span class="lbl">Metoda płatności</span>
@@ -748,12 +968,7 @@ screens.order = ({ id }) => {
     <div class="row between"><div><div class="eyebrow">${dayLabel(d)} · ${o.time}</div><h1 class="pagetitle" style="margin:4px 0 6px;font-size:26px">${catById(o.service).name}</h1></div></div>
     <div class="row" style="gap:6px">${statusPill(o.status)}${o.freq !== 'once' ? `<span class="tag">${ic('repeat', 'xs')}${FREQ.find(f => f.id === o.freq).name}</span>` : ''}</div>
 
-    ${o.status === 'enroute' ? `<div class="route mt16"><svg viewBox="0 0 340 120" preserveAspectRatio="none" aria-hidden="true">
-      <path d="M0 30 H340 M0 85 H340 M70 0 V120 M190 0 V120 M290 0 V120" stroke="var(--line)" stroke-width="10" fill="none"/>
-      <path d="M40 85 H190 V30 H270" stroke="var(--cloth)" stroke-width="4" stroke-dasharray="2 8" stroke-linecap="round" fill="none"/>
-      <circle cx="120" cy="85" r="9" fill="var(--cloth)"/><circle cx="120" cy="85" r="16" fill="var(--cloth)" opacity=".2"/>
-      <circle cx="270" cy="30" r="9" fill="var(--glove)" stroke="var(--ink)" stroke-width="2"/></svg></div>
-      <div class="note">${ic('car', 's')}<span><b>${p.name.split(' ')[0]} jest w drodze</b>, dotrze za ok. 12 min.</span></div>` : ''}
+    ${o.status === 'enroute' ? trackBlock(o, p) : ''}
     ${o.status === 'done' && !o.rated ? `<div class="note yellow mt16">${ic('hand-coins', 's')}<span>Usługa zakończona. Sprawdź mieszkanie i zatwierdź, wtedy zwolnimy płatność. Masz na to 24 h.</span></div>` : ''}
 
     ${o.status === 'progress' ? liveBlock(o) : ''}
@@ -950,7 +1165,7 @@ function reqCard(r) {
       <div>${ic('calendar', 's')}${dayLabel(addDays(r.day))}, ${r.time}</div>
       <div>${ic('clock', 's')}ok. ${hrs(r.h)}</div>
       <div>${ic('ruler', 's')}${r.m2} m² · ${r.baths} łaz.</div>
-      <div>${ic('navigation', 's')}${String(r.dist).replace('.', ',')} km · ${r.area.split(',')[0]}</div>
+      <div>${ic('navigation', 's')}${kmf(roadKm(S.pro.listing.base, r))} km · ${driveMin(roadKm(S.pro.listing.base, r))} min</div>
     </div>
     <div class="quote">„${esc(r.note)}”</div>
     <div class="row between" style="margin-bottom:10px;gap:8px"><span class="timer">${ic('timer', 'xs')}Wygasa za ${r.expires} min</span><span class="tiny faint" style="text-align:right">Dla Ciebie <b style="color:var(--ink)">${zl(r.pay * 0.88)}</b></span></div>
@@ -970,6 +1185,7 @@ screens.calendar = () => {
       <div class="row mt8" style="gap:6px"><button class="btn sm line" style="height:32px" data-act="toast" data-a="Nawigacja otworzy się w aplikacji map">${ic('navigation', 'xs')}Trasa</button><button class="btn sm line" style="height:32px" data-act="toast" data-a="Czat z klientem w pełnej wersji">${ic('message-circle', 'xs')}Czat</button></div></div></div>`).join('')
       : `<div class="card empty" style="padding:22px">${ic('coffee')}<div style="font-weight:650;color:var(--ink)">Wolny dzień</div><div class="small mt8">${P.avail[addDays(P.calDay).getDay()] ? 'Jesteś dostępna, klienci mogą rezerwować ten dzień.' : 'Ten dzień jest zablokowany dla klientów.'}</div></div>`}</div>
 
+    ${dayRoute(jobs)}
     <div class="section-h"><h3>Stała dostępność</h3><span class="tiny faint">widzą ją klienci</span></div>
     <div class="card" style="padding:4px 16px"><div class="avail">${[1, 2, 3, 4, 5, 6, 0].map(d => `<div class="a"><b class="small">${DAYS[d]}</b><span class="grow small ${P.avail[d] ? 'muted' : 'faint'}">${P.avail[d] ? '8:00 – 18:00' : 'Niedostępna'}</span><button class="switch ${P.avail[d] ? 'on' : ''}" data-act="toggleAvail" data-a="${d}" aria-label="Dostępność ${DAYS_LONG[d]}"></button></div>`).join('')}</div></div>
     <button class="btn line block mt12" data-act="toast" data-a="Urlop zapisany: klienci nie zobaczą tych dni" >${ic('palmtree', 's')}Zaplanuj urlop</button>
@@ -998,7 +1214,12 @@ screens.listing = () => {
     <div class="field"><span class="lbl">Minimalny czas wizyty</span>
       <div class="stepper"><span>${hrs(L.minH)}</span><div class="ctl"><button data-act="lmin" data-a="-0.5" aria-label="Mniej">${ic('minus', 's')}</button><button data-act="lmin" data-a="0.5" aria-label="Więcej">${ic('plus', 's')}</button></div></div></div>
 
-    <div class="field"><span class="lbl">Gdzie dojeżdżasz</span><div class="chips">${DISTRICTS.map(d => `<button class="chip ${L.areas.includes(d) ? 'on' : ''}" data-act="larea" data-a="${d}">${d}</button>`).join('')}</div></div>
+    <div class="field"><span class="lbl">Obszar pracy</span>
+      <button class="nearby" data-act="openArea">
+        ${geoMap('listing-mini', { h: 140, static: true, reset: true, center: [L.base.x, L.base.y], zoom: 120 / (L.radius + 1), labels: false,
+          fill: n => ({ fill: areaCovered(n) ? mixFill('cloth', 35) : 'var(--surface-2)' }), layer: circleSVG(L.base.x, L.base.y, L.radius, 'gm-reach strong'), markers: [homeMark(L.base)] })}
+        <div class="nearby-t"><b>${L.radius} km od bazy (${districtAt(L.base.x, L.base.y)}) · ${coveredDistricts().length} ${dzielnic(coveredDistricts().length)}</b><span>${coveredDistricts().join(', ')}${L.feeOn ? ` · dalej +${L.fee} zł` : ''}</span></div>
+      </button></div>
 
     <div class="field"><span class="lbl">Udogodnienia</span><div class="card" style="padding:2px 16px">
       ${[['supplies', 'Przynoszę własne środki i sprzęt', 'Klienci najczęściej filtrują po tej opcji'], ['eco', 'Ekologiczne środki', 'Bez chloru, bezpieczne dla dzieci'], ['pets', 'Zwierzęta mi nie przeszkadzają', ''], ['invoice', 'Wystawiam fakturę VAT', 'Pokażemy Cię firmom i biurom']].map(([k, t, s]) => `<button class="toggle-row" data-act="ltoggle" data-a="${k}"><div class="grow"><b>${t}</b>${s ? `<span>${s}</span>` : ''}</div><span class="switch ${L[k] ? 'on' : ''}"></span></button>`).join('')}
@@ -1032,6 +1253,54 @@ screens.selfpreview = () => {
   </div></div>`;
 };
 
+const areaCovered = n => { const L = S.pro.listing; return Math.hypot(L.base.x - SITES[n][0], L.base.y - SITES[n][1]) * 1.3 <= L.radius; };
+const coveredDistricts = () => Object.keys(SITES).filter(areaCovered);
+function areaStatsHTML() {
+  const L = S.pro.listing; const cov = coveredDistricts();
+  const demand = cov.reduce((a, n) => a + DEMAND[n], 0); const pop = cov.reduce((a, n) => a + DPOP[n], 0);
+  const comp = PROS.filter(p => cov.some(n => serves(p, n))).length;
+  const share = demand ? demand / (comp + 1) : 0; const potential = Math.round(share * 3.2 * L.rate / 10) * 10;
+  const out = Object.keys(SITES).filter(n => !cov.includes(n)).map(n => { const st = dstats(n); const need = Math.ceil(Math.hypot(L.base.x - SITES[n][0], L.base.y - SITES[n][1]) * 1.3); return { n, need, score: DEMAND[n] / (st.sv.length + 1) / Math.max(1, need - L.radius), st }; }).filter(o => o.need <= 20).sort((a, b) => b.score - a.score)[0];
+  return `<div class="minis"><div><b class="num">${cov.length}</b><span>${dzielnic(cov.length)}</span></div><div><b class="num">${pop}</b><span>tys. mieszk.</span></div><div><b class="num">${demand}</b><span>zapytań/tydz.</span></div><div><b class="num">${comp}</b><span>konkurentów</span></div></div>
+    <div class="chips mt12">${cov.map(n => `<span class="tag blue">${n}</span>`).join('') || '<span class="small muted">Żadna dzielnica nie mieści się w zasięgu.</span>'}</div>
+    <div class="note mint mt12">${ic('trending-up', 's')}<span>Szacowany potencjał: <b>ok. ${zl(potential)} tygodniowo</b> przy Twojej stawce, jeśli odpowiesz na co najmniej połowę zapytań.</span></div>
+    ${out ? `<div class="note yellow mt8">${ic('lightbulb', 's')}<span>${out.n}: ${out.st.demand} zapytań w tygodniu i tylko ${out.st.sv.length} wykonawców. Zwiększ zasięg do ${out.need} km, żeby go objąć.</span><button class="btn sm dark" style="height:30px;flex:none" data-act="setRadius" data-a="${out.need}">${out.need} km</button></div>` : ''}`;
+}
+screens.area = () => {
+  const L = S.pro.listing;
+  const fill = n => { const st = dstats(n); return { fill: areaCovered(n) ? mixFill('cloth', 38) : mixFill('rose', Math.min(60, st.pressure * 9)) }; };
+  return `${topbar('Obszar pracy')}
+  <div class="scroll"><div class="pad">
+    <p class="small muted" style="margin:0 0 12px">Dotknij mapy, żeby przenieść bazę (skąd wyjeżdżasz). Klienci spoza zasięgu Cię nie zobaczą, chyba że przyjmujesz dalsze zlecenia z dopłatą.</p>
+    ${geoMap('area', { h: 330, center: [L.base.x, L.base.y], zoom: 12, locate: true, fill,
+      labelExtra: n => areaCovered(n) ? 'w zasięgu' : DEMAND[n] + ' zap.',
+      layer: circleSVG(L.base.x, L.base.y, L.radius, 'gm-reach strong', 'areaCircle') + (L.feeOn ? circleSVG(L.base.x, L.base.y, L.radius + 5, 'gm-reach fee', 'areaFee') : ''),
+      markers: [Object.assign(homeMark(L.base, 'Baza'), { id: 'areaBase' })],
+      onTap: (x, y) => { if (!inCity(x, y)) return; L.base = { x: Math.round(x * 10) / 10, y: Math.round(y * 10) / 10 }; buzz(8); render(); } })}
+    <div class="legend-row"><span><i style="background:${mixFill('cloth', 38)}"></i>w zasięgu</span><span><i style="background:${mixFill('rose', 50)}"></i>duży popyt, mało wykonawców</span></div>
+    <div class="field"><div class="row between"><span class="lbl" style="margin:0">Zasięg dojazdu</span><span class="big-val num" id="aradVal">${L.radius}<small>km</small></span></div>
+      <input type="range" id="arad" min="2" max="20" step="1" value="${L.radius}" data-model="pro.listing.radius" data-type="num" data-live="arad" data-rr="1" aria-label="Zasięg">
+      <div class="market"><span>2 km</span><span>baza: ${reverseGeo(L.base.x, L.base.y).street}</span><span>20 km</span></div></div>
+    <div class="card mt12" id="areaStats">${areaStatsHTML()}</div>
+    <div class="field"><span class="lbl">Dalsze zlecenia</span><div class="card" style="padding:2px 16px">
+      <button class="toggle-row" data-act="ltoggle" data-a="feeOn"><div class="grow"><b>Przyjmuję do 5 km dalej z dopłatą</b><span>Klient widzi dopłatę w wycenie przed rezerwacją</span></div><span class="switch ${L.feeOn ? 'on' : ''}"></span></button>
+      ${L.feeOn ? `<div class="chips" style="padding:4px 0 12px">${[10, 15, 20, 25, 30].map(f => `<button class="chip ${L.fee === f ? 'on' : ''}" data-act="setFee" data-a="${f}">+${f} zł</button>`).join('')}</div>` : ''}
+    </div></div>
+    <div class="sp"></div>
+  </div></div>
+  <div class="footer"><button class="btn primary block" data-act="saveArea">Zapisz obszar</button></div>`;
+};
+function dayRoute(jobs) {
+  const L = S.pro.listing; if (!jobs.length) return '';
+  const pts = [[L.base.x, L.base.y]].concat(jobs.map(j => [j.x, j.y])).concat([[L.base.x, L.base.y]]);
+  let km = 0; const legs = []; for (let i = 1; i < pts.length; i++) { const d = Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]) * 1.3; km += d; legs.push(d); }
+  const mins = legs.reduce((a, d) => a + driveMin(d), 0); const fv = fitView(pts, 340, 200);
+  return `<div class="section-h"><h3>Trasa dnia</h3><span class="tiny faint">${kmf(km)} km · ok. ${mins} min jazdy</span></div>
+    ${geoMap('route-' + S.pro.calDay, { h: 220, center: fv.center, zoom: fv.zoom, labels: false,
+      layer: `<polyline points="${pts.map(q => `${q[0] * U},${q[1] * U}`).join(' ')}" class="gm-route"/>`,
+      markers: [homeMark(L.base, 'Baza')].concat(jobs.map((j, i) => ({ x: j.x, y: j.y, html: `<span class="gstop">${i + 1}</span>` }))) })}
+    <div class="legs">${jobs.map((j, i) => `<div><span class="gstop sm">${i + 1}</span><span class="grow small">${j.time} · ${esc(j.client)}, ${j.area}</span><span class="tiny faint">${driveMin(legs[i])} min dojazdu</span></div>`).join('')}</div>`;
+}
 function proProfile() {
   const L = S.pro.listing;
   return `<div class="scroll"><div class="pad">
@@ -1155,7 +1424,7 @@ screens.offers = ({ id }) => {
 function marketCard(m) {
   const c = catById(m.cat);
   return `<div class="req">
-    <div class="head"><div class="row" style="gap:10px"><span class="avatar sm ${c.tone}">${ic(c.icon, 's')}</span><div><b class="small">${c.name}</b><div class="tiny faint">${esc(m.client)} · ${ic('star', 'xs star')} ${m.crating.toFixed(1).replace('.', ',')} · ${String(m.dist).replace('.', ',')} km</div></div></div>
+    <div class="head"><div class="row" style="gap:10px"><span class="avatar sm ${c.tone}">${ic(c.icon, 's')}</span><div><b class="small">${c.name}</b><div class="tiny faint">${esc(m.client)} · ${ic('star', 'xs star')} ${m.crating.toFixed(1).replace('.', ',')} · ${kmf(roadKm(S.pro.listing.base, m))} km od bazy</div></div></div>
       <div style="text-align:right"><div class="tiny faint">budżet</div><b class="small">${m.budget ? 'do ' + zl(m.budget) : 'otwarty'}</b></div></div>
     <p class="small muted" style="margin:12px 0 10px">${esc(m.desc)}</p>
     <div class="facts" style="margin:0 0 14px">
@@ -1182,6 +1451,18 @@ function checklistFor(o) {
   o.extras.forEach(id => { const x = EXTRAS.find(e => e.id === id); rooms.push({ name: x.name, icon: x.icon, tasks: [x.name] }); });
   const flat = []; rooms.forEach((r, ri) => r.tasks.forEach(t => flat.push({ room: ri, t }))); flat.rooms = rooms; return flat;
 }
+function trackRoute(o, p) { const a = addrById(o.addrId) || S.addresses[0]; return { a, pts: [[p.x, p.y], [(p.x + a.x) / 2 + .7, (p.y + a.y) / 2 - .5], [a.x, a.y]] }; }
+function alongRoute(pts, t) { const segs = []; let tot = 0; for (let i = 1; i < pts.length; i++) { const l = Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]); segs.push(l); tot += l; } let d = t * tot; for (let i = 0; i < segs.length; i++) { if (d <= segs[i]) { const k = d / segs[i]; return [pts[i][0] + (pts[i + 1][0] - pts[i][0]) * k, pts[i][1] + (pts[i + 1][1] - pts[i][1]) * k]; } d -= segs[i]; } return pts[pts.length - 1]; }
+function trackBlock(o, p) {
+  const { a, pts } = trackRoute(o, p); const t = o.track || 0; const pos = alongRoute(pts, t); const d = roadKm(p, a);
+  const fv = fitView(pts, 340, 200);
+  const line = pts.map(q => `${q[0] * U},${q[1] * U}`).join(' ');
+  return `<div class="mt16">${geoMap('trk-' + o.id, { h: 220, center: fv.center, zoom: fv.zoom, labels: false,
+    layer: `<polyline points="${line}" class="gm-route"/><polyline id="trkdone-${o.id}" points="${pts.slice(0, 1).concat([pos]).map(q => `${q[0] * U},${q[1] * U}`).join(' ')}" class="gm-route done"/>`,
+    markers: [homeMark(a, 'Ty'), { x: pos[0], y: pos[1], id: 'trk-' + o.id, cls: 'gcar-w', html: `<span class="gcar">${ic('car', 's')}</span>` }] })}
+    <div class="note mt8" id="eta-${o.id}">${etaText(o, p, t, d)}</div></div>`;
+}
+const etaText = (o, p, t, d) => `${ic('navigation', 's')}<span><b>${p.name.split(' ')[0]} jest w drodze</b>, dotrze za ok. ${Math.max(1, Math.round((1 - t) * driveMin(d)))} min · zostało ${kmf((1 - t) * d)} km</span>`;
 function liveBlock(o) {
   const list = checklistFor(o); const rooms = list.rooms; const done = o.prog || 0;
   const pct = Math.round(done / list.length * 100);
@@ -1224,6 +1505,9 @@ const sheets = {
     return { title: 'Filtry', body: `
       <div class="field" style="margin-top:6px"><div class="row between"><span class="lbl" style="margin:0">Maks. stawka</span><b class="num" id="maxPriceVal">${f.maxPrice >= 100 ? 'bez limitu' : f.maxPrice + ' zł/h'}</b></div>
         <input type="range" id="maxPrice" min="35" max="100" step="5" value="${f.maxPrice}" data-model="filters.maxPrice" data-type="num" data-live="maxPrice" data-rr="1" aria-label="Maksymalna stawka"></div>
+      <div class="field"><div class="row between"><span class="lbl" style="margin:0">Odległość od: ${esc(curAddr().label)}</span><b class="num" id="maxDistVal">${f.maxDist >= 15 ? 'dowolna' : 'do ' + f.maxDist + ' km'}</b></div>
+        <input type="range" id="maxDist" min="2" max="15" step="1" value="${f.maxDist}" data-model="filters.maxDist" data-type="num" data-live="maxDist" data-rr="1" aria-label="Maksymalna odległość">
+        <div class="card mt8" style="padding:2px 16px">${tog('far', 'Pokaż też spoza zasięgu', 'Wykonawcy, którzy zwykle tu nie dojeżdżają')}</div></div>
       <div class="field"><span class="lbl">Minimalna ocena</span><div class="chips">${[[0, 'Dowolna'], [4.8, '4,8+'], [4.9, '4,9+']].map(([v, l]) => `<button class="chip ${f.minRating === v ? 'on' : ''}" data-act="setF" data-a="minRating" data-b="${v}">${l}</button>`).join('')}</div></div>
       <div class="field"><span class="lbl">Bezpieczeństwo</span><div class="card" style="padding:2px 16px">${tog('verified', 'Zweryfikowana tożsamość')}${tog('insured', 'Polisa OC', 'Szkody pokrywa ubezpieczyciel')}</div></div>
       <div class="field"><span class="lbl">Wygoda</span><div class="card" style="padding:2px 16px">${tog('today', 'Wolne jeszcze dziś')}${tog('supplies', 'Przynosi własne środki')}${tog('eco', 'Ekologiczne środki')}${tog('pets', 'Zwierzęta OK')}${tog('invoice', 'Faktura VAT')}</div></div>`,
@@ -1234,6 +1518,19 @@ const sheets = {
     return { title: 'Odwołać wizytę?', body: `<p class="muted" style="margin-top:0">${free ? 'Do wizyty zostało ponad 24 h, więc odwołanie jest bezpłatne. Zablokowane pieniądze wrócą od razu.' : 'Do wizyty zostało mniej niż 24 h. Wykonawca otrzyma 50% kwoty jako rekompensatę za zarezerwowany czas.'}</p>
       <div class="field"><span class="lbl">Powód</span><div class="chips">${['Zmiana planów', 'Znalazłem kogoś innego', 'Termin nie pasuje', 'Inny'].map((t, i) => `<button class="chip ${i === 0 ? 'on' : ''}" data-act="pickChip">${t}</button>`).join('')}</div></div>`,
       foot: `<button class="btn line" data-act="closeSheet">Zostaw</button><button class="btn danger" style="flex:1" data-act="cancelOrder" data-a="${id}">Odwołaj ${free ? 'bezpłatnie' : 'za ' + zl(o.total / 2)}</button>` };
+  },
+  district(n) {
+    const st = dstats(n); const names = Object.keys(SITES); const cityAvg = Math.round(names.reduce((x, k) => x + dstats(k).avg, 0) / names.length);
+    const top = st.sv.slice().sort((a, b) => b.rating - a.rating).slice(0, 3);
+    const lvl = st.pressure > 6 ? ['Bardzo duży', 'rose'] : st.pressure > 3 ? ['Duży', 'yellow'] : ['Umiarkowany', 'mint'];
+    return { title: n, body: `<div class="small muted" style="margin-top:-4px">${st.pop} tys. mieszkańców · ${st.demand} zapytań o sprzątanie w tym tygodniu</div>
+      <div class="minis mt12"><div><b class="num">${st.sv.length}</b><span>wykonawców</span></div><div><b class="num">${st.avg} zł</b><span>${st.avg >= cityAvg ? '+' : ''}${st.avg - cityAvg} vs miasto</span></div><div><b class="num">${st.free}</b><span>wolne dziś</span></div></div>
+      <div class="row between mt16"><span class="small">Popyt względem liczby wykonawców</span><span class="tag ${lvl[1]}">${lvl[0]}</span></div>
+      <div class="meter"><i style="width:${Math.min(100, st.pressure * 12)}%;background:var(--${lvl[1] === 'yellow' ? 'glove' : lvl[1]})"></i></div>
+      ${DTOP[n] ? `<div class="small muted mt12">Najczęściej zamawiane: ${DTOP[n].map(c => catById(c).name.toLowerCase()).join(', ')}</div>` : ''}
+      <div class="lbl small mt16" style="font-weight:650">Najwyżej oceniani tutaj</div>
+      <div class="stack mt8">${top.map(p => `<button class="opt" data-act="openPro" data-a="${p.id}">${avatar(p, 'sm')}<div class="grow"><b class="small">${esc(p.name)}</b><div class="tiny faint">${stars(p.rating)} · ${p.rate} zł/h · baza: ${p.area}</div></div>${ic('chevron-right', 's')}</button>`).join('') || '<div class="small muted">Nikt jeszcze tu nie dojeżdża.</div>'}</div>`,
+      foot: `<button class="btn line" data-act="closeSheet">Zamknij</button><button class="btn dark" style="flex:1" data-act="districtSearch" data-a="${n}">Pokaż ${st.sv.length} wykonawców</button>` };
   },
   pickOffer(arg) {
     const [pid, oid] = arg.split('|'); const x = S.posts.find(y => y.id === pid); const o = x.offers.find(y => y.id === oid); const p = proById(o.pro);
@@ -1292,7 +1589,7 @@ function render() {
 }
 
 /* ================= interakcje dotykowe ================= */
-function afterRender() { initGrime(); initBA(); document.querySelectorAll('#app .slide').forEach(initSlide); initSheetDrag(); }
+function afterRender() { initMaps(); initGrime(); initBA(); document.querySelectorAll('#app .slide').forEach(initSlide); initSheetDrag(); }
 
 // szyba: brud na canvasie, ścierany palcem (destination-out)
 function initGrime() {
@@ -1390,7 +1687,7 @@ const A = {
   setCat(id) { S.filters.cat = id || null; render(); },
   toggleF(k) { S.filters[k] = !S.filters[k]; render(); },
   setF(k, v) { S.filters[k] = Number(v); render(); },
-  clearFilters() { Object.assign(S.filters, { maxPrice: 100, minRating: 0, verified: false, insured: false, supplies: false, eco: false, pets: false, invoice: false, today: false, q: '' }); render(); },
+  clearFilters() { Object.assign(S.filters, { maxPrice: 100, minRating: 0, verified: false, insured: false, supplies: false, eco: false, pets: false, invoice: false, today: false, q: '', maxDist: 15, far: false, district: null, bounds: null }); render(); },
   sheet(name, p) {
     if (name === 'sendOffer') { const m = S.pro.market.find(y => y.id === p); S.pro.offerDraft = { price: m.budget ? Math.round(m.budget * 0.85 / 10) * 10 : 300, day: 2, msg: `Dzień dobry, chętnie się tym zajmę. Przyjadę z własnym sprzętem i środkami. Pozdrawiam, ${S.pro.listing.name.split(' ')[0]}` }; }
     S.sheet = { name, p }; render();
@@ -1411,7 +1708,7 @@ const A = {
     sl.classList.add('busy'); sl.querySelector('.slide-label').textContent = 'Potwierdź w aplikacji banku…';
     setTimeout(() => {
       const b = S.booking; const p = proById(b.pro); const e = estimate(b, p);
-      const o = { id: 'o' + Date.now(), pro: b.pro, service: b.service, date: b.day, time: b.time, h: e.h, m2: b.m2, total: Math.round(e.total * 100) / 100, freq: b.freq, status: 'pending', extras: b.extras.slice(), addr: b.addr === 'home' ? 'ul. Puławska 112/14' : 'ul. Odyńca 27/3', pay: b.pay === 'blik' ? 'BLIK' : b.pay === 'card' ? 'Karta' : 'Faktura' };
+      const o = { id: 'o' + Date.now(), pro: b.pro, service: b.service, date: b.day, time: b.time, h: e.h, m2: b.m2, total: Math.round(e.total * 100) / 100, freq: b.freq, status: 'pending', extras: b.extras.slice(), addr: (addrById(b.addr) || curAddr()).street, addrId: b.addr, pay: b.pay === 'blik' ? 'BLIK' : b.pay === 'card' ? 'Karta' : 'Faktura' };
       S.orders.push(o); S.booking = null;
       S.stacks[stackKey()] = [{ name: S.tab }, { name: 'booked', p: { id: o.id } }]; anim = 'enter'; render();
       setTimeout(() => { if (o.status === 'pending') { o.status = 'confirmed'; toast(`${p.name.split(' ')[0]} potwierdza rezerwację`, 'badge-check'); render(); } }, 4000);
@@ -1425,6 +1722,7 @@ const A = {
     const wasProgress = o.status === 'progress';
     o.status = flow[Math.min(flow.length - 1, flow.indexOf(o.status) + 1)];
     if (o.status === 'progress') { o.prog = 0; o.started = nowTime(); }
+    if (o.status === 'enroute') o.track = 0;
     if (o.status === 'done') { if (wasProgress) o.prog = checklistFor(o).length; finishOrder(o); }
     render();
   },
@@ -1446,7 +1744,7 @@ const A = {
   acceptReq(id) {
     const P = S.pro; const r = P.requests.find(x => x.id === id);
     P.requests = P.requests.filter(x => x.id !== id);
-    P.jobs.push({ day: r.day, time: r.time, end: endTime(r.time, r.h), client: r.client, service: r.service, area: r.area.split(',')[0], pay: r.pay, tone: 'm' });
+    P.jobs.push({ day: r.day, time: r.time, end: endTime(r.time, r.h), client: r.client, service: r.service, area: r.area.split(',')[0], pay: r.pay, tone: 'm', x: r.x, y: r.y });
     toast(`Przyjęte: ${dayLabel(addDays(r.day))}, ${r.time}. Dodano do grafiku`, 'calendar-check'); render();
   },
   declineReq(id) {
@@ -1465,7 +1763,26 @@ const A = {
   publish() { S.pro.listing.published = true; toast('Ogłoszenie zapisane i widoczne dla klientów', 'megaphone'); render(); },
   previewPro() { go('selfpreview'); },
 
-  searchView(v) { S.searchView = v; render(); },
+  searchView(v) { S.searchView = v; S.mapMoved = false; render(); },
+  searchArea() { const v = S.maps.search; const hw = v.w / 2 / v.z, hh = v.h / 2 / v.z; S.filters.bounds = [v.x - hw, v.y - hh, v.x + hw, v.y + hh]; S.filters.district = null; S.mapMoved = false; buzz(8); toast(`W tym obszarze: ${filteredPros().length} wykonawców`, 'scan-search'); render(); },
+  clearGeo(k) { S.filters[k] = null; render(); },
+  openLocation() { delete S.maps.loc; S.newAddrLabel = 'Dom'; S.newAddrNote = ''; go('location'); },
+  openExplore() { go('explore'); },
+  exploreLayer(k) { S.exploreLayer = k; render(); },
+  districtSearch(n) { S.sheet = null; S.filters.district = n; S.filters.bounds = null; S.searchView = 'list'; go('search'); },
+  pickAddr(id) { S.addrId = id; updateGeo(); const ad = curAddr(); toast(`Szukamy dla: ${ad.label}, ${districtAt(ad.x, ad.y)}`, 'map-pin'); afterAddrChange(id); },
+  newAddrLabel(l) { S.newAddrLabel = l; render(); },
+  useGps() { S.maps.loc = { x: 12.7, y: 10.1, z: 40 }; toast('Lokalizacja symulowana: Centrum', 'locate-fixed'); render(); },
+  locPick(xy) { const [x, y] = xy.split(',').map(Number); S.maps.loc = { x, y, z: 44 }; const q = document.getElementById('locq'); if (q) q.value = ''; render(); },
+  saveAddr() {
+    const v = S.maps.loc; if (!v || !inCity(v.x, v.y)) return; const rg = reverseGeo(v.x, v.y);
+    const ad = { id: 'a' + Date.now(), label: S.newAddrLabel || 'Nowy adres', street: rg.street, x: Math.round(v.x * 100) / 100, y: Math.round(v.y * 100) / 100, note: S.newAddrNote || '' };
+    S.addresses.push(ad); S.addrId = ad.id; updateGeo(); buzz([8, 30, 8]); toast(`Zapisano: ${ad.street}, ${rg.district}`, 'map-pin-plus'); afterAddrChange(ad.id);
+  },
+  setRadius(r) { S.pro.listing.radius = Number(r); buzz(8); render(); },
+  setFee(f) { S.pro.listing.fee = Number(f); render(); },
+  openArea() { delete S.maps.area; go('area'); },
+  saveArea() { const L = S.pro.listing; L.areas = coveredDistricts(); toast(`Zasięg zapisany: ${L.radius} km, ${L.areas.length} ${dzielnic(L.areas.length)}`, 'map'); back(); },
   mapSel(id) { S.mapSel = id; buzz(8); render(); },
   copyCode() {
     const done = () => toast('Skopiowano kod SZYBA20', 'copy');
@@ -1502,10 +1819,18 @@ const A = {
   resetDemo() { const theme = store.get('theme', null); S = seed(); S.stacks = {}; S.sheet = null; store.set('state', {}); store.set('theme', theme); toast('Dane demo przywrócone', 'rotate-ccw'); render(); }
 };
 let lastDeclined = null;
+function afterAddrChange(id) {
+  const st = stack(); const prev = st[st.length - 2];
+  if (prev && prev.name === 'book' && S.booking) S.booking.addr = id;
+  S.mapMoved = false; delete S.maps.search; delete S.maps.explore;
+  if (st.length > 1) back(); else render();
+}
 
 /* ================= events ================= */
 document.addEventListener('click', e => {
   const el = e.target.closest('[data-act]'); if (!el) return;
+  if (Date.now() - mapDragAt < 250 && el.closest('.gmap') && !el.closest('.gm-over')) return;
+  if (Date.now() - mapTapAt < 450 && el.classList.contains('sheet-bg')) return; // syntetyczny klik po stuknięciu w mapę
   const fn = A[el.dataset.act]; if (!fn) return;
   e.preventDefault(); e.stopPropagation();
   fn(el.dataset.a, el.dataset.b, el);
@@ -1515,7 +1840,7 @@ document.addEventListener('keydown', e => {
 });
 function setPath(path, val) { const ks = path.split('.'); let o = S; while (ks.length > 1) o = o[ks.shift()]; o[ks[0]] = val; }
 document.addEventListener('input', e => {
-  const el = e.target; const path = el.dataset.model; if (!path) return;
+  const el = e.target; const path = el.dataset.model; if (!path) { if (el.dataset.live) liveUpdate(el.dataset.live); return; }
   let v = el.value; if (el.dataset.type === 'num') v = Number(v);
   if (el.dataset.live === 'blik') { v = v.replace(/\D/g, '').slice(0, 6); el.value = v; }
   setPath(path, v);
@@ -1530,6 +1855,7 @@ document.addEventListener('change', e => {
 document.addEventListener('submit', e => {
   e.preventDefault();
   const f = e.target; const kind = f.dataset.form;
+  if (kind === 'loc') { const first = document.querySelector('#locSug .sug'); if (first) first.click(); return; }
   if (kind === 'search' || kind === 'search2') { S.filters.q = f.q.value; if (kind === 'search') { S.filters.cat = null; go('search'); } else render(); }
   if (kind === 'chat') { const v = f.m.value; f.m.value = ''; sendMsg(f.dataset.id, v); setTimeout(() => { const i = document.getElementById('chatInput'); i && i.focus(); }, 0); }
 });
@@ -1547,6 +1873,19 @@ function liveUpdate(kind) {
   if (kind === 'pm2') { const v = document.getElementById('pm2val'); if (v) v.innerHTML = `${S.draft.m2}<small>m²</small>`; }
   if (kind === 'pbud') { const v = document.getElementById('pbudget'); if (v) v.textContent = S.draft.budget ? 'do ' + zl(S.draft.budget) : 'nie podaję'; }
   if (kind === 'ofp') { const d = S.pro.offerDraft; document.getElementById('ofPrice').innerHTML = `${d.price}<small>zł</small>`; document.getElementById('ofNet').textContent = 'Dla Ciebie po prowizji: ' + zl(d.price * 0.88); }
+  if (kind === 'maxDist') { const v = document.getElementById('maxDistVal'); if (v) v.textContent = S.filters.maxDist >= 15 ? 'dowolna' : 'do ' + S.filters.maxDist + ' km'; }
+  if (kind === 'arad') {
+    const L = S.pro.listing; document.getElementById('aradVal').innerHTML = `${L.radius}<small>km</small>`;
+    const c = document.getElementById('areaCircle'); if (c) c.setAttribute('r', L.radius * U); const f = document.getElementById('areaFee'); if (f) f.setAttribute('r', (L.radius + 5) * U);
+    document.querySelectorAll('#gm-area .gm-d').forEach(el => { const n = el.dataset.d; el.style.fill = areaCovered(n) ? mixFill('cloth', 38) : mixFill('rose', Math.min(60, dstats(n).pressure * 9)); });
+    document.querySelectorAll('#gm-area .gm-label').forEach(el => { const n = el.firstChild.textContent; const em = el.querySelector('em'); if (em && SITES[n]) em.textContent = areaCovered(n) ? 'w zasięgu' : DEMAND[n] + ' zap.'; });
+    document.getElementById('areaStats').innerHTML = areaStatsHTML();
+  }
+  if (kind === 'locq') {
+    const q = (document.getElementById('locq').value || '').trim().toLowerCase(); const box = document.getElementById('locSug'); if (!box) return;
+    const hits = q.length < 2 ? [] : STREETS.filter(st => st[0].toLowerCase().includes(q)).slice(0, 5);
+    box.innerHTML = hits.map(st => `<button class="sug" data-act="locPick" data-a="${st[1]},${st[2]}">${ic('map-pin', 's')}<span class="grow">${st[0]}</span><span class="tiny faint">${districtAt(st[1], st[2])}</span></button>`).join('') || (q.length >= 2 ? '<div class="tiny faint" style="padding:8px 4px">Brak takiej ulicy w makiecie. Spróbuj: Grochowska, Targowa, Wolska.</div>' : '');
+  }
   if (kind === 'maxPrice') { const v = document.getElementById('maxPriceVal'); if (v) v.textContent = S.filters.maxPrice >= 100 ? 'bez limitu' : S.filters.maxPrice + ' zł/h'; }
   if (kind === 'rate') {
     const L = S.pro.listing; document.getElementById('rateVal').innerHTML = `${L.rate}<small>zł/h</small>`;
@@ -1593,6 +1932,15 @@ setInterval(() => {
       x.justAdded = of.id;
       if (t.name === 'orders' || (t.name === 'offers' && t.p.id === x.id)) dirty = true;
     }
+  });
+  S.orders.forEach(o => {
+    if (o.status !== 'enroute') return;
+    const p = proById(o.pro); o.track = Math.min(1, (o.track || 0) + .06);
+    const m = mapInst('trk-' + o.id);
+    if (m) { const { a, pts } = trackRoute(o, p); const pos = alongRoute(pts, o.track); const car = document.getElementById('trk-' + o.id); if (car) m.place(car, pos[0], pos[1]);
+      const done = document.getElementById('trkdone-' + o.id); if (done) done.setAttribute('points', pts.filter((q, i) => i === 0 || (i === 1 && o.track > .5)).concat([pos]).map(q => `${q[0] * U},${q[1] * U}`).join(' '));
+      const et = document.getElementById('eta-' + o.id); if (et) et.innerHTML = etaText(o, p, o.track, roadKm(p, a)); }
+    if (o.track >= 1) { o.status = 'progress'; o.prog = 0; o.started = nowTime(); toast(`${p.name.split(' ')[0]} jest na miejscu`, 'map-pin'); if (t.name === 'order' && t.p.id === o.id) dirty = true; }
   });
   S.orders.forEach(o => {
     if (o.status !== 'progress') return;
